@@ -20,6 +20,7 @@ type AudioSession = {
   isExternalStream?: boolean; // true wenn Stream von außen kommt (Tab Capture)
   commitTimer?: ReturnType<typeof setInterval> | null;
   hasAudioSinceCommit?: boolean;
+  lastLoudAt?: number;
 };
 
 const floatToInt16Base64 = (floatData: Float32Array) => {
@@ -153,16 +154,16 @@ export function useDualRealtime() {
             ? {
                 // Mic: VAD aktiviert für natürliche Sprechpausen
                 type: "server_vad",
-                threshold: 0.3,
-                prefix_padding_ms: 500,
-                silence_duration_ms: 300,
+                threshold: 0.32,
+                prefix_padding_ms: 450,
+                silence_duration_ms: 400,
               }
             : {
                 // Speaker: VAD etwas weniger empfindlich, mehr Kontext
                 type: "server_vad",
-                threshold: 0.2,
-                prefix_padding_ms: 800,
-                silence_duration_ms: 1200,
+                threshold: 0.25,
+                prefix_padding_ms: 900,
+                silence_duration_ms: 1400,
               },
         },
       };
@@ -215,6 +216,8 @@ export function useDualRealtime() {
       
       session.current.stream = stream;
       session.current.isExternalStream = isExternalStream;
+      session.current.hasAudioSinceCommit = false;
+      session.current.lastLoudAt = undefined;
       
       // AudioContext mit fixer 24 kHz, damit der Stream zur API passt
       // (Chrome resampelt eingehende 48 kHz Tab-Audio entsprechend runter)
@@ -222,7 +225,11 @@ export function useDualRealtime() {
       console.log(`[${source.toUpperCase()}] AudioContext sampleRate: ${ctx.sampleRate}`);
       session.current.audioCtx = ctx;
 
-      await ctx.audioWorklet.addModule("/worklets/pcm16-processor.js?v=" + Date.now());
+      const workletUrl = new URL(
+        `${import.meta.env.BASE_URL || "/"}worklets/pcm16-processor.js?v=${Date.now()}`,
+        window.location.origin,
+      ).toString();
+      await ctx.audioWorklet.addModule(workletUrl);
       
       const audioSource = ctx.createMediaStreamSource(stream);
       session.current.source = audioSource;
@@ -259,7 +266,7 @@ export function useDualRealtime() {
 
       // Regelmäßige Commits schicken, damit der Server sehr kurze Abschnitte verarbeitet
       // und wir Zeile für Zeile Updates bekommen (auch wenn kein Silence erkannt wird).
-      const commitIntervalMs = source === "speaker" ? 2000 : 1500;
+      const commitIntervalMs = source === "speaker" ? 2600 : 1800;
       session.current.commitTimer = setInterval(() => {
         if (
           session.current.ws?.readyState === WebSocket.OPEN &&
@@ -288,11 +295,13 @@ export function useDualRealtime() {
         }
         const rms = Math.sqrt(sum / floatData.length);
         
-        if (rms < 0.001) {
+        const loudThreshold = 0.002;
+        if (rms < loudThreshold) {
           silentFrames++;
         } else {
           loudFrames++;
           session.current.hasAudioSinceCommit = true;
+          session.current.lastLoudAt = Date.now();
         }
         
         // Alle 50 Frames loggen
@@ -316,6 +325,7 @@ export function useDualRealtime() {
       return true;
     } catch (err) {
       console.error(`[${source.toUpperCase()}] Audio Error:`, err);
+      setError(`${source}: Audio/Worklet-Fehler ${err instanceof Error ? err.message : String(err)}`);
       return false;
     }
   };
