@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { DeviceSelector } from "./components/DeviceSelector";
-import { useRealtime } from "./hooks/useRealtime";
+import type { SpeakerSource } from "./components/DeviceSelector";
+import { useDualRealtime } from "./hooks/useDualRealtime";
+import { useTabCapture } from "./hooks/useTabCapture";
 
 const apiKeyFromEnv = (import.meta.env.VITE_OPENAI_API_KEY as string | undefined) || "";
 
@@ -18,21 +20,105 @@ function statusLabel(status: string) {
 }
 
 export default function App() {
-  const [deviceId, setDeviceId] = useState<string>();
+  const [micDeviceId, setMicDeviceId] = useState<string>();
+  const [speakerDeviceId, setSpeakerDeviceId] = useState<string>();
+  const [speakerSource, setSpeakerSource] = useState<SpeakerSource>("none");
+  const [autoScroll, setAutoScroll] = useState(true);
+  const transcriptBoxRef = useRef<HTMLDivElement>(null);
+  
+  // Tab Capture Hook
+  const tabCapture = useTabCapture();
+  
   const {
     status,
     error,
-    transcript,
+    segments,
     start,
     stop,
     resetTranscript,
     stats,
-  } = useRealtime();
+  } = useDualRealtime();
+
+  const handleDeviceSelect = useCallback((micId?: string, speakerId?: string) => {
+    setMicDeviceId(micId);
+    setSpeakerDeviceId(speakerId);
+  }, []);
+
+  const handleSpeakerSourceChange = useCallback((source: SpeakerSource) => {
+    setSpeakerSource(source);
+    // Tab Capture stoppen wenn auf andere Quelle gewechselt wird
+    if (source !== "tab" && tabCapture.state === "capturing") {
+      tabCapture.stopCapture();
+    }
+  }, [tabCapture]);
+
+  // Cleanup Tab Capture wenn Transcription gestoppt wird
+  useEffect(() => {
+    if (status === "idle" && tabCapture.state === "capturing") {
+      tabCapture.stopCapture();
+    }
+  }, [status, tabCapture]);
+
+  // Auto-Scroll nur wenn User nicht manuell hochgescrollt hat
+  useEffect(() => {
+    if (autoScroll && transcriptBoxRef.current) {
+      transcriptBoxRef.current.scrollTop = transcriptBoxRef.current.scrollHeight;
+    }
+  }, [segments, autoScroll]);
+
+  // Scroll-Handler: Auto-Scroll deaktivieren wenn User hochscrollt
+  const handleScroll = () => {
+    if (transcriptBoxRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = transcriptBoxRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+      setAutoScroll(isAtBottom);
+    }
+  };
+
+  // Start Handler - holt Tab Capture Stream wenn nötig
+  const handleStart = async () => {
+    let speakerInput: string | MediaStream | undefined;
+
+    if (speakerSource === "tab") {
+      // Tab Capture: Erst Stream holen, dann starten
+      const stream = await tabCapture.startCapture();
+      if (!stream) {
+        // User hat abgebrochen oder Fehler
+        return;
+      }
+      speakerInput = stream;
+    } else if (speakerSource === "device" && speakerDeviceId) {
+      // VB-Cable Fallback: Device ID nutzen
+      speakerInput = speakerDeviceId;
+    }
+
+    start(apiKeyFromEnv, micDeviceId, speakerInput);
+  };
+
+  // Stop Handler - stoppt auch Tab Capture
+  const handleStop = () => {
+    stop();
+    if (tabCapture.state === "capturing") {
+      tabCapture.stopCapture();
+    }
+  };
+
+  // Segmente nach Timestamp sortieren, dann final/live trennen
+  const sortedSegments = useMemo(() => 
+    [...segments].sort((a, b) => a.timestamp - b.timestamp),
+    [segments]
+  );
+  const finalSegments = sortedSegments.filter((s) => s.isFinal);
+  const liveSegments = sortedSegments.filter((s) => !s.isFinal);
 
   const mergedTranscript = useMemo(
-    () => transcript.map((t) => t.text).join(""),
-    [transcript],
+    () => finalSegments.map((s) => `[${s.source.toUpperCase()}] ${s.text}`).join("\n"),
+    [finalSegments],
   );
+
+  // Can start wenn mindestens eine Quelle gewählt
+  const hasSpeakerSource = speakerSource === "tab" || (speakerSource === "device" && speakerDeviceId);
+  const canStart = (micDeviceId || hasSpeakerSource) && status !== "running" && status !== "connecting";
 
   return (
     <div className="layout">
@@ -41,8 +127,8 @@ export default function App() {
           <p className="eyebrow">React/Vite x OpenAI Realtime</p>
           <h1>Live-Transkription</h1>
           <p className="muted">
-            Mikro + Systemsound via virtuelles Device einspeisen, per WebSocket an
-            den intent=transcription Endpoint schicken und Text live anzeigen.
+            Mikro + Tab-Audio direkt erfassen und per WebSocket an
+            den intent=transcription Endpoint schicken. Kein VB-Cable nötig!
           </p>
         </div>
         <div className={`status-pill status-${status}`}>
@@ -57,25 +143,24 @@ export default function App() {
             OpenAI API Key wird aus <code>.env.local</code> gelesen. Kein Key im UI nötig.
           </div>
 
-          <DeviceSelector onSelect={setDeviceId} />
+          <DeviceSelector 
+            onSelect={handleDeviceSelect} 
+            onSpeakerSourceChange={handleSpeakerSourceChange}
+            tabCaptureActive={tabCapture.state === "capturing"}
+            tabCaptureError={tabCapture.error}
+          />
 
           <div className="buttons">
             <button
-              onClick={() => start(apiKeyFromEnv, deviceId)}
-              disabled={!apiKeyFromEnv || status === "running" || status === "connecting"}
+              onClick={handleStart}
+              disabled={!apiKeyFromEnv || !canStart}
             >
               Start
             </button>
-            <button onClick={() => stop()}>Stop</button>
+            <button onClick={handleStop}>Stop</button>
             <button onClick={() => resetTranscript()}>Leeren</button>
           </div>
           {error && <div className="error">{error}</div>}
-          <div className="hint">
-            Tipp: Wenn die Verbindung nicht aufgebaut wird, pruefe Mixed
-            Content/HTTPS und ob das virtuelle Audio-Device als Standardaufnahme
-            gesetzt ist. Browser kann keine Auth-Header im WS-Handshake senden;
-            Query-Key nur in gesicherten Dev-Umgebungen nutzen.
-          </div>
         </div>
       </section>
 
@@ -86,17 +171,31 @@ export default function App() {
             <h2>Livetext</h2>
           </div>
           <div className="muted" style={{ textAlign: "right", fontSize: 13 }}>
-            Frames gesendet: {stats.framesSent} | Bytes gesendet: {stats.bytesSent} | Letztes Event:{" "}
-            {stats.lastEventType || "—"}
+            🎤 {stats.micFrames} | 🔊 {stats.speakerFrames} | {stats.lastEventType || "—"}
+            {!autoScroll && <span style={{ color: "#fbbf24", marginLeft: 8 }}>⬇ Neue Updates</span>}
           </div>
         </div>
-        <div className="transcript-box">
-          {transcript.length === 0 && (
-            <p className="muted">Noch keine Eingaben. Starte die Transkription.</p>
+        <div 
+          className="transcript-box" 
+          ref={transcriptBoxRef}
+          onScroll={handleScroll}
+        >
+          {segments.length === 0 && (
+            <p className="muted">Noch keine Eingaben. Wähle mindestens eine Audio-Quelle und starte.</p>
           )}
-          {transcript.map((t) => (
-            <div key={t.id} className={t.isFinal ? "final-line" : "live-line"}>
-              {t.text}
+          {/* Finalisierte Segmente (fertige Sätze) mit Source-Label */}
+          {finalSegments.map((s) => (
+            <div key={s.itemId} className={`final-line source-${s.source}`}>
+              <span className="source-tag">{s.source === "mic" ? "🎤" : "🔊"}</span>
+              {s.text}
+            </div>
+          ))}
+          {/* Live-Segmente (aktuell gesprochene Wörter) - kann mehrere geben */}
+          {liveSegments.map((s) => (
+            <div key={s.itemId} className={`live-line source-${s.source}`}>
+              <span className="source-tag">{s.source === "mic" ? "🎤" : "🔊"}</span>
+              {s.text}
+              <span className="cursor">|</span>
             </div>
           ))}
         </div>

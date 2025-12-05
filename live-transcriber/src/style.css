@@ -192,13 +192,142 @@ button:disabled {
 }
 
 .live-line {
-  color: #e2e8f0;
-  opacity: 0.7;
+  color: #7dd3fc;
+  font-style: italic;
+  opacity: 0.9;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.live-line .cursor {
+  animation: blink 1s step-end infinite;
+  color: #22d3ee;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
 .final-line {
   color: #e2e8f0;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(31, 41, 55, 0.5);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.source-tag {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.source-mic .source-tag {
+  filter: hue-rotate(0deg);
+}
+
+.source-speaker .source-tag {
+  filter: hue-rotate(180deg);
+}
+
+/* Mic-Zeilen leicht anders einfärben */
+.final-line.source-mic {
+  border-left: 3px solid #22d3ee;
+  padding-left: 8px;
+}
+
+.final-line.source-speaker {
+  border-left: 3px solid #a78bfa;
+  padding-left: 8px;
+}
+
+.live-line.source-mic {
+  color: #7dd3fc;
+}
+
+.live-line.source-speaker {
+  color: #c4b5fd;
+}
+
+.device-selectors {
+  display: grid;
+  gap: 12px;
+}
+
+/* Speaker Source Selector */
+.speaker-source-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid #1f2937;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.radio-option:hover {
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.radio-option:has(input:checked) {
+  border-color: #22d3ee;
+  background: rgba(34, 211, 238, 0.1);
+}
+
+.radio-option input[type="radio"] {
+  accent-color: #22d3ee;
+  width: 16px;
+  height: 16px;
+}
+
+.badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
   font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.badge.recommended {
+  background: linear-gradient(135deg, #22d3ee, #06b6d4);
+  color: #0f172a;
+}
+
+/* Tab Capture Info */
+.tab-capture-info {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid #1f2937;
+}
+
+.tab-capture-info .success {
+  color: #22c55e;
+  margin: 0;
+}
+
+.tab-capture-info .hint {
+  margin: 0;
+  font-size: 13px;
+}
+
+.tab-capture-info .error {
+  margin: 4px 0 0;
+  padding: 8px;
+  font-size: 13px;
 }
 
 details {

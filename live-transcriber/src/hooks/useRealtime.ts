@@ -1,17 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 type Status = "idle" | "connecting" | "running" | "error";
 
-export type TranscriptItem = {
-  id: string;
+export type TranscriptSegment = {
+  itemId: string;
   text: string;
   isFinal: boolean;
 };
-
-const makeId = () =>
-  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : `id-${Date.now()}-${Math.random()}`;
 
 const floatToInt16Base64 = (floatData: Float32Array) => {
   const int16 = new Int16Array(floatData.length);
@@ -28,7 +23,8 @@ const floatToInt16Base64 = (floatData: Float32Array) => {
 export function useRealtime() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<TranscriptItem[]>([]);
+  // Segmente: jedes Segment hat eine itemId, gesammelten Text, und isFinal Flag
+  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [framesSent, setFramesSent] = useState<number>(0);
   const [bytesSent, setBytesSent] = useState<number>(0);
   const [lastEventType, setLastEventType] = useState<string | null>(null);
@@ -40,74 +36,72 @@ export function useRealtime() {
 
   useEffect(() => () => stop(), []);
 
+  // Delta zu einem Segment hinzufügen (oder neues erstellen)
+  const addDelta = useCallback((itemId: string, delta: string) => {
+    setSegments((prev) => {
+      const idx = prev.findIndex((s) => s.itemId === itemId);
+      if (idx >= 0) {
+        // Existierendes Segment updaten
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], text: updated[idx].text + delta };
+        return updated;
+      } else {
+        // Neues Segment erstellen
+        return [...prev, { itemId, text: delta, isFinal: false }];
+      }
+    });
+  }, []);
+
+  // Segment finalisieren mit komplettem Text
+  const finalize = useCallback((itemId: string, finalText: string) => {
+    setSegments((prev) => {
+      const idx = prev.findIndex((s) => s.itemId === itemId);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], text: finalText, isFinal: true };
+        return updated;
+      } else {
+        // Falls kein Delta kam, direkt als final hinzufügen
+        return [...prev, { itemId, text: finalText, isFinal: true }];
+      }
+    });
+  }, []);
+
   const handleMessage = (evt: MessageEvent) => {
     try {
       const msg = JSON.parse(evt.data);
       console.log("[WS RECV]", msg.type, JSON.stringify(msg, null, 2));
       setLastEventType(msg.type || null);
 
+      // Delta-Events: Text zu bestehendem Segment hinzufügen
+      if (
+        msg.type === "conversation.item.input_audio_transcription.delta" &&
+        msg.delta &&
+        msg.item_id
+      ) {
+        addDelta(msg.item_id, msg.delta);
+        return;
+      }
+
+      // Completed-Event: Segment finalisieren
+      if (
+        msg.type === "conversation.item.input_audio_transcription.completed" &&
+        msg.transcript &&
+        msg.item_id
+      ) {
+        finalize(msg.item_id, msg.transcript);
+        return;
+      }
+
+      // Fallback für andere Event-Typen (falls API anders antwortet)
       if (msg.type === "transcription.output_text.delta" && msg.delta) {
-        setTranscript((prev) => [
-          ...prev,
-          { id: makeId(), text: msg.delta, isFinal: false },
-        ]);
+        const itemId = msg.item_id || `fallback-${Date.now()}`;
+        addDelta(itemId, msg.delta);
         return;
       }
       if (msg.type === "transcription.output_text.done" && msg.text) {
-        setTranscript((prev) => [
-          ...prev,
-          { id: makeId(), text: msg.text, isFinal: true },
-        ]);
-        return;
-      }
-
-      if (
-        msg.type === "conversation.item.input_audio_transcription.delta" &&
-        msg.delta
-      ) {
-        setTranscript((prev) => [
-          ...prev,
-          { id: makeId(), text: msg.delta, isFinal: false },
-        ]);
-        return;
-      }
-      if (
-        msg.type === "conversation.item.input_audio_transcription.completed" &&
-        msg.transcript
-      ) {
-        setTranscript((prev) => [
-          ...prev,
-          { id: makeId(), text: msg.transcript, isFinal: true },
-        ]);
-        return;
-      }
-
-      if (msg.type === "response.output_text.delta" && msg.delta) {
-        setTranscript((prev) => [
-          ...prev,
-          { id: makeId(), text: msg.delta, isFinal: false },
-        ]);
-        return;
-      }
-      if (msg.type === "response.output_text.done" && msg.text) {
-        setTranscript((prev) => [
-          ...prev,
-          { id: makeId(), text: msg.text, isFinal: true },
-        ]);
-        return;
-      }
-
-      if (msg.type === "conversation.item.created" && msg.item?.content) {
-        const textContent = msg.item.content.find(
-          (c: any) =>
-            c.transcript || c.text || c.type === "input_audio" || c.type === "text",
-        );
-        if (textContent?.transcript) {
-          setTranscript((prev) => [
-            ...prev,
-            { id: makeId(), text: textContent.transcript, isFinal: true },
-          ]);
-        }
+        const itemId = msg.item_id || `fallback-${Date.now()}`;
+        finalize(itemId, msg.text);
         return;
       }
 
@@ -166,7 +160,7 @@ export function useRealtime() {
     }
     if (status === "running" || status === "connecting") return;
     setError(null);
-    setTranscript([]);
+    setSegments([]);
     setFramesSent(0);
     setBytesSent(0);
     setLastEventType(null);
@@ -240,10 +234,10 @@ export function useRealtime() {
   return {
     status,
     error,
-    transcript,
+    segments,
     start,
     stop,
-    resetTranscript: () => setTranscript([]),
+    resetTranscript: () => setSegments([]),
     stats: { framesSent, bytesSent, lastEventType },
   };
 }

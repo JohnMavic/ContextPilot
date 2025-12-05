@@ -1,7 +1,7 @@
 class PCM16Processor extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.chunkSize = 4800; // ~200 ms @ 24 kHz
+    this.chunkSize = Math.round(sampleRate * 0.2); // ~200 ms bei aktueller sampleRate
     this.buffer = new Float32Array(0);
     // Silence-Filter DEAKTIVIERT für Debugging
     // this.silenceThreshold = 0.01;
