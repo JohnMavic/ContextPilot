@@ -18,11 +18,16 @@ type AudioSession = {
   source: MediaStreamAudioSourceNode | null;
   worklet: AudioWorkletNode | null;
   stream: MediaStream | null;
+  analyser?: AnalyserNode | null;
   isExternalStream?: boolean; // true wenn Stream von außen kommt (Tab Capture)
   commitTimer?: ReturnType<typeof setInterval> | null;
+  volumeTimer?: ReturnType<typeof setInterval> | null;
   hasAudioSinceCommit?: boolean;
   framesSinceCommit?: number;
   bytesSinceCommit?: number;
+  queue?: { data: Float32Array; durationMs: number }[];
+  queueDurationMs?: number;
+  sampleRate?: number;
   lastLoudAt?: number;
 };
 
@@ -38,15 +43,32 @@ const floatToInt16Base64 = (floatData: Float32Array) => {
   return btoa(bin);
 };
 
+export type ErrorLogEntry = {
+  timestamp: number;
+  source: Source;
+  message: string;
+};
+
 export function useDualRealtime() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [errorLog, setErrorLog] = useState<ErrorLogEntry[]>([]);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+  const [volumeLevels, setVolumeLevels] = useState({ mic: 0, speaker: 0 });
   const [stats, setStats] = useState({
     micFrames: 0,
     speakerFrames: 0,
     lastEventType: null as string | null,
   });
+
+  // Helper: Fehler zum Log hinzufügen (max 50 Einträge behalten)
+  const addError = useCallback((source: Source, message: string) => {
+    setErrorLog((prev) => {
+      const newEntry: ErrorLogEntry = { timestamp: Date.now(), source, message };
+      const updated = [...prev, newEntry];
+      return updated.slice(-50); // Max 50 Fehler behalten
+    });
+  }, []);
 
   // Separate Sessions für Mic und Speaker
   const micSession = useRef<AudioSession>({
@@ -149,7 +171,7 @@ export function useDualRealtime() {
       if (msg.type === "error") {
         const errMsg = msg.error?.message || msg.error?.code || JSON.stringify(msg.error);
         console.error(`[WS ${source.toUpperCase()} ERROR]`, msg.error);
-        setError(`${source}: ${errMsg}`);
+        addError(source, errMsg);
       }
     } catch (err) {
       console.warn("Parse error:", err);
@@ -247,12 +269,16 @@ export function useDualRealtime() {
       session.current.hasAudioSinceCommit = false;
       session.current.framesSinceCommit = 0;
       session.current.lastLoudAt = undefined;
+      session.current.queue = [];
+      session.current.queueDurationMs = 0;
+      session.current.bytesSinceCommit = 0;
       
       // AudioContext mit fixer 24 kHz, damit der Stream zur API passt
       // (Chrome resampelt eingehende 48 kHz Tab-Audio entsprechend runter)
       const ctx = new AudioContext({ sampleRate: 24000 });
       console.log(`[${source.toUpperCase()}] AudioContext sampleRate: ${ctx.sampleRate}`);
       session.current.audioCtx = ctx;
+      session.current.sampleRate = ctx.sampleRate;
 
       const workletUrl = new URL(
         `${import.meta.env.BASE_URL || "/"}worklets/pcm16-processor.js?v=${Date.now()}`,
@@ -280,12 +306,36 @@ export function useDualRealtime() {
         inputGain.gain.value = 2;
       }
       
+      // AnalyserNode für Volume-Level-Anzeige
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.5;
+      session.current.analyser = analyser;
+      
       // Output Gain auf 0 damit wir nichts hören (nur Processing)
       const outputGain = ctx.createGain();
       outputGain.gain.value = 0;
       
-      // Kette: source -> inputGain -> worklet -> outputGain -> destination
-      audioSource.connect(inputGain).connect(worklet).connect(outputGain).connect(ctx.destination);
+      // Kette: source -> inputGain -> analyser -> worklet -> outputGain -> destination
+      audioSource.connect(inputGain).connect(analyser);
+      analyser.connect(worklet).connect(outputGain).connect(ctx.destination);
+      
+      // Volume-Level-Update-Timer (60fps)
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      session.current.volumeTimer = setInterval(() => {
+        if (session.current.analyser) {
+          session.current.analyser.getByteFrequencyData(dataArray);
+          // Durchschnitt berechnen und auf 0-1 normalisieren
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / dataArray.length / 255;
+          // Etwas verstärken für bessere visuelle Reaktion
+          const level = Math.min(1, avg * 2.5);
+          setVolumeLevels(prev => ({ ...prev, [source]: level }));
+        }
+      }, 1000 / 30); // 30fps für flüssige Animation
       
       console.log(`[${source.toUpperCase()}] Input Gain: ${inputGain.gain.value}x, External: ${isExternalStream}`);
 
@@ -314,6 +364,7 @@ export function useDualRealtime() {
       // Audio-Chunks senden mit Debug-Info
       let silentFrames = 0;
       let loudFrames = 0;
+      const prebufferMs = 250;
       
       worklet.port.onmessage = (event: MessageEvent) => {
         if (!session.current.ws || session.current.ws.readyState !== WebSocket.OPEN) {
@@ -321,6 +372,8 @@ export function useDualRealtime() {
         }
         const data = event.data;
         const floatData = data instanceof Float32Array ? data : new Float32Array(data);
+        const sr = session.current.sampleRate || session.current.audioCtx?.sampleRate || 24000;
+        const chunkDurationMs = (floatData.length / sr) * 1000;
         
         // RMS berechnen (Lautstärke-Indikator)
         let sum = 0;
@@ -342,20 +395,30 @@ export function useDualRealtime() {
         if ((silentFrames + loudFrames) % 50 === 0) {
           console.log(`[${source.toUpperCase()}] Frames: silent=${silentFrames}, loud=${loudFrames}, RMS=${rms.toFixed(4)}`);
         }
-        
-        const b64 = floatToInt16Base64(floatData);
-        
-        setStats((s) => ({
-          ...s,
-          [source === "mic" ? "micFrames" : "speakerFrames"]: 
-            s[source === "mic" ? "micFrames" : "speakerFrames"] + 1,
-        }));
-        session.current.framesSinceCommit = (session.current.framesSinceCommit || 0) + 1;
-        session.current.bytesSinceCommit = (session.current.bytesSinceCommit || 0) + floatData.byteLength;
 
-        session.current.ws.send(
-          JSON.stringify({ type: "input_audio_buffer.append", audio: b64 }),
-        );
+        // Prebuffer queue: keep ~250ms, send oldest when above target
+        session.current.queue = session.current.queue || [];
+        session.current.queueDurationMs = session.current.queueDurationMs || 0;
+        session.current.queue.push({ data: floatData, durationMs: chunkDurationMs });
+        session.current.queueDurationMs += chunkDurationMs;
+
+        while (session.current.queueDurationMs > prebufferMs && session.current.queue.length > 0) {
+          const chunk = session.current.queue.shift()!;
+          session.current.queueDurationMs -= chunk.durationMs;
+
+          const b64 = floatToInt16Base64(chunk.data);
+          setStats((s) => ({
+            ...s,
+            [source === "mic" ? "micFrames" : "speakerFrames"]: 
+              s[source === "mic" ? "micFrames" : "speakerFrames"] + 1,
+          }));
+          session.current.framesSinceCommit = (session.current.framesSinceCommit || 0) + 1;
+          session.current.bytesSinceCommit = (session.current.bytesSinceCommit || 0) + chunk.data.byteLength;
+
+          session.current.ws.send(
+            JSON.stringify({ type: "input_audio_buffer.append", audio: b64 }),
+          );
+        }
       };
 
       return true;
@@ -382,12 +445,19 @@ export function useDualRealtime() {
       clearInterval(session.current.commitTimer);
       session.current.commitTimer = null;
     }
+    
+    if (session.current.volumeTimer) {
+      clearInterval(session.current.volumeTimer);
+      session.current.volumeTimer = null;
+    }
 
     session.current.ws?.close();
     session.current.ws = null;
 
     session.current.worklet?.disconnect();
     session.current.worklet = null;
+    session.current.analyser?.disconnect();
+    session.current.analyser = null;
     session.current.source?.disconnect();
     session.current.source = null;
 
@@ -403,6 +473,10 @@ export function useDualRealtime() {
       session.current.audioCtx.close();
       session.current.audioCtx = null;
     }
+
+    session.current.queue = [];
+    session.current.queueDurationMs = 0;
+    session.current.bytesSinceCommit = 0;
   };
 
   // Beide Sessions starten
@@ -419,6 +493,7 @@ export function useDualRealtime() {
     if (status === "running" || status === "connecting") return;
 
     setError(null);
+    setErrorLog([]);
     setSegments([]);
     setStats({ micFrames: 0, speakerFrames: 0, lastEventType: null });
     setStatus("connecting");
@@ -440,16 +515,20 @@ export function useDualRealtime() {
   const stopAll = () => {
     stopSession(micSession);
     stopSession(speakerSession);
+    setVolumeLevels({ mic: 0, speaker: 0 });
     setStatus("idle");
   };
 
   return {
     status,
     error,
+    errorLog,
     segments,
+    volumeLevels,
     start,
     stop: stopAll,
     resetTranscript: () => setSegments([]),
+    clearErrors: () => setErrorLog([]),
     stats,
   };
 }

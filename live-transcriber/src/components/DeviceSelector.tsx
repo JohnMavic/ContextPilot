@@ -18,7 +18,7 @@ export function DeviceSelector({
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [micId, setMicId] = useState<string>("");
   const [speakerId, setSpeakerId] = useState<string>("");
-  const [speakerSource, setSpeakerSource] = useState<SpeakerSource>("none");
+  const [speakerSource, setSpeakerSource] = useState<SpeakerSource>("tab");
 
   useEffect(() => {
     navigator.mediaDevices
