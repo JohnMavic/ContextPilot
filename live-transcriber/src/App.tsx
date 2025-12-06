@@ -1,10 +1,14 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { DeviceSelector } from "./components/DeviceSelector";
 import { VolumeMeter } from "./components/VolumeMeter";
-import { TypewriterText } from "./components/TypewriterText";
+import { HighlightedText } from "./components/HighlightedText";
+import { HighlightMenu } from "./components/HighlightMenu";
+import { AuraResponsePanel } from "./components/AuraResponsePanel";
 import type { SpeakerSource } from "./components/DeviceSelector";
 import { useDualRealtime } from "./hooks/useDualRealtime";
 import { useTabCapture } from "./hooks/useTabCapture";
+import { useAuraAgent } from "./hooks/useAuraAgent";
+import { useHighlights, type HighlightColor } from "./hooks/useHighlights";
 
 const apiKeyFromEnv = (import.meta.env.VITE_OPENAI_API_KEY as string | undefined) || "";
 
@@ -26,10 +30,24 @@ export default function App() {
   const [speakerDeviceId, setSpeakerDeviceId] = useState<string>();
   const [speakerSource, setSpeakerSource] = useState<SpeakerSource>("tab");
   const [autoScroll, setAutoScroll] = useState(true);
+  const [agentPanelWidth, setAgentPanelWidth] = useState(400); // Default doppelte Breite
+  const [isResizing, setIsResizing] = useState(false);
   const transcriptBoxRef = useRef<HTMLDivElement>(null);
+  const transcriptAreaRef = useRef<HTMLDivElement>(null);
   
   // Tab Capture Hook
   const tabCapture = useTabCapture();
+  
+  // Highlight System
+  const {
+    highlights,
+    menuState,
+    showMenuAtSelection,
+    hideMenu,
+    createHighlight,
+    removeHighlight,
+    clearHighlights,
+  } = useHighlights();
   
   const {
     status,
@@ -42,6 +60,12 @@ export default function App() {
     clearErrors,
     stats,
   } = useDualRealtime();
+  const {
+    responses: auraResponses,
+    queryAgent,
+    removeResponse: removeAuraResponse,
+    clearAllResponses: clearAuraResponses,
+  } = useAuraAgent();
 
   const handleDeviceSelect = useCallback((micId?: string, speakerId?: string) => {
     setMicDeviceId(micId);
@@ -70,6 +94,46 @@ export default function App() {
     }
   }, [segments, autoScroll]);
 
+  // Resizer für Agent Panel - Mouse Events
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!transcriptAreaRef.current) return;
+      
+      const containerRect = transcriptAreaRef.current.getBoundingClientRect();
+      const containerRight = containerRect.right;
+      const newWidth = containerRight - e.clientX;
+      
+      // Min/Max Grenzen
+      const minWidth = 200;
+      const maxWidth = containerRect.width * 0.6; // Max 60% der Gesamtbreite
+      
+      setAgentPanelWidth(Math.max(minWidth, Math.min(maxWidth, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  const handleResizerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
   // Scroll-Handler: Auto-Scroll deaktivieren wenn User hochscrollt
   const handleScroll = () => {
     if (transcriptBoxRef.current) {
@@ -78,6 +142,79 @@ export default function App() {
       setAutoScroll(isAtBottom);
     }
   };
+
+  // Context menu on right-click or text selection
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim() && transcriptBoxRef.current) {
+      e.preventDefault();
+      showMenuAtSelection(transcriptBoxRef.current);
+    }
+  }, [showMenuAtSelection]);
+
+  // Also show menu on mouseup if text selected
+  const handleMouseUp = useCallback(() => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim() && transcriptBoxRef.current) {
+      // Small delay to ensure selection is complete
+      setTimeout(() => {
+        showMenuAtSelection(transcriptBoxRef.current!);
+      }, 10);
+    }
+  }, [showMenuAtSelection]);
+
+  // Ref für letztes erstelltes Highlight (für Agent-Queries)
+  const lastHighlightRef = useRef<{ id: string; text: string; color: HighlightColor; anchorTop: number } | null>(null);
+
+  // Highlight erstellen und Info speichern
+  const handleCreateHighlight = useCallback((color?: HighlightColor) => {
+    const highlight = createHighlight(color);
+    if (highlight) {
+      lastHighlightRef.current = {
+        id: highlight.id,
+        text: highlight.text,
+        color: highlight.color,
+        anchorTop: menuState.y,
+      };
+    }
+    return highlight;
+  }, [createHighlight, menuState.y]);
+
+  // Kombinierter Handler: Highlight erstellen UND Expand-Query starten
+  const handleHighlightAndExpand = useCallback(() => {
+    const highlight = createHighlight();
+    if (!highlight) return;
+    
+    const prompt = `Context: "${highlight.text}"
+
+Give me 3-5 bullet points with key facts I can use in conversation. Short, precise, no fluff.`;
+    
+    queryAgent(prompt, highlight.id, highlight.text, highlight.color, menuState.y, "expand");
+  }, [createHighlight, queryAgent, menuState.y]);
+
+  // Kombinierter Handler: Highlight erstellen UND Facts-Query starten
+  const handleHighlightAndFacts = useCallback(() => {
+    const highlight = createHighlight();
+    if (!highlight) return;
+    
+    const prompt = `Context: "${highlight.text}"
+
+Find 2-3 similar examples or related cases from your index. One line each, max.`;
+    
+    queryAgent(prompt, highlight.id, highlight.text, highlight.color, menuState.y, "facts");
+  }, [createHighlight, queryAgent, menuState.y]);
+
+  // Handler für das Löschen einer Agent-Antwort - entfernt auch das zugehörige Highlight
+  const handleRemoveAuraResponse = useCallback((responseId: string) => {
+    // Finde die Antwort um die highlightId zu bekommen
+    const response = auraResponses.find(r => r.id === responseId);
+    if (response) {
+      // Entferne das zugehörige Highlight
+      removeHighlight(response.highlightId);
+    }
+    // Entferne die Antwort
+    removeAuraResponse(responseId);
+  }, [auraResponses, removeHighlight, removeAuraResponse]);
 
   // Start Handler - holt Tab Capture Stream wenn nötig
   const handleStart = async () => {
@@ -114,18 +251,30 @@ export default function App() {
   );
 
   // Gruppiere ALLE Segmente (final + live): Neue Gruppe bei Speaker-Wechsel ODER lange Pause
-  const PAUSE_THRESHOLD_MS = 3500; // Etwas mehr als commit interval
-  const groupedSegments = useMemo(() => {
-    const groups: { source: string; texts: string[]; lastTimestamp: number; isSourceChange: boolean; hasLive: boolean }[] = [];
+  const PAUSE_THRESHOLD_MS = 3500;
+  
+  // Berechne gruppierte Segmente MIT eindeutiger ID für Highlight-Mapping
+  const groupedSegmentsWithOffsets = useMemo(() => {
+    const groups: { 
+      id: string;  // Eindeutige Gruppen-ID für Highlighting
+      source: string; 
+      texts: string[]; 
+      lastTimestamp: number; 
+      isSourceChange: boolean; 
+      hasLive: boolean;
+    }[] = [];
+    
+    let groupIndex = 0;
     
     for (const seg of sortedSegments) {
       const lastGroup = groups[groups.length - 1];
       const pauseSinceLast = lastGroup ? seg.timestamp - lastGroup.lastTimestamp : 0;
       const sourceChanged = !lastGroup || lastGroup.source !== seg.source;
       
-      // Neue Gruppe wenn: anderer Speaker ODER Pause > threshold
       if (sourceChanged || pauseSinceLast > PAUSE_THRESHOLD_MS) {
+        // Neue Gruppe starten mit eindeutiger ID
         groups.push({
+          id: `group-${groupIndex++}`,
           source: seg.source,
           texts: [seg.text],
           lastTimestamp: seg.timestamp,
@@ -133,7 +282,7 @@ export default function App() {
           hasLive: !seg.isFinal,
         });
       } else {
-        // Zum bestehenden Gruppe hinzufügen (gleicher Speaker, keine lange Pause)
+        // Zu bestehender Gruppe hinzufügen
         lastGroup.texts.push(seg.text);
         lastGroup.lastTimestamp = seg.timestamp;
         if (!seg.isFinal) lastGroup.hasLive = true;
@@ -144,14 +293,33 @@ export default function App() {
   }, [sortedSegments]);
 
   const mergedTranscript = useMemo(
-    () => groupedSegments.map((g) => `[${g.source.toUpperCase()}] ${g.texts.join(" ")}`).join("\n\n"),
-    [groupedSegments],
+    () => groupedSegmentsWithOffsets.map((g) => `[${g.source.toUpperCase()}] ${g.texts.join(" ")}`).join("\n\n"),
+    [groupedSegmentsWithOffsets],
   );
 
   // Can start wenn mindestens eine Quelle gewählt
   const hasSpeakerSource = speakerSource === "tab" || (speakerSource === "device" && speakerDeviceId);
   const canStart = (micDeviceId || hasSpeakerSource) && status !== "running" && status !== "connecting";
   const liveClass = status === "running" ? "live-on" : status === "connecting" ? "live-off" : "live-off";
+  
+  // Check if any AURA response is loading
+  const anyAuraLoading = auraResponses.some(r => r.loading);
+  
+  const handleAskAuraFullTranscript = useCallback(() => {
+    if (segments.length === 0) return;
+    const prompt = `Provide key facts and highlights based on this transcript:\n${mergedTranscript}`;
+    // Für Full-Transcript: Generiere temporäre ID
+    const tempId = `full-${Date.now()}`;
+    queryAgent(prompt, tempId, "Full Transcript Analysis", 1, 0, "full");
+  }, [segments.length, mergedTranscript, queryAgent]);
+
+  // Clear highlights when clearing transcript
+  const handleClear = useCallback(() => {
+    resetTranscript();
+    clearErrors();
+    clearHighlights();
+    clearAuraResponses();
+  }, [resetTranscript, clearErrors, clearHighlights, clearAuraResponses]);
 
   return (
     <div className="layout">
@@ -190,7 +358,7 @@ export default function App() {
               </button>
               <button 
                 className={status !== "running" && status !== "connecting" ? "btn-clear" : ""}
-                onClick={() => { resetTranscript(); clearErrors(); }}
+                onClick={handleClear}
               >
                 Clear
               </button>
@@ -254,31 +422,115 @@ export default function App() {
             </div>
             {!autoScroll && <span style={{ color: "#fbbf24", fontSize: 13 }}>↓ New updates below</span>}
           </div>
-          <div 
-            className="transcript-box" 
-            ref={transcriptBoxRef}
-            onScroll={handleScroll}
-          >
-            {segments.length === 0 && (
-              <p className="muted">No input yet. Pick at least one audio source and hit Start.</p>
+          <div className="transcript-area" ref={transcriptAreaRef}>
+            <div 
+              className="transcript-box" 
+              ref={transcriptBoxRef}
+              onScroll={handleScroll}
+              onMouseUp={handleMouseUp}
+              onContextMenu={handleContextMenu}
+              style={{ position: "relative" }}
+            >
+              {segments.length === 0 && (
+                <p className="muted">No input yet. Pick at least one audio source and hit Start.</p>
+              )}
+              {/* Gruppierte Segmente - Tag nur bei Speaker-Wechsel, Cursor bei Live-Content */}
+              {groupedSegmentsWithOffsets.map((group) => {
+                const groupText = group.texts.join(" ");
+                
+                return (
+                  <div key={group.id} className={`final-line source-${group.source} ${group.isSourceChange ? 'has-tag' : 'no-tag'}`}>
+                    {group.isSourceChange && (
+                      <span className="source-tag">{group.source === "mic" ? "MIC" : "SPK"}</span>
+                    )}
+                    <span className="segment-text">
+                      {/* 
+                        IMMER HighlightedText verwenden - KEIN TypewriterText mehr!
+                        TypewriterText verfälscht textContent und macht Offset-Berechnung unmöglich.
+                        
+                        data-group-id NUR auf diesem span mit dem reinen Text.
+                        Cursor ist AUSSERHALB dieses spans.
+                      */}
+                      <span data-group-id={group.id}>
+                        <HighlightedText text={groupText} highlights={highlights} groupId={group.id} />
+                      </span>
+                      {group.hasLive && <span className="cursor">|</span>}
+                    </span>
+                  </div>
+                );
+              })}
+              
+              {/* Highlight Context Menu - positioned within transcript box */}
+              <HighlightMenu
+                visible={menuState.visible}
+                x={menuState.x}
+                y={menuState.y}
+                selectedText={menuState.selectedText}
+                onClose={hideMenu}
+                onHighlight={handleCreateHighlight}
+                onHighlightAndExpand={handleHighlightAndExpand}
+                onHighlightAndFacts={handleHighlightAndFacts}
+                isLoading={anyAuraLoading}
+              />
+            </div>
+            
+            {/* AURA Response Panels - rechts im Panel, mit Resizer */}
+            {auraResponses.length > 0 && (
+              <>
+                {/* Resizer Handle */}
+                <div 
+                  className="panel-resizer"
+                  onMouseDown={handleResizerMouseDown}
+                />
+                <div 
+                  className="aura-responses-container"
+                  style={{ width: agentPanelWidth }}
+                >
+                  {auraResponses.map((response) => (
+                    <AuraResponsePanel
+                      key={response.id}
+                      id={response.id}
+                      sourceText={response.sourceText}
+                      color={response.color}
+                      result={response.result}
+                      loading={response.loading}
+                      error={response.error}
+                      onClose={handleRemoveAuraResponse}
+                    />
+                  ))}
+                </div>
+              </>
             )}
-            {/* Gruppierte Segmente - Tag nur bei Speaker-Wechsel, Cursor bei Live-Content */}
-            {groupedSegments.map((group, idx) => (
-              <div key={idx} className={`final-line source-${group.source} ${group.isSourceChange ? 'has-tag' : 'no-tag'}`}>
-                {group.isSourceChange && (
-                  <span className="source-tag">{group.source === "mic" ? "MIC" : "SPK"}</span>
-                )}
-                <span className="segment-text">
-                  <TypewriterText text={group.texts.join(" ")} wordsPerSecond={8} />
-                  {group.hasLive && <span className="cursor">|</span>}
-                </span>
-              </div>
-            ))}
           </div>
+          
+          {/* Highlights summary */}
+          {highlights.length > 0 && (
+            <div className="highlights-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0" }}>
+              <span className="muted">{highlights.length} highlight{highlights.length !== 1 ? 's' : ''}</span>
+              <button className="btn-ghost" onClick={clearHighlights} style={{ padding: "4px 8px", fontSize: 12 }}>
+                Clear all
+              </button>
+            </div>
+          )}
+          
           <details className="raw">
             <summary>Raw text (merged)</summary>
             <pre>{mergedTranscript}</pre>
           </details>
+
+          <div className="selection-actions">
+            <p className="muted" style={{ margin: 0 }}>
+              Select text in the transcript and use the context menu to highlight or ask AURA for insights.
+            </p>
+            <button
+              className="btn-ghost"
+              onClick={handleAskAuraFullTranscript}
+              disabled={segments.length === 0 || anyAuraLoading}
+              style={{ marginTop: 8 }}
+            >
+              {anyAuraLoading ? "Asking AURA..." : "Ask AURA: Analyze full transcript"}
+            </button>
+          </div>
         </section>
       </div>
     </div>

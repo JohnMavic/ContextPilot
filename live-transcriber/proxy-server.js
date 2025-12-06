@@ -4,16 +4,25 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer } from "http";
 import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+import { DefaultAzureCredential } from "@azure/identity";
 
-// Lade .env.local manuell
+// Get directory of current file for relative paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Lade .env.local manuell (relative to this file)
 try {
-  const envContent = readFileSync(".env.local", "utf-8");
+  const envPath = join(__dirname, ".env.local");
+  const envContent = readFileSync(envPath, "utf-8");
   envContent.split("\n").forEach((line) => {
     const [key, ...vals] = line.split("=");
     if (key && vals.length) {
       process.env[key.trim()] = vals.join("=").trim();
     }
   });
+  console.log("Loaded .env.local from:", envPath);
 } catch (e) {
   console.log("Keine .env.local gefunden, nutze Umgebungsvariablen");
 }
@@ -21,14 +30,322 @@ try {
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 const PORT = 8080;
 
+// Azure AI Foundry Agent Configuration (NEW Foundry API - November 2025+)
+// Endpoint format: https://<name>.services.ai.azure.com/api/projects/<project>
+const AURA_ENDPOINT = process.env.AURA_ENDPOINT;
+const AURA_AGENT_NAME = process.env.AURA_AGENT_NAME || "AURAContext"; // Agent name (not ID!)
+const AURA_API_KEY = process.env.AURA_API_KEY; // Falls API-Key Auth (nicht empfohlen)
+const AURA_API_VERSION = process.env.AURA_API_VERSION || "2025-11-15-preview";
+
 if (!OPENAI_API_KEY) {
   console.error("ERROR: Kein API Key gefunden in .env.local oder Umgebungsvariablen");
   process.exit(1);
 }
 
 console.log("API Key gefunden:", OPENAI_API_KEY.substring(0, 10) + "...");
+if (AURA_ENDPOINT) {
+  console.log("AURA Endpoint:", AURA_ENDPOINT);
+  console.log("AURA Agent Name:", AURA_AGENT_NAME);
+  console.log("AURA API Version:", AURA_API_VERSION);
+}
 
-const server = createServer();
+// Azure Credential für Managed Identity Auth
+const credential = new DefaultAzureCredential({
+  excludeEnvironmentCredential: !process.env.AZURE_TENANT_ID,
+});
+
+// Get auth header - prefer API key for local dev, Managed Identity for prod
+async function getAuraAuthHeader() {
+  if (AURA_API_KEY) {
+    console.log("[AURA] Using API Key authentication");
+    return { "api-key": AURA_API_KEY };
+  }
+  
+  try {
+    console.log("[AURA] Acquiring Azure AD token...");
+    // Azure AI Foundry requires https://ai.azure.com audience
+    const scope = "https://ai.azure.com/.default";
+    const token = await credential.getToken(scope);
+    if (!token) throw new Error("Failed to acquire token for Azure AI");
+    console.log("[AURA] Token acquired successfully");
+    return { Authorization: `Bearer ${token.token}` };
+  } catch (err) {
+    console.error("[AURA] Token acquisition failed:", err.message);
+    throw err;
+  }
+}
+
+// List all assistants for debugging
+async function listAssistants(req, res) {
+  console.log("[AURA] Listing assistants...");
+  
+  if (!AURA_ENDPOINT) {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "AURA_ENDPOINT not configured" }));
+    return;
+  }
+  
+  try {
+    const authHeader = await getAuraAuthHeader();
+    const urlBase = AURA_ENDPOINT.replace(/\/$/, "");
+    
+    const resp = await fetch(`${urlBase}/assistants?api-version=${AURA_API_VERSION}`, {
+      method: "GET",
+      headers: { 
+        "Content-Type": "application/json",
+        ...authHeader 
+      }
+    });
+    
+    const text = await resp.text();
+    console.log("[AURA] Assistants response:", text.substring(0, 500));
+    
+    res.writeHead(resp.status, { "Content-Type": "application/json" });
+    res.end(text);
+    
+  } catch (err) {
+    console.error("[AURA] List assistants error:", err);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: err?.message }));
+  }
+}
+
+// Handle Agent API Request - NEW Microsoft Foundry Responses API (November 2025+)
+// Uses: POST /openai/responses with agent_reference by NAME
+// Supports STREAMING for faster response times
+async function handleAgentRequest(req, res, body) {
+  console.log("[AURA] Received agent request");
+  
+  if (!AURA_ENDPOINT) {
+    console.error("[AURA] AURA_ENDPOINT not configured");
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ 
+      error: "AURA_ENDPOINT not configured",
+      hint: "Set AURA_ENDPOINT in .env.local (format: https://<name>.services.ai.azure.com/api/projects/<project>)"
+    }));
+    return;
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(body || "{}");
+  } catch (e) {
+    console.error("[AURA] Invalid JSON payload:", e.message);
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid JSON payload" }));
+    return;
+  }
+
+  const prompt = payload.prompt;
+  const conversationId = payload.conversationId; // Optional: for multi-turn
+  // Disable streaming for now - Azure AI Foundry Responses API with agents 
+  // uses a different format, and the main latency comes from file_search anyway
+  const useStreaming = false;
+  
+  if (!prompt) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Missing 'prompt' in request body" }));
+    return;
+  }
+
+  console.log("[AURA] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
+  console.log("[AURA] Using agent:", AURA_AGENT_NAME);
+  console.log("[AURA] Streaming:", useStreaming);
+
+  const urlBase = AURA_ENDPOINT.replace(/\/$/, "");
+  const url = `${urlBase}/openai/responses?api-version=${AURA_API_VERSION}`;
+  
+  console.log("[AURA] Request URL:", url);
+
+  // NEW Foundry API format - uses agent_reference with NAME (not ID!)
+  const requestBody = {
+    agent: {
+      type: "agent_reference",
+      name: AURA_AGENT_NAME
+    },
+    input: prompt,
+    stream: useStreaming
+  };
+  
+  // Optional: Include conversation ID for multi-turn conversations
+  if (conversationId) {
+    requestBody.conversation = conversationId;
+  }
+
+  console.log("[AURA] Request body:", JSON.stringify(requestBody, null, 2));
+
+  try {
+    const authHeader = await getAuraAuthHeader();
+    
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        ...authHeader 
+      },
+      body: JSON.stringify(requestBody),
+    });
+    
+    console.log("[AURA] Response status:", resp.status);
+    
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("[AURA] Error response:", text);
+      res.writeHead(resp.status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ 
+        error: "Agent call failed", 
+        status: resp.status, 
+        body: text
+      }));
+      return;
+    }
+    
+    // STREAMING MODE: Forward SSE events to client
+    if (useStreaming) {
+      res.writeHead(200, { 
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive"
+      });
+      
+      let fullText = "";
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          
+          // Parse SSE events from chunk
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") {
+                // Send final complete message
+                res.write(`data: ${JSON.stringify({ done: true, output_text: fullText })}\n\n`);
+                continue;
+              }
+              
+              try {
+                const event = JSON.parse(data);
+                
+                // Extract text delta from streaming response
+                // Format varies - check for response.output_text.delta or delta.content
+                let delta = "";
+                if (event.type === "response.output_text.delta") {
+                  delta = event.delta || "";
+                } else if (event.delta?.content) {
+                  delta = event.delta.content;
+                } else if (event.choices?.[0]?.delta?.content) {
+                  delta = event.choices[0].delta.content;
+                }
+                
+                if (delta) {
+                  fullText += delta;
+                  res.write(`data: ${JSON.stringify({ delta, partial: fullText })}\n\n`);
+                }
+              } catch (parseErr) {
+                // Not JSON or different format, forward raw
+                console.log("[AURA] Stream chunk:", data.substring(0, 100));
+              }
+            }
+          }
+        }
+      } catch (streamErr) {
+        console.error("[AURA] Stream error:", streamErr);
+      }
+      
+      res.end();
+      console.log("[AURA] Streaming complete, total length:", fullText.length);
+      return;
+    }
+    
+    // NON-STREAMING MODE: Wait for complete response
+    const text = await resp.text();
+    const isJson = resp.headers.get("content-type")?.includes("application/json");
+    
+    console.log("[AURA] Response:", text.substring(0, 500) + (text.length > 500 ? "..." : ""));
+    if (isJson) {
+      const responseData = JSON.parse(text);
+      
+      // New Foundry API: Find the message output (not file_search_call)
+      // Output array can contain multiple items: file_search_call, message, etc.
+      let outputText = responseData.output_text;
+      
+      if (!outputText && responseData.output) {
+        // Find the message type output
+        const messageOutput = responseData.output.find(o => o.type === "message");
+        if (messageOutput?.content) {
+          // Find the text content
+          const textContent = messageOutput.content.find(c => c.type === "output_text" || c.type === "text");
+          outputText = textContent?.text || textContent?.value;
+        }
+      }
+      
+      // Fallback to first content if not found
+      if (!outputText) {
+        outputText = responseData.output?.[0]?.content?.[0]?.text || JSON.stringify(responseData);
+      }
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ 
+        output_text: outputText,
+        conversation_id: responseData.conversation?.id || responseData.conversation,
+        raw: responseData
+      }));
+    } else {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ output_text: text }));
+    }
+    
+  } catch (err) {
+    console.error("[AURA] Request error:", err);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ 
+      error: err?.message || "Agent request failed",
+      hint: "Check AURA_ENDPOINT, AURA_AGENT_NAME and authentication settings"
+    }));
+  }
+}
+
+const server = createServer((req, res) => {
+  const { method, url } = req;
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, api-key");
+
+  if (method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+  
+  // List available assistants for debugging
+  if (method === "GET" && url && url.startsWith("/assistants")) {
+    listAssistants(req, res);
+    return;
+  }
+  
+  if (method === "POST" && url && url.startsWith("/agent")) {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+      console.log("[AURA] Received chunk:", chunk.toString().substring(0, 100));
+    });
+    req.on("end", () => {
+      console.log("[AURA] Body complete, length:", body.length, "content:", body.substring(0, 200));
+      handleAgentRequest(req, res, body);
+    });
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error: "Not found" }));
+});
 const wss = new WebSocketServer({ server });
 
 wss.on("connection", (clientWs, req) => {
@@ -64,7 +381,10 @@ wss.on("connection", (clientWs, req) => {
 
   openaiWs.on("message", (data) => {
     const msg = data.toString();
-    console.log("[PROXY] OpenAI ->", msg.substring(0, 150) + (msg.length > 150 ? "..." : ""));
+    // Only log non-audio events (skip verbose audio buffer responses)
+    if (!msg.includes('"type":"input_audio_buffer')) {
+      console.log("[PROXY] OpenAI ->", msg.substring(0, 150) + (msg.length > 150 ? "..." : ""));
+    }
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(msg);
     }
@@ -82,7 +402,10 @@ wss.on("connection", (clientWs, req) => {
 
   clientWs.on("message", (data) => {
     const msg = data.toString();
-    console.log("[PROXY] Client ->", msg.substring(0, 100) + (msg.length > 100 ? "..." : ""));
+    // Only log non-audio messages (skip verbose audio buffer appends)
+    if (!msg.includes('"type":"input_audio_buffer.append"')) {
+      console.log("[PROXY] Client ->", msg.substring(0, 100) + (msg.length > 100 ? "..." : ""));
+    }
     
     if (openaiReady && openaiWs.readyState === WebSocket.OPEN) {
       openaiWs.send(msg);

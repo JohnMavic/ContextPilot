@@ -174,6 +174,28 @@ h2 {
   background: #fbbf24;
 }
 
+.transcript-box ::selection {
+  background: rgba(34, 211, 238, 0.3);
+  color: inherit;
+}
+
+.selection-actions {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selection-actions .selected-text {
+  color: #39ff14;
+  font-weight: 600;
+  font-size: 14px;
+}
+
 .panel {
   background: rgba(17, 24, 39, 0.7);
   border: 1px solid #1f2937;
@@ -307,6 +329,16 @@ button:hover {
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+}
+.btn-ghost:hover {
+  border-color: #22d3ee;
+  box-shadow: 0 8px 24px rgba(34, 211, 238, 0.15);
 }
 
 /* Neon Button States */
@@ -687,6 +719,500 @@ pre {
   color: #e2e8f0;
 }
 
+/* ==========================================
+   TEXT HIGHLIGHTING - Multi-Color System
+   ========================================== */
+
+/* Base highlight styles - inline, no text break, WHITE TEXT */
+.highlight-mark {
+  display: inline;
+  border-radius: 2px;
+  padding: 1px 2px;
+  margin: 0 -2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* 5 highlight colors: rot, grün, orange, gelb, blau */
+.mark-1 {
+  /* ROT */
+  background: linear-gradient(to bottom, rgba(239, 68, 68, 0) 0%, rgba(239, 68, 68, 0.5) 100%);
+  border-bottom: 2px solid #ef4444;
+}
+
+.mark-2 {
+  /* GRÜN */
+  background: linear-gradient(to bottom, rgba(34, 197, 94, 0) 0%, rgba(34, 197, 94, 0.5) 100%);
+  border-bottom: 2px solid #22c55e;
+}
+
+.mark-3 {
+  /* ORANGE */
+  background: linear-gradient(to bottom, rgba(249, 115, 22, 0) 0%, rgba(249, 115, 22, 0.5) 100%);
+  border-bottom: 2px solid #f97316;
+}
+
+.mark-4 {
+  /* GELB */
+  background: linear-gradient(to bottom, rgba(250, 204, 21, 0) 0%, rgba(250, 204, 21, 0.5) 100%);
+  border-bottom: 2px solid #facc15;
+}
+
+.mark-5 {
+  /* BLAU */
+  background: linear-gradient(to bottom, rgba(59, 130, 246, 0) 0%, rgba(59, 130, 246, 0.5) 100%);
+  border-bottom: 2px solid #3b82f6;
+}
+
+/* Hover effect on highlights */
+.highlight-mark:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+
+/* ==========================================
+   HIGHLIGHT CONTEXT MENU
+   ========================================== */
+
+.highlight-context-menu {
+  position: absolute;
+  z-index: 1000;
+  background: rgba(17, 24, 39, 0.95);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  min-width: 320px;
+  animation: menuFadeIn 150ms ease-out;
+}
+
+@keyframes menuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.highlight-context-menu::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 20px;
+  width: 12px;
+  height: 12px;
+  background: rgba(17, 24, 39, 0.95);
+  border-left: 1px solid #334155;
+  border-top: 1px solid #334155;
+  transform: rotate(45deg);
+}
+
+.highlight-context-menu .menu-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid #1f2937;
+  margin-bottom: 8px;
+}
+
+.highlight-context-menu .menu-header .selected-preview {
+  font-size: 12px;
+  color: #94a3b8;
+  max-height: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.highlight-context-menu .menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+  transition: all 150ms ease;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.highlight-context-menu .menu-btn:hover {
+  background: rgba(34, 211, 238, 0.1);
+  border-color: rgba(34, 211, 238, 0.3);
+}
+
+.highlight-context-menu .menu-btn .icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.highlight-context-menu .menu-btn .label {
+  flex: 1;
+}
+
+.highlight-context-menu .menu-btn .shortcut {
+  font-size: 11px;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+/* Floating action button for highlights */
+.highlight-fab {
+  position: absolute;
+  z-index: 999;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #22d3ee, #06b6d4);
+  border: none;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(34, 211, 238, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.highlight-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(34, 211, 238, 0.5);
+}
+
+/* Color picker in menu */
+.highlight-colors {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid #1f2937;
+  margin-top: 8px;
+}
+
+.color-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.color-dot:hover {
+  transform: scale(1.2);
+}
+
+.color-dot.active {
+  border-color: white;
+}
+
+.color-dot.c1 { background: #00ff00; }
+.color-dot.c2 { background: #ff0064; }
+.color-dot.c3 { background: #00c8ff; }
+.color-dot.c4 { background: #b464ff; }
+.color-dot.c5 { background: #ff8c00; }
+.color-dot.c6 { background: #ffff00; }
+.color-dot.c7 { background: #ff00ff; }
+.color-dot.c8 { background: #00ffc8; }
+.color-dot.c9 { background: #ff6464; }
+.color-dot.c10 { background: #6496ff; }
+
+/* =========================================
+   AURA Response Panels - Word-Style Comments
+   ========================================= */
+
+.transcript-area {
+  position: relative;
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+}
+
+.transcript-area .transcript-box {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Resizer zwischen Transcript und Agent-Panel */
+.panel-resizer {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.panel-resizer::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #334155;
+  border-radius: 1px;
+  transition: background 0.15s, width 0.15s;
+}
+
+.panel-resizer:hover::after {
+  background: #3b82f6;
+  width: 3px;
+  left: 1.5px;
+}
+
+.panel-resizer:active::after {
+  background: #60a5fa;
+}
+
+/* Container für alle AURA Response Panels - INNERHALB des Panels */
+.aura-responses-container {
+  flex-shrink: 0;
+  width: 400px;  /* Default: doppelte Breite */
+  max-height: 450px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 8px;
+}
+
+/* Verstecken wenn keine Responses */
+.aura-responses-container:empty {
+  display: none;
+}
+
+.aura-response-panel {
+  position: relative;
+  width: 100%;
+  max-height: 280px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid;  /* Farbe wird inline gesetzt */
+  border-left-width: 3px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  animation: slideIn 0.25s ease-out;
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.aura-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.aura-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.aura-icon {
+  font-size: 12px;
+}
+
+.aura-panel-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 16px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+  margin-left: auto;
+}
+
+.aura-panel-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+.aura-panel-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.aura-source-quote {
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+  color: #94a3b8;
+  display: flex;
+  gap: 2px;
+}
+
+.quote-mark {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.quote-text {
+  font-style: italic;
+  line-height: 1.3;
+}
+
+.aura-panel-content {
+  padding: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.aura-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.aura-spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+  font-size: 14px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.aura-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: #ef4444;
+  font-size: 11px;
+  padding: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+}
+
+.error-icon {
+  flex-shrink: 0;
+}
+
+.aura-result {
+  color: #e2e8f0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Normale Absätze */
+.aura-paragraph {
+  margin: 0 0 8px 0;
+}
+
+.aura-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+/* Bullet Points mit hängendem Einzug */
+.aura-bullet-item {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 6px;
+  gap: 0;
+}
+
+.aura-bullet-item:last-child {
+  margin-bottom: 0;
+}
+
+.bullet-marker {
+  flex-shrink: 0;
+  width: 14px;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.bullet-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Fetter Text */
+.aura-result strong {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+/* Links in Agent-Antworten */
+.aura-link {
+  color: #60a5fa;
+  text-decoration: none;
+  border-bottom: 1px dotted #60a5fa;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.aura-link:hover {
+  color: #93c5fd;
+  border-bottom-color: #93c5fd;
+}
+
+/* Quellenangaben Badge */
+.aura-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 4px;
+  margin: 0 2px;
+  font-size: 9px;
+  font-weight: 500;
+  color: #94a3b8;
+  background: rgba(100, 116, 139, 0.2);
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.aura-placeholder {
+  color: #64748b;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* Responsive: Kleinere Panels bei weniger Platz */
+@media (max-width: 1400px) {
+  .aura-responses-container {
+    width: 300px !important; /* Override inline style */
+  }
+}
+
 @media (max-width: 1200px) {
   .layout {
     grid-template-columns: 1fr;
@@ -701,6 +1227,28 @@ pre {
     grid-row: auto;
     order: 2;
   }
+  
+  /* Bei kleinen Screens: Responses unter dem Transcript, kein Resizer */
+  .transcript-area {
+    flex-direction: column;
+  }
+  
+  .panel-resizer {
+    display: none;
+  }
+  
+  .aura-responses-container {
+    width: 100% !important;
+    max-height: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding-left: 0;
+    padding-top: 10px;
+  }
+  
+  .aura-response-panel {
+    width: calc(50% - 5px);
+  }
 }
 
 @media (max-width: 720px) {
@@ -710,5 +1258,9 @@ pre {
   }
   .layout {
     padding: 24px 12px 32px;
+  }
+  
+  .aura-response-panel {
+    width: 100%;
   }
 }
