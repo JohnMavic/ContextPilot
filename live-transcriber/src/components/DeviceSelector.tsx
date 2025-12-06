@@ -32,7 +32,6 @@ export function DeviceSelector({
   }, []);
 
   useEffect(() => {
-    // Nur Device-ID weitergeben wenn auch Device-Modus gewählt
     const effectiveSpeakerId = speakerSource === "device" ? speakerId : undefined;
     onSelect(micId || undefined, effectiveSpeakerId);
   }, [micId, speakerId, speakerSource, onSelect]);
@@ -44,22 +43,22 @@ export function DeviceSelector({
   return (
     <div className="device-selectors">
       <label className="field">
-        <span>🎤 Mikrofon</span>
+        <span>Mic</span>
         <select
           value={micId}
           onChange={(e) => setMicId(e.target.value)}
         >
-          <option value="">-- Nicht verwenden --</option>
+          <option value="">-- Do not use --</option>
           {devices.map((d) => (
             <option key={d.deviceId} value={d.deviceId}>
-              {d.label || "Audio Input"}
+              {d.label || "Audio input"}
             </option>
           ))}
         </select>
       </label>
 
       <div className="field">
-        <span>🔊 System-Audio Quelle</span>
+        <span>System audio source</span>
         <div className="speaker-source-selector">
           <label className="radio-option">
             <input
@@ -69,7 +68,7 @@ export function DeviceSelector({
               checked={speakerSource === "none"}
               onChange={() => setSpeakerSource("none")}
             />
-            <span>Nicht verwenden</span>
+            <span>Do not use</span>
           </label>
           
           <label className="radio-option">
@@ -80,8 +79,8 @@ export function DeviceSelector({
               checked={speakerSource === "tab"}
               onChange={() => setSpeakerSource("tab")}
             />
-            <span>🌐 Tab Audio Capture</span>
-            <span className="badge recommended">Empfohlen</span>
+            <span>Tab audio capture</span>
+            <span className="badge recommended">Recommended</span>
           </label>
           
           <label className="radio-option">
@@ -92,21 +91,20 @@ export function DeviceSelector({
               checked={speakerSource === "device"}
               onChange={() => setSpeakerSource("device")}
             />
-            <span>📟 Audio-Device (VB-Cable etc.)</span>
+            <span>Audio device (VB-Cable etc.)</span>
           </label>
         </div>
       </div>
 
-      {/* Tab Capture Info */}
       {speakerSource === "tab" && (
         <div className="tab-capture-info">
           {tabCaptureActive ? (
-            <p className="success">✅ Tab-Audio wird erfasst</p>
+            <p className="success">Tab audio is being captured</p>
           ) : (
             <p className="hint">
-              Beim Start wirst du aufgefordert, einen Browser-Tab auszuwählen.
+              When you start, you will be asked to choose a browser tab.
               <br />
-              <strong>Wichtig:</strong> Aktiviere "Tab-Audio teilen" im Dialog!
+              <strong>Important:</strong> enable "Share tab audio" in the dialog.
             </p>
           )}
           {tabCaptureError && (
@@ -115,23 +113,22 @@ export function DeviceSelector({
         </div>
       )}
 
-      {/* Device Selector für VB-Cable Fallback */}
       {speakerSource === "device" && (
         <label className="field">
-          <span>Audio-Device auswählen</span>
+          <span>Select audio device</span>
           <select
             value={speakerId}
             onChange={(e) => setSpeakerId(e.target.value)}
           >
-            <option value="">-- Device wählen --</option>
+            <option value="">-- Choose device --</option>
             {devices.map((d) => (
               <option key={d.deviceId} value={d.deviceId}>
-                {d.label || "Audio Input"}
+                {d.label || "Audio input"}
               </option>
             ))}
           </select>
           <p className="hint" style={{ marginTop: 4, fontSize: 12 }}>
-            Nutze ein virtuelles Device wie "VB-Cable" oder "Stereo Mix"
+            Use a virtual device like "VB-Cable" or "Stereo Mix".
           </p>
         </label>
       )}

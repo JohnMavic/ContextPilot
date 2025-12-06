@@ -9,13 +9,13 @@ const apiKeyFromEnv = (import.meta.env.VITE_OPENAI_API_KEY as string | undefined
 function statusLabel(status: string) {
   switch (status) {
     case "connecting":
-      return "Verbindung wird aufgebaut...";
+      return "Connecting...";
     case "running":
       return "Live";
     case "error":
-      return "Fehler";
+      return "Error";
     default:
-      return "Bereit";
+      return "Ready";
   }
 }
 
@@ -125,10 +125,9 @@ export default function App() {
       <header>
         <div>
           <p className="eyebrow">React/Vite x OpenAI Realtime</p>
-          <h1>Live-Transkription</h1>
+          <h1>Live Transcription</h1>
           <p className="muted">
-            Mikro + Tab-Audio direkt erfassen und per WebSocket an
-            den intent=transcription Endpoint schicken. Kein VB-Cable nötig!
+            Capture mic and tab audio, stream via WebSocket to the intent=transcription endpoint. No virtual cable needed.
           </p>
         </div>
         <div className={`status-pill status-${status}`}>
@@ -140,7 +139,7 @@ export default function App() {
       <section className="panel">
         <div className="controls">
           <div className="hint">
-            OpenAI API Key wird aus <code>.env.local</code> gelesen. Kein Key im UI nötig.
+            OpenAI API key is read from <code>.env.local</code>. No key input in the UI required.
           </div>
 
           <DeviceSelector 
@@ -158,7 +157,7 @@ export default function App() {
               Start
             </button>
             <button onClick={handleStop}>Stop</button>
-            <button onClick={() => resetTranscript()}>Leeren</button>
+            <button onClick={() => resetTranscript()}>Clear</button>
           </div>
           {error && <div className="error">{error}</div>}
         </div>
@@ -167,12 +166,12 @@ export default function App() {
       <section className="panel transcript">
         <div className="panel-head">
           <div>
-            <p className="eyebrow">Transkript</p>
-            <h2>Livetext</h2>
+            <p className="eyebrow">Transcript</p>
+            <h2>Live text</h2>
           </div>
           <div className="muted" style={{ textAlign: "right", fontSize: 13 }}>
-            🎤 {stats.micFrames} | 🔊 {stats.speakerFrames} | {stats.lastEventType || "—"}
-            {!autoScroll && <span style={{ color: "#fbbf24", marginLeft: 8 }}>⬇ Neue Updates</span>}
+            MIC {stats.micFrames} | SPK {stats.speakerFrames} | {stats.lastEventType || "n/a"}
+            {!autoScroll && <span style={{ color: "#fbbf24", marginLeft: 8 }}>New updates</span>}
           </div>
         </div>
         <div 
@@ -181,26 +180,28 @@ export default function App() {
           onScroll={handleScroll}
         >
           {segments.length === 0 && (
-            <p className="muted">Noch keine Eingaben. Wähle mindestens eine Audio-Quelle und starte.</p>
+            <p className="muted">No input yet. Pick at least one audio source and hit Start.</p>
           )}
-          {/* Finalisierte Segmente (fertige Sätze) mit Source-Label */}
+          {/* Finalized segments with source label and speaker ID */}
           {finalSegments.map((s) => (
-            <div key={s.itemId} className={`final-line source-${s.source}`}>
-              <span className="source-tag">{s.source === "mic" ? "🎤" : "🔊"}</span>
+            <div key={s.itemId} className={`final-line source-${s.source} ${s.speakerId ? `speaker-${s.speakerId}` : ''}`}>
+              <span className="source-tag">{s.source === "mic" ? "MIC" : "SPK"}</span>
+              {s.speakerId && <span className="speaker-tag">[{s.speakerId}]</span>}
               {s.text}
             </div>
           ))}
-          {/* Live-Segmente (aktuell gesprochene Wörter) - kann mehrere geben */}
+          {/* Live segments (currently spoken words) - can be multiple */}
           {liveSegments.map((s) => (
-            <div key={s.itemId} className={`live-line source-${s.source}`}>
-              <span className="source-tag">{s.source === "mic" ? "🎤" : "🔊"}</span>
+            <div key={s.itemId} className={`live-line source-${s.source} ${s.speakerId ? `speaker-${s.speakerId}` : ''}`}>
+              <span className="source-tag">{s.source === "mic" ? "MIC" : "SPK"}</span>
+              {s.speakerId && <span className="speaker-tag">[{s.speakerId}]</span>}
               {s.text}
               <span className="cursor">|</span>
             </div>
           ))}
         </div>
         <details className="raw">
-          <summary>Rohtext (zusammengefuehrt)</summary>
+          <summary>Raw text (merged)</summary>
           <pre>{mergedTranscript}</pre>
         </details>
       </section>

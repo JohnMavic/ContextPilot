@@ -224,6 +224,25 @@ button:disabled {
   flex-shrink: 0;
 }
 
+/* Speaker-Tag für Diarization */
+.speaker-tag {
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+  margin-right: 6px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+/* Verschiedene Farben für verschiedene Speaker */
+.speaker-speaker_0 .speaker-tag { background: rgba(34, 211, 238, 0.2); color: #7dd3fc; }
+.speaker-speaker_1 .speaker-tag { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
+.speaker-speaker_2 .speaker-tag { background: rgba(251, 191, 36, 0.2); color: #fcd34d; }
+.speaker-speaker_3 .speaker-tag { background: rgba(52, 211, 153, 0.2); color: #6ee7b7; }
+.speaker-speaker_4 .speaker-tag { background: rgba(244, 114, 182, 0.2); color: #f9a8d4; }
+
 .source-mic .source-tag {
   filter: hue-rotate(0deg);
 }

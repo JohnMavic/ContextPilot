@@ -9,7 +9,6 @@ export type TranscriptSegment = {
   isFinal: boolean;
   source: Source;
   timestamp: number;
-  speakerId?: string; // Speaker-ID von Diarization (z.B. "speaker_0", "speaker_1")
 };
 
 type AudioSession = {
@@ -21,8 +20,6 @@ type AudioSession = {
   isExternalStream?: boolean; // true wenn Stream von außen kommt (Tab Capture)
   commitTimer?: ReturnType<typeof setInterval> | null;
   hasAudioSinceCommit?: boolean;
-  framesSinceCommit?: number;
-  bytesSinceCommit?: number;
   lastLoudAt?: number;
 };
 
@@ -58,18 +55,14 @@ export function useDualRealtime() {
 
   useEffect(() => () => stopAll(), []);
 
-  // Delta zu einem Segment hinzufügen (mit Source-Tag und optionaler Speaker-ID)
-  const addDelta = useCallback((itemId: string, delta: string, source: Source, speakerId?: string) => {
+  // Delta zu einem Segment hinzufügen (mit Source-Tag)
+  const addDelta = useCallback((itemId: string, delta: string, source: Source) => {
     setSegments((prev) => {
       // Suche Segment mit gleicher itemId UND source
       const idx = prev.findIndex((s) => s.itemId === itemId && s.source === source);
       if (idx >= 0) {
         const updated = [...prev];
-        updated[idx] = { 
-          ...updated[idx], 
-          text: updated[idx].text + delta,
-          speakerId: speakerId || updated[idx].speakerId,
-        };
+        updated[idx] = { ...updated[idx], text: updated[idx].text + delta };
         return updated;
       } else {
         return [...prev, { 
@@ -78,24 +71,18 @@ export function useDualRealtime() {
           isFinal: false, 
           source,
           timestamp: Date.now(),
-          speakerId,
         }];
       }
     });
   }, []);
 
   // Segment finalisieren
-  const finalize = useCallback((itemId: string, finalText: string, source: Source, speakerId?: string) => {
+  const finalize = useCallback((itemId: string, finalText: string, source: Source) => {
     setSegments((prev) => {
       const idx = prev.findIndex((s) => s.itemId === itemId && s.source === source);
       if (idx >= 0) {
         const updated = [...prev];
-        updated[idx] = { 
-          ...updated[idx], 
-          text: finalText, 
-          isFinal: true,
-          speakerId: speakerId || updated[idx].speakerId,
-        };
+        updated[idx] = { ...updated[idx], text: finalText, isFinal: true };
         return updated;
       } else {
         return [...prev, { 
@@ -104,7 +91,6 @@ export function useDualRealtime() {
           isFinal: true, 
           source,
           timestamp: Date.now(),
-          speakerId,
         }];
       }
     });
@@ -114,26 +100,15 @@ export function useDualRealtime() {
   const createMessageHandler = (source: Source) => (evt: MessageEvent) => {
     try {
       const msg = JSON.parse(evt.data);
-      console.log(`[WS ${source.toUpperCase()}]`, msg.type, msg.speaker_id ? `[${msg.speaker_id}]` : '');
+      console.log(`[WS ${source.toUpperCase()}]`, msg.type);
       setStats((s) => ({ ...s, lastEventType: msg.type }));
-
-      // Reset commit flags on speech boundaries to avoid empty commits
-      if (msg.type === "input_audio_buffer.speech_started" || msg.type === "input_audio_buffer.speech_stopped") {
-        const session = source === "mic" ? micSession : speakerSession;
-        session.current.hasAudioSinceCommit = false;
-        session.current.framesSinceCommit = 0;
-        session.current.bytesSinceCommit = 0;
-      }
-
-      // Speaker-ID aus Diarization extrahieren (falls vorhanden)
-      const speakerId = msg.speaker_id || msg.speaker || undefined;
 
       if (
         msg.type === "conversation.item.input_audio_transcription.delta" &&
         msg.delta &&
         msg.item_id
       ) {
-        addDelta(msg.item_id, msg.delta, source, speakerId);
+        addDelta(msg.item_id, msg.delta, source);
         return;
       }
 
@@ -142,14 +117,13 @@ export function useDualRealtime() {
         msg.transcript &&
         msg.item_id
       ) {
-        finalize(msg.item_id, msg.transcript, source, speakerId);
+        finalize(msg.item_id, msg.transcript, source);
         return;
       }
 
       if (msg.type === "error") {
-        const errMsg = msg.error?.message || msg.error?.code || JSON.stringify(msg.error);
-        console.error(`[WS ${source.toUpperCase()} ERROR]`, msg.error);
-        setError(`${source}: ${errMsg}`);
+        console.error(`[WS ${source.toUpperCase()} ERROR]`, msg);
+        setError(`${source}: ${msg.error?.message || JSON.stringify(msg)}`);
       }
     } catch (err) {
       console.warn("Parse error:", err);
@@ -159,7 +133,7 @@ export function useDualRealtime() {
   // WebSocket für eine Source erstellen
   const connectWs = (source: Source): WebSocket => {
     const transcriptionPrompt =
-      "Auto-detect language. Produce verbatim transcripts (no summaries), keep names and numbers exactly as spoken. Merge adjacent fragments into complete, coherent sentences when they clearly belong together; lightly fix punctuation and obvious word breaks; do not add, omit, or change facts.";
+      "Auto-detect language. Produce verbatim transcripts (no summaries), keep names and numbers exactly as spoken.";
     const url = `ws://localhost:8080`;
     console.log(`[WS ${source.toUpperCase()}] Verbinde zu Proxy:`, url);
     const ws = new WebSocket(url);
@@ -168,8 +142,6 @@ export function useDualRealtime() {
       console.log(`[WS ${source.toUpperCase()}] Connected`);
       
       // Unterschiedliche Konfiguration für Mic vs Speaker
-      // gpt-4o-transcribe für Standard-Transkription
-      // gpt-4o-transcribe-diarize wäre für Speaker-Erkennung (noch nicht überall verfügbar)
       const sessionUpdate = {
         type: "transcription_session.update",
         session: {
@@ -182,16 +154,16 @@ export function useDualRealtime() {
             ? {
                 // Mic: VAD aktiviert für natürliche Sprechpausen
                 type: "server_vad",
-                threshold: 0.28,
+                threshold: 0.32,
                 prefix_padding_ms: 450,
-                silence_duration_ms: 1000,
+                silence_duration_ms: 400,
               }
             : {
                 // Speaker: VAD etwas weniger empfindlich, mehr Kontext
                 type: "server_vad",
-                threshold: 0.29,
+                threshold: 0.25,
                 prefix_padding_ms: 900,
-                silence_duration_ms: 1550,
+                silence_duration_ms: 1400,
               },
         },
       };
@@ -201,7 +173,7 @@ export function useDualRealtime() {
     ws.onmessage = createMessageHandler(source);
     ws.onerror = (e) => {
       console.error(`[WS ${source.toUpperCase()}] Error`, e);
-      setError(`${source}: WebSocket error`);
+      setError(`${source}: WebSocket Fehler`);
     };
     ws.onclose = () => {
       console.log(`[WS ${source.toUpperCase()}] Closed`);
@@ -245,7 +217,6 @@ export function useDualRealtime() {
       session.current.stream = stream;
       session.current.isExternalStream = isExternalStream;
       session.current.hasAudioSinceCommit = false;
-      session.current.framesSinceCommit = 0;
       session.current.lastLoudAt = undefined;
       
       // AudioContext mit fixer 24 kHz, damit der Stream zur API passt
@@ -276,8 +247,8 @@ export function useDualRealtime() {
         // VB-Cable: braucht VIEL mehr Gain
         inputGain.gain.value = 500;
       } else {
-        // Mic: leicht erhöhtes Gain, um leises Signal anzuheben
-        inputGain.gain.value = 2;
+        // Mic: normales Gain
+        inputGain.gain.value = 1;
       }
       
       // Output Gain auf 0 damit wir nichts hören (nur Processing)
@@ -295,19 +266,14 @@ export function useDualRealtime() {
 
       // Regelmäßige Commits schicken, damit der Server sehr kurze Abschnitte verarbeitet
       // und wir Zeile für Zeile Updates bekommen (auch wenn kein Silence erkannt wird).
-      const commitIntervalMs = source === "speaker" ? 2600 : 3500;
-      const minFramesForCommit = source === "mic" ? 15 : 1;
+      const commitIntervalMs = source === "speaker" ? 2600 : 1800;
       session.current.commitTimer = setInterval(() => {
         if (
           session.current.ws?.readyState === WebSocket.OPEN &&
-          session.current.hasAudioSinceCommit &&
-          (session.current.framesSinceCommit || 0) >= minFramesForCommit &&
-          (session.current.bytesSinceCommit || 0) > 0
+          session.current.hasAudioSinceCommit
         ) {
           session.current.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
           session.current.hasAudioSinceCommit = false;
-          session.current.framesSinceCommit = 0;
-          session.current.bytesSinceCommit = 0;
         }
       }, commitIntervalMs);
 
@@ -329,7 +295,7 @@ export function useDualRealtime() {
         }
         const rms = Math.sqrt(sum / floatData.length);
         
-        const loudThreshold = 0.0001;
+        const loudThreshold = 0.002;
         if (rms < loudThreshold) {
           silentFrames++;
         } else {
@@ -350,8 +316,6 @@ export function useDualRealtime() {
           [source === "mic" ? "micFrames" : "speakerFrames"]: 
             s[source === "mic" ? "micFrames" : "speakerFrames"] + 1,
         }));
-        session.current.framesSinceCommit = (session.current.framesSinceCommit || 0) + 1;
-        session.current.bytesSinceCommit = (session.current.bytesSinceCommit || 0) + floatData.byteLength;
 
         session.current.ws.send(
           JSON.stringify({ type: "input_audio_buffer.append", audio: b64 }),
@@ -361,19 +325,14 @@ export function useDualRealtime() {
       return true;
     } catch (err) {
       console.error(`[${source.toUpperCase()}] Audio Error:`, err);
-      setError(`${source}: Audio/worklet error ${err instanceof Error ? err.message : String(err)}`);
+      setError(`${source}: Audio/Worklet-Fehler ${err instanceof Error ? err.message : String(err)}`);
       return false;
     }
   };
 
   // Session stoppen
   const stopSession = (session: React.MutableRefObject<AudioSession>) => {
-    if (
-      session.current.ws?.readyState === WebSocket.OPEN &&
-      session.current.hasAudioSinceCommit &&
-      (session.current.framesSinceCommit || 0) > 0 &&
-      (session.current.bytesSinceCommit || 0) > 0
-    ) {
+    if (session.current.ws?.readyState === WebSocket.OPEN && session.current.hasAudioSinceCommit) {
       // Letztes Commit senden, um offene Fragmente zu schließen
       session.current.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
     }
@@ -413,7 +372,7 @@ export function useDualRealtime() {
     speakerSource?: string | MediaStream
   ) => {
     if (!apiKey) {
-      setError("API key missing.");
+      setError("API-Key fehlt.");
       return;
     }
     if (status === "running" || status === "connecting") return;
@@ -431,7 +390,7 @@ export function useDualRealtime() {
     if (results.some((r) => r)) {
       setStatus("running");
     } else {
-      setError("Could not start any audio source.");
+      setError("Keine Audio-Quelle konnte gestartet werden.");
       setStatus("error");
     }
   };
