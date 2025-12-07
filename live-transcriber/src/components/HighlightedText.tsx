@@ -7,16 +7,17 @@ interface HighlightedTextProps {
   groupId: string;  // Die ID dieser Gruppe für Highlight-Filterung
 }
 
-interface TextRun {
+interface TextSegment {
   text: string;
-  highlightColor?: number;
-  highlightId?: string;
+  highlightIds: string[];      // Alle Highlight-IDs die dieses Segment abdecken
+  highlightColors: number[];   // Alle Farben die dieses Segment abdecken
 }
 
 /**
  * Rendert Text mit Highlights als <mark> Elemente.
- * State-basiert: Highlights werden aus dem React-State gelesen,
- * nicht via DOM-Manipulation.
+ * Unterstützt ÜBERLAPPENDE Highlights mit additiver Farbmischung:
+ * - 1 Highlight: normale Farbe
+ * - 2+ Highlights: heller/weißer (additive Mischung)
  * 
  * Verwendet LOKALE Offsets relativ zum groupId.
  */
@@ -26,82 +27,93 @@ export const HighlightedText = memo(function HighlightedText({
   groupId,
 }: HighlightedTextProps) {
   
-  // Splitte den Text in Runs basierend auf Highlight-Offsets
-  const runs = useMemo(() => {
+  // Erstelle Segmente mit Überlappungserkennung
+  const segments = useMemo(() => {
     if (!text) {
-      return [{ text: "" }] as TextRun[];
+      return [{ text: "", highlightIds: [], highlightColors: [] }] as TextSegment[];
     }
     
     // Filtere nur Highlights für DIESE Gruppe
-    const groupHighlights = highlights.filter(h => h.groupId === groupId);
+    const groupHighlights = highlights
+      .filter(h => h.groupId === groupId)
+      .filter(h => h.localStartOffset < text.length && h.localEndOffset > 0);
     
     if (groupHighlights.length === 0) {
-      return [{ text }] as TextRun[];
+      return [{ text, highlightIds: [], highlightColors: [] }] as TextSegment[];
     }
 
-    // Sortiere Highlights nach localStartOffset
-    const sortedHighlights = [...groupHighlights]
-      .filter(h => h.localStartOffset < text.length && h.localEndOffset > 0)
-      .sort((a, b) => a.localStartOffset - b.localStartOffset);
-
-    if (sortedHighlights.length === 0) {
-      return [{ text }] as TextRun[];
-    }
-
-    const result: TextRun[] = [];
-    let currentPos = 0;
-
-    for (const hl of sortedHighlights) {
-      // Clamp offsets to text bounds
+    // Sammle alle Boundary-Punkte (Start und Ende jedes Highlights)
+    const boundaries = new Set<number>();
+    boundaries.add(0);
+    boundaries.add(text.length);
+    
+    for (const hl of groupHighlights) {
       const start = Math.max(0, Math.min(hl.localStartOffset, text.length));
       const end = Math.max(0, Math.min(hl.localEndOffset, text.length));
-
-      if (start >= end) continue;
-
-      // Text vor dem Highlight
-      if (currentPos < start) {
-        result.push({
-          text: text.slice(currentPos, start),
-        });
-      }
-
-      // Das Highlight selbst
-      if (start < text.length) {
-        result.push({
-          text: text.slice(start, end),
-          highlightColor: hl.color,
-          highlightId: hl.id,
-        });
-      }
-
-      currentPos = end;
+      boundaries.add(start);
+      boundaries.add(end);
     }
-
-    // Restlicher Text nach dem letzten Highlight
-    if (currentPos < text.length) {
+    
+    // Sortiere Boundaries
+    const sortedBoundaries = Array.from(boundaries).sort((a, b) => a - b);
+    
+    // Erstelle Segmente zwischen allen Boundaries
+    const result: TextSegment[] = [];
+    
+    for (let i = 0; i < sortedBoundaries.length - 1; i++) {
+      const segStart = sortedBoundaries[i];
+      const segEnd = sortedBoundaries[i + 1];
+      
+      if (segStart >= segEnd) continue;
+      
+      // Finde alle Highlights die dieses Segment abdecken
+      const coveringHighlights = groupHighlights.filter(hl => {
+        const hlStart = Math.max(0, Math.min(hl.localStartOffset, text.length));
+        const hlEnd = Math.max(0, Math.min(hl.localEndOffset, text.length));
+        return hlStart <= segStart && hlEnd >= segEnd;
+      });
+      
       result.push({
-        text: text.slice(currentPos),
+        text: text.slice(segStart, segEnd),
+        highlightIds: coveringHighlights.map(h => h.id),
+        highlightColors: coveringHighlights.map(h => h.color),
       });
     }
-
+    
     return result;
   }, [text, highlights, groupId]);
 
+  // Berechne CSS-Klasse basierend auf Überlappungsgrad
+  const getHighlightClass = (colors: number[]): string => {
+    if (colors.length === 0) return "";
+    if (colors.length === 1) return `highlight-mark mark-${colors[0]}`;
+    if (colors.length === 2) return "highlight-mark highlight-overlap-2";
+    return "highlight-mark highlight-overlap-3";
+  };
+
   return (
     <span className="highlighted-text">
-      {runs.map((run, idx) => 
-        run.highlightColor ? (
+      {segments.map((seg, idx) => {
+        const className = getHighlightClass(seg.highlightColors);
+        const primaryId = seg.highlightIds[0];
+        
+        return className ? (
           <mark
-            key={run.highlightId || idx}
-            className={`highlight-mark mark-${run.highlightColor}`}
-            data-highlight-id={run.highlightId}
+            key={primaryId ? `${primaryId}-${idx}` : idx}
+            className={className}
+            data-highlight-id={primaryId}
+            data-highlight-ids={seg.highlightIds.join(",")}
+            data-overlap-count={seg.highlightColors.length}
+            title={seg.highlightColors.length > 1 
+              ? `${seg.highlightColors.length} overlapping highlights` 
+              : undefined}
           >
-            {run.text}
+            {seg.text}
           </mark>
         ) : (
-          <span key={idx}>{run.text}</span>
-        )
-      )}
+          <span key={idx}>{seg.text}</span>
+        );
+      })}
     </span>
   );
 });

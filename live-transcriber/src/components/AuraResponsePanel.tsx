@@ -153,7 +153,7 @@ export function AuraResponsePanel({
       <div className="aura-panel-header" style={{ borderBottomColor: `${borderColor}33` }}>
         <div className="aura-panel-title" style={{ color: borderColor }}>
           <span className="aura-icon">✨</span>
-          <span>AURA</span>
+          <span>CONTEXT PILOT</span>
         </div>
         <button 
           className="aura-panel-btn aura-panel-close" 
@@ -204,4 +204,5 @@ export function AuraResponsePanel({
     </div>
   );
 }
+
 

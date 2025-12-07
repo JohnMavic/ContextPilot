@@ -12,6 +12,15 @@ import { useHighlights, type HighlightColor } from "./hooks/useHighlights";
 
 const apiKeyFromEnv = (import.meta.env.VITE_OPENAI_API_KEY as string | undefined) || "";
 
+// Agent/Workflow type from proxy server
+interface AgentInfo {
+  id: number;
+  name: string;
+  label: string;
+  type: "agent" | "workflow";
+  active: boolean;
+}
+
 function statusLabel(status: string) {
   switch (status) {
     case "connecting":
@@ -32,8 +41,60 @@ export default function App() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [agentPanelWidth, setAgentPanelWidth] = useState(400); // Default doppelte Breite
   const [isResizing, setIsResizing] = useState(false);
+  
+  // Agent selection state
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [workflows, setWorkflows] = useState<AgentInfo[]>([]);
+  const [currentAgentId, setCurrentAgentId] = useState<number | null>(null);
+  const [agentSwitching, setAgentSwitching] = useState(false);
+  
   const transcriptBoxRef = useRef<HTMLDivElement>(null);
   const transcriptAreaRef = useRef<HTMLDivElement>(null);
+  
+  // Load available agents and workflows from proxy server
+  useEffect(() => {
+    fetch("http://localhost:8080/agents")
+      .then(res => res.json())
+      .then(data => {
+        if (data.agents) {
+          // Add type to agents for UI display
+          setAgents(data.agents.map((a: AgentInfo) => ({ ...a, type: "agent" as const })));
+        }
+        if (data.workflows) {
+          // Add type to workflows for UI display
+          setWorkflows(data.workflows.map((w: AgentInfo) => ({ ...w, type: "workflow" as const })));
+        }
+        if (data.currentAgentId !== undefined) {
+          setCurrentAgentId(data.currentAgentId);
+        }
+      })
+      .catch(err => console.error("Failed to load agents:", err));
+  }, []);
+  
+  // Switch agent/workflow handler
+  const handleAgentSwitch = useCallback(async (agentId: number) => {
+    if (agentId === currentAgentId || agentSwitching) return;
+    
+    setAgentSwitching(true);
+    try {
+      const res = await fetch("http://localhost:8080/agents/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCurrentAgentId(agentId);
+        // Update active state in both lists
+        setAgents(prev => prev.map(a => ({ ...a, active: a.id === agentId })));
+        setWorkflows(prev => prev.map(w => ({ ...w, active: w.id === agentId })));
+      }
+    } catch (err) {
+      console.error("Failed to switch agent:", err);
+    } finally {
+      setAgentSwitching(false);
+    }
+  }, [currentAgentId, agentSwitching]);
   
   // Tab Capture Hook
   const tabCapture = useTabCapture();
@@ -267,7 +328,7 @@ Give me 3-5 bullet points with key facts I can use in conversation. Short, preci
     
     const prompt = `Context: "${highlight.text}"
 
-Find 2-3 similar examples or related cases from your index. One line each, max.`;
+Find 2-3 similar deal examples from Microsoft Switzerland in your index. One line each, max. Focus on facts such as contract scope, number of users, etc.`;
     
     queryAgent(prompt, highlight.id, highlight.text, highlight.color, highlight.anchorTop, "facts");
     hideMenu();
@@ -420,8 +481,47 @@ ${customPrompt}`;
 
       {/* Sidebar links */}
       <aside className="sidebar">
+        {/* Agent Selection - oberhalb Audio Settings */}
         <div className="panel sidebar-panel">
-          <h3>Settings</h3>
+          <h3>AI Agent / Workflow</h3>
+          {agents.length === 0 && workflows.length === 0 ? (
+            <p className="muted" style={{ fontSize: 12 }}>Loading agents...</p>
+          ) : (
+            <div className="agent-selector">
+              <select
+                value={currentAgentId || ""}
+                onChange={(e) => handleAgentSwitch(Number(e.target.value))}
+                disabled={agentSwitching}
+                className="agent-dropdown"
+              >
+                {/* Agents Group */}
+                {agents.length > 0 && (
+                  <optgroup label="🤖 Agents">
+                    {agents.map(agent => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.label || agent.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {/* Workflows Group */}
+                {workflows.length > 0 && (
+                  <optgroup label="⚡ Workflows">
+                    {workflows.map(workflow => (
+                      <option key={workflow.id} value={workflow.id}>
+                        {workflow.label || workflow.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              {agentSwitching && <span className="agent-switching">Switching...</span>}
+            </div>
+          )}
+        </div>
+        
+        <div className="panel sidebar-panel">
+          <h3>Audio Settings</h3>
           <div className="controls">
             <DeviceSelector 
               onSelect={handleDeviceSelect} 
@@ -453,6 +553,7 @@ ${customPrompt}`;
             </div>
           </div>
         </div>
+        
         <div className="panel sidebar-panel">
           <h3>Audio Levels</h3>
           <div className="volume-meters">

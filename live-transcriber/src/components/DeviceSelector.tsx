@@ -58,7 +58,7 @@ export function DeviceSelector({
       </label>
 
       <div className="field">
-        <span>System audio source</span>
+        <h4 className="field-header">System Audio Source</h4>
         <div className="speaker-source-selector">
           <label className="radio-option">
             <input

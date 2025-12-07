@@ -331,7 +331,304 @@ Für lokale Entwicklung wird **kein API Key** benötigt! Die Authentifizierung e
 
 ---
 
-## 10. Wichtige Hinweise
+## 10. Workflows aufrufen (Multi-Agent Orchestration)
+
+> **Entdeckt:** Dezember 2025  
+> **Wichtig:** Workflows sind **stateful** und benötigen eine Conversation!
+
+### Unterschied Agent vs Workflow
+
+| Aspekt | Agent | Workflow |
+|--------|-------|----------|
+| Typ in API | `kind: "prompt"` | `kind: "workflow"` |
+| Stateful | Optional (conversation) | **Pflicht** (conversation required!) |
+| Request-Flow | 1 Request | 2 Requests (Conversation erstellen + Response) |
+| Use Case | Einzelne Aufgabe | Multi-Agent Orchestration |
+
+### Workflow-Struktur (Beispiel CONTEXTPILOT)
+
+Ein Workflow orchestriert mehrere Sub-Agents sequentiell:
+
+```yaml
+kind: workflow
+trigger:
+  kind: OnConversationStart
+  id: trigger_wf
+  actions:
+    - kind: InvokeAzureAgent
+      id: agent1
+      agent:
+        name: AURAContextPilotWeb      # Web-Suche (Bing Grounding)
+      input:
+        messages: =System.LastMessage
+      output:
+        messages: Local.Agent1Response
+        autoSend: false
+        
+    - kind: InvokeAzureAgent
+      id: agent2
+      agent:
+        name: AURAContextPilot         # Index-Suche (File Search)
+      input:
+        messages: =System.LastMessage
+      output:
+        messages: Local.Agent2Response
+        autoSend: false
+        
+    - kind: SetVariable
+      id: combine_outputs
+      variable: Local.CombinedMessage
+      value: =UserMessage(Last(Local.Agent1Response).Text & "\n\n" & Last(Local.Agent2Response).Text)
+      
+    - kind: InvokeAzureAgent
+      id: synthesizer
+      agent:
+        name: AURAContextPilotResponseSynthesizer  # Kombiniert Ergebnisse
+      input:
+        messages: =Local.CombinedMessage
+      output:
+        autoSend: true
+```
+
+### API-Aufruf für Workflows (2-Step Process)
+
+**WICHTIG:** Workflows benötigen eine Conversation! Ohne `conversation.id` gibt es den Fehler:
+```json
+{"error": {"param": "conversation", "message": "Not defined."}}
+```
+
+#### Schritt 1: Conversation erstellen
+
+```bash
+POST https://<resource>.services.ai.azure.com/api/projects/<project>/openai/conversations?api-version=2025-11-15-preview
+Authorization: Bearer $TOKEN
+Content-Type: application/json
+
+{}
+```
+
+Response:
+```json
+{
+  "id": "conv_abc123...",
+  "object": "conversation"
+}
+```
+
+#### Schritt 2: Workflow aufrufen mit Conversation
+
+```bash
+POST https://<resource>.services.ai.azure.com/api/projects/<project>/openai/responses?api-version=2025-11-15-preview
+Authorization: Bearer $TOKEN
+Content-Type: application/json
+
+{
+  "agent": {
+    "type": "agent_reference",
+    "name": "CONTEXTPILOT"
+  },
+  "input": "Was sind die Deal Details zu Roche?",
+  "conversation": {
+    "id": "conv_abc123..."
+  }
+}
+```
+
+### Node.js Beispiel für Workflows
+
+```javascript
+async function callWorkflow(workflowName, prompt, endpoint) {
+  const credential = new DefaultAzureCredential();
+  const token = await credential.getToken("https://ai.azure.com/.default");
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token.token}`
+  };
+  
+  const baseUrl = endpoint.replace(/\/$/, "");
+  
+  // SCHRITT 1: Conversation erstellen (Workflows sind stateful!)
+  console.log("[WORKFLOW] Creating conversation...");
+  const convResp = await fetch(
+    `${baseUrl}/openai/conversations?api-version=2025-11-15-preview`,
+    { method: "POST", headers, body: JSON.stringify({}) }
+  );
+  
+  if (!convResp.ok) {
+    throw new Error(`Failed to create conversation: ${await convResp.text()}`);
+  }
+  
+  const { id: conversationId } = await convResp.json();
+  console.log("[WORKFLOW] Conversation ID:", conversationId);
+  
+  // SCHRITT 2: Workflow mit Conversation aufrufen
+  console.log("[WORKFLOW] Calling workflow...");
+  const resp = await fetch(
+    `${baseUrl}/openai/responses?api-version=2025-11-15-preview`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        agent: { type: "agent_reference", name: workflowName },
+        input: prompt,
+        conversation: { id: conversationId }
+      })
+    }
+  );
+  
+  if (!resp.ok) {
+    throw new Error(`Workflow call failed: ${await resp.text()}`);
+  }
+  
+  const data = await resp.json();
+  
+  // Response parsen - letztes Message-Output enthält synthesierte Antwort
+  const messages = data.output?.filter(o => o.type === "message") || [];
+  const lastMessage = messages[messages.length - 1];
+  const textContent = lastMessage?.content?.find(c => c.type === "output_text");
+  
+  return {
+    text: textContent?.text || "",
+    conversationId,
+    usage: data.usage,
+    raw: data
+  };
+}
+
+// Verwendung
+const result = await callWorkflow(
+  "CONTEXTPILOT",
+  "Was sind die Deal Details zu Roche?",
+  "https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot"
+);
+console.log(result.text);
+```
+
+### PowerShell Beispiel für Workflows
+
+```powershell
+# Token holen
+$token = az account get-access-token --resource "https://ai.azure.com" --query accessToken -o tsv
+$headers = @{
+    "Content-Type" = "application/json"
+    "Authorization" = "Bearer $token"
+}
+$baseUrl = "https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot/openai"
+
+# Schritt 1: Conversation erstellen
+$conv = Invoke-RestMethod -Uri "$baseUrl/conversations?api-version=2025-11-15-preview" `
+    -Method POST -Headers $headers -Body '{}'
+$convId = $conv.id
+Write-Host "Conversation ID: $convId"
+
+# Schritt 2: Workflow aufrufen
+$body = @{
+    agent = @{ type = "agent_reference"; name = "CONTEXTPILOT" }
+    input = "Was sind die Deal Details zu Roche?"
+    conversation = @{ id = $convId }
+} | ConvertTo-Json -Depth 5
+
+$response = Invoke-RestMethod -Uri "$baseUrl/responses?api-version=2025-11-15-preview" `
+    -Method POST -Headers $headers -Body $body -TimeoutSec 180
+
+# Letztes Message extrahieren (synthesierte Antwort)
+$messages = $response.output | Where-Object { $_.type -eq "message" }
+$lastMessage = $messages[-1]
+$text = $lastMessage.content | Where-Object { $_.type -eq "output_text" }
+Write-Host $text.text
+```
+
+### Workflow Response-Struktur
+
+Die Response enthält alle Workflow-Aktionen im `output` Array:
+
+```json
+{
+  "id": "wfresp_xxx",
+  "object": "response",
+  "status": "completed",
+  "output": [
+    {
+      "type": "workflow_action",
+      "kind": "InvokeAzureAgent",
+      "action_id": "agent1",
+      "status": "completed"
+    },
+    {
+      "type": "bing_grounding_call",
+      "status": "completed",
+      "arguments": "{\"query\":\"Roche deal details\"}"
+    },
+    {
+      "type": "workflow_action",
+      "kind": "InvokeAzureAgent", 
+      "action_id": "agent2",
+      "status": "completed"
+    },
+    {
+      "type": "file_search_call",
+      "status": "completed",
+      "queries": ["Roche Deal Details", "..."]
+    },
+    {
+      "type": "message",
+      "role": "assistant",
+      "content": [{ "type": "output_text", "text": "Zwischenergebnis Agent 2..." }]
+    },
+    {
+      "type": "workflow_action",
+      "kind": "SetVariable",
+      "action_id": "combine_outputs",
+      "status": "completed"
+    },
+    {
+      "type": "workflow_action",
+      "kind": "InvokeAzureAgent",
+      "action_id": "synthesizer",
+      "status": "completed"
+    },
+    {
+      "type": "message",
+      "role": "assistant",
+      "content": [{ "type": "output_text", "text": "# Finale Antwort\n- Fakt 1\n- Fakt 2" }]
+    }
+  ],
+  "usage": {
+    "input_tokens": 33709,
+    "output_tokens": 297,
+    "total_tokens": 34006
+  },
+  "conversation": {
+    "id": "conv_xxx"
+  }
+}
+```
+
+### Konfiguration in .env.local
+
+```env
+# ============================================================================
+# WORKFLOW KONFIGURATION
+# ============================================================================
+# Workflows benötigen eine Conversation (stateful) im Gegensatz zu Agents
+
+WORKFLOW_1_NAME=CONTEXTPILOT
+WORKFLOW_1_LABEL=CONTEXTPILOT (Multi-Agent)
+WORKFLOW_1_ENDPOINT=https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot
+# Auth: Azure AD (az login) - kein API Key
+```
+
+### Typische Fehler bei Workflows
+
+| Fehler | Ursache | Lösung |
+|--------|---------|--------|
+| `"param": "conversation", "message": "Not defined."` | Conversation fehlt | Erst Conversation erstellen, dann mit `conversation.id` aufrufen |
+| `500 Internal Server Error` | Workflow nicht richtig deployed | Im Foundry Portal prüfen ob Workflow "Published" ist |
+| Leere Response | Sub-Agent fehlerhaft | Einzelne Sub-Agents separat testen |
+
+---
+
+## 11. Wichtige Hinweise
 
 1. **Agent-Name vs Agent-ID:** Die neue API verwendet den **Namen** des Agenten (z.B. `AURAContext`), nicht die ID (z.B. `asst_xxx`).
 
@@ -343,9 +640,11 @@ Für lokale Entwicklung wird **kein API Key** benötigt! Die Authentifizierung e
 
 5. **Model:** Der Agent kann verschiedene Models nutzen (z.B. `claude-sonnet-4-5`, `gpt-4o`). Das wird im Agent im Foundry Portal konfiguriert.
 
+6. **Workflows sind stateful:** Anders als normale Agents **müssen** Workflows mit einer Conversation aufgerufen werden. Ohne `conversation.id` schlägt der Aufruf fehl.
+
 ---
 
-## Referenzen
+## 12. Referenzen
 
 - [Microsoft Foundry Documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/)
 - [Azure AI Foundry SDK Samples](https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/ai/azure-ai-projects)

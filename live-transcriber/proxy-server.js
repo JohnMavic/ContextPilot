@@ -31,11 +31,80 @@ const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API
 const PORT = 8080;
 
 // Azure AI Foundry Agent Configuration (NEW Foundry API - November 2025+)
-// Endpoint format: https://<name>.services.ai.azure.com/api/projects/<project>
-const AURA_ENDPOINT = process.env.AURA_ENDPOINT;
-const AURA_AGENT_NAME = process.env.AURA_AGENT_NAME || "AURAContext"; // Agent name (not ID!)
-const AURA_API_KEY = process.env.AURA_API_KEY; // Falls API-Key Auth (nicht empfohlen)
+// Supports multiple agents configured in .env.local
 const AURA_API_VERSION = process.env.AURA_API_VERSION || "2025-11-15-preview";
+
+// Parse all configured agents from environment
+function loadAgents() {
+  const agents = {};
+  let i = 1;
+  while (process.env[`AGENT_${i}_NAME`]) {
+    agents[i] = {
+      id: i,
+      name: process.env[`AGENT_${i}_NAME`],
+      label: process.env[`AGENT_${i}_LABEL`] || process.env[`AGENT_${i}_NAME`],
+      endpoint: process.env[`AGENT_${i}_ENDPOINT`],
+      apiKey: process.env[`AGENT_${i}_API_KEY`] || null,
+      type: "agent"  // Mark as regular agent
+    };
+    i++;
+  }
+  return agents;
+}
+
+// Parse all configured workflows from environment
+// Workflows need conversation management (stateful)
+function loadWorkflows() {
+  const workflows = {};
+  let i = 1;
+  while (process.env[`WORKFLOW_${i}_NAME`]) {
+    // Use negative IDs for workflows to distinguish from agents
+    const workflowId = -i;
+    workflows[workflowId] = {
+      id: workflowId,
+      name: process.env[`WORKFLOW_${i}_NAME`],
+      label: process.env[`WORKFLOW_${i}_LABEL`] || process.env[`WORKFLOW_${i}_NAME`],
+      endpoint: process.env[`WORKFLOW_${i}_ENDPOINT`],
+      apiKey: process.env[`WORKFLOW_${i}_API_KEY`] || null,
+      type: "workflow"  // Mark as workflow - needs conversation
+    };
+    i++;
+  }
+  return workflows;
+}
+
+const AGENTS = loadAgents();
+const WORKFLOWS = loadWorkflows();
+const DEFAULT_AGENT_ID = parseInt(process.env.DEFAULT_AGENT || "1", 10);
+
+// Legacy fallback für alte Konfiguration
+const LEGACY_ENDPOINT = process.env.AURA_ENDPOINT;
+const LEGACY_AGENT_NAME = process.env.AURA_AGENT_NAME || "AURAContext";
+const LEGACY_API_KEY = process.env.AURA_API_KEY;
+
+// Current active agent (can be changed via API)
+let currentAgentId = DEFAULT_AGENT_ID;
+
+// Get current selection (agent or workflow)
+function getCurrentAgent() {
+  // Check if it's a workflow (negative ID)
+  if (currentAgentId < 0 && WORKFLOWS[currentAgentId]) {
+    return WORKFLOWS[currentAgentId];
+  }
+  // Check if it's an agent
+  if (AGENTS[currentAgentId]) {
+    return { ...AGENTS[currentAgentId], type: "agent" };
+  }
+  // Fallback to legacy config
+  return {
+    id: 0,
+    name: LEGACY_AGENT_NAME,
+    label: LEGACY_AGENT_NAME,
+    endpoint: LEGACY_ENDPOINT,
+    apiKey: LEGACY_API_KEY,
+    type: "agent"
+  };
+}
 
 if (!OPENAI_API_KEY) {
   console.error("ERROR: Kein API Key gefunden in .env.local oder Umgebungsvariablen");
@@ -43,26 +112,38 @@ if (!OPENAI_API_KEY) {
 }
 
 console.log("API Key gefunden:", OPENAI_API_KEY.substring(0, 10) + "...");
-if (AURA_ENDPOINT) {
-  console.log("AURA Endpoint:", AURA_ENDPOINT);
-  console.log("AURA Agent Name:", AURA_AGENT_NAME);
-  console.log("AURA API Version:", AURA_API_VERSION);
-}
+console.log("\n=== Configured Agents ===");
+Object.values(AGENTS).forEach(agent => {
+  console.log(`  [${agent.id}] ${agent.label} (${agent.name})`);
+  console.log(`      Endpoint: ${agent.endpoint}`);
+  console.log(`      Auth: ${agent.apiKey ? 'API Key' : 'Azure AD'}`);
+});
+console.log("\n=== Configured Workflows ===");
+Object.values(WORKFLOWS).forEach(wf => {
+  console.log(`  [${wf.id}] ${wf.label} (${wf.name})`);
+  console.log(`      Endpoint: ${wf.endpoint}`);
+  console.log(`      Auth: ${wf.apiKey ? 'API Key' : 'Azure AD'}`);
+  console.log(`      Note: Workflows create conversation automatically`);
+});
+console.log(`\nDefault Agent: [${DEFAULT_AGENT_ID}] ${AGENTS[DEFAULT_AGENT_ID]?.label || LEGACY_AGENT_NAME}`);
+console.log("AURA API Version:", AURA_API_VERSION);
 
 // Azure Credential für Managed Identity Auth
 const credential = new DefaultAzureCredential({
   excludeEnvironmentCredential: !process.env.AZURE_TENANT_ID,
 });
 
-// Get auth header - prefer API key for local dev, Managed Identity for prod
-async function getAuraAuthHeader() {
-  if (AURA_API_KEY) {
-    console.log("[AURA] Using API Key authentication");
-    return { "api-key": AURA_API_KEY };
+// Get auth header - prefer API key if configured, else Azure AD
+async function getAuraAuthHeader(agent = null) {
+  const activeAgent = agent || getCurrentAgent();
+  
+  if (activeAgent.apiKey) {
+    console.log(`[AURA] Using API Key authentication for ${activeAgent.name}`);
+    return { "api-key": activeAgent.apiKey };
   }
   
   try {
-    console.log("[AURA] Acquiring Azure AD token...");
+    console.log(`[AURA] Acquiring Azure AD token for ${activeAgent.name}...`);
     // Azure AI Foundry requires https://ai.azure.com audience
     const scope = "https://ai.azure.com/.default";
     const token = await credential.getToken(scope);
@@ -72,6 +153,85 @@ async function getAuraAuthHeader() {
   } catch (err) {
     console.error("[AURA] Token acquisition failed:", err.message);
     throw err;
+  }
+}
+
+// API: List available agents AND workflows
+function listAgentsAPI(req, res) {
+  const agentList = Object.values(AGENTS).map(a => ({
+    id: a.id,
+    name: a.name,
+    label: a.label,
+    type: "agent",
+    active: a.id === currentAgentId
+  }));
+  
+  const workflowList = Object.values(WORKFLOWS).map(w => ({
+    id: w.id,
+    name: w.name,
+    label: w.label,
+    type: "workflow",
+    active: w.id === currentAgentId
+  }));
+  
+  res.writeHead(200, { 
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*"
+  });
+  res.end(JSON.stringify({ 
+    agents: agentList,
+    workflows: workflowList,
+    currentAgentId,
+    apiVersion: AURA_API_VERSION
+  }));
+}
+
+// API: Switch active agent or workflow
+function switchAgentAPI(req, res, body) {
+  try {
+    const { agentId } = JSON.parse(body || "{}");
+    
+    // Check if it's a valid agent or workflow
+    const isAgent = agentId > 0 && AGENTS[agentId];
+    const isWorkflow = agentId < 0 && WORKFLOWS[agentId];
+    
+    if (!agentId || (!isAgent && !isWorkflow)) {
+      res.writeHead(400, { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(JSON.stringify({ 
+        error: "Invalid agent/workflow ID",
+        availableAgents: Object.keys(AGENTS).map(Number),
+        availableWorkflows: Object.keys(WORKFLOWS).map(Number)
+      }));
+      return;
+    }
+    
+    currentAgentId = agentId;
+    const selection = isAgent ? AGENTS[agentId] : WORKFLOWS[agentId];
+    const selectionType = isAgent ? "agent" : "workflow";
+    console.log(`[AURA] Switched to ${selectionType} [${agentId}] ${selection.label}`);
+    
+    res.writeHead(200, { 
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*"
+    });
+    res.end(JSON.stringify({ 
+      success: true,
+      currentAgent: {
+        id: selection.id,
+        name: selection.name,
+        label: selection.label,
+        type: selectionType
+      }
+    }));
+  } catch (e) {
+    res.writeHead(400, { 
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*"
+    });
+    res.end(JSON.stringify({ error: e.message }));
   }
 }
 
@@ -114,14 +274,21 @@ async function listAssistants(req, res) {
 // Uses: POST /openai/responses with agent_reference by NAME
 // Supports STREAMING for faster response times
 async function handleAgentRequest(req, res, body) {
-  console.log("[AURA] Received agent request");
+  const agent = getCurrentAgent();
   
-  if (!AURA_ENDPOINT) {
-    console.error("[AURA] AURA_ENDPOINT not configured");
+  // Route to workflow handler if it's a workflow
+  if (agent.type === "workflow") {
+    return handleWorkflowRequest(req, res, body, agent);
+  }
+  
+  console.log(`[AURA] Received agent request for: ${agent.label}`);
+  
+  if (!agent.endpoint) {
+    console.error("[AURA] No endpoint configured for agent:", agent.name);
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ 
-      error: "AURA_ENDPOINT not configured",
-      hint: "Set AURA_ENDPOINT in .env.local (format: https://<name>.services.ai.azure.com/api/projects/<project>)"
+      error: "Agent endpoint not configured",
+      hint: `Set AGENT_${agent.id}_ENDPOINT in .env.local`
     }));
     return;
   }
@@ -149,10 +316,11 @@ async function handleAgentRequest(req, res, body) {
   }
 
   console.log("[AURA] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
-  console.log("[AURA] Using agent:", AURA_AGENT_NAME);
+  console.log("[AURA] Using agent:", agent.name, `(${agent.label})`);
+  console.log("[AURA] Endpoint:", agent.endpoint);
   console.log("[AURA] Streaming:", useStreaming);
 
-  const urlBase = AURA_ENDPOINT.replace(/\/$/, "");
+  const urlBase = agent.endpoint.replace(/\/$/, "");
   const url = `${urlBase}/openai/responses?api-version=${AURA_API_VERSION}`;
   
   console.log("[AURA] Request URL:", url);
@@ -161,7 +329,7 @@ async function handleAgentRequest(req, res, body) {
   const requestBody = {
     agent: {
       type: "agent_reference",
-      name: AURA_AGENT_NAME
+      name: agent.name
     },
     input: prompt,
     stream: useStreaming
@@ -175,7 +343,7 @@ async function handleAgentRequest(req, res, body) {
   console.log("[AURA] Request body:", JSON.stringify(requestBody, null, 2));
 
   try {
-    const authHeader = await getAuraAuthHeader();
+    const authHeader = await getAuraAuthHeader(agent);
     
     const resp = await fetch(url, {
       method: "POST",
@@ -312,10 +480,173 @@ async function handleAgentRequest(req, res, body) {
   }
 }
 
+// Handle Workflow API Request - Workflows need a conversation first!
+// Learned: Workflows are stateful and require:
+// 1. Create a conversation: POST /openai/conversations
+// 2. Call workflow with conversation: POST /openai/responses with conversation.id
+async function handleWorkflowRequest(req, res, body, workflow) {
+  console.log(`[WORKFLOW] Received workflow request for: ${workflow.label}`);
+  
+  if (!workflow.endpoint) {
+    console.error("[WORKFLOW] No endpoint configured for workflow:", workflow.name);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ 
+      error: "Workflow endpoint not configured",
+      hint: `Set WORKFLOW_${Math.abs(workflow.id)}_ENDPOINT in .env.local`
+    }));
+    return;
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(body || "{}");
+  } catch (e) {
+    console.error("[WORKFLOW] Invalid JSON payload:", e.message);
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid JSON payload" }));
+    return;
+  }
+
+  const prompt = payload.prompt;
+  
+  if (!prompt) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Missing 'prompt' in request body" }));
+    return;
+  }
+
+  console.log("[WORKFLOW] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
+  console.log("[WORKFLOW] Using workflow:", workflow.name, `(${workflow.label})`);
+  console.log("[WORKFLOW] Endpoint:", workflow.endpoint);
+
+  const urlBase = workflow.endpoint.replace(/\/$/, "");
+  
+  try {
+    const authHeader = await getAuraAuthHeader(workflow);
+    
+    // STEP 1: Create a conversation (workflows are stateful!)
+    console.log("[WORKFLOW] Step 1: Creating conversation...");
+    const convUrl = `${urlBase}/openai/conversations?api-version=${AURA_API_VERSION}`;
+    
+    const convResp = await fetch(convUrl, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        ...authHeader 
+      },
+      body: JSON.stringify({})
+    });
+    
+    if (!convResp.ok) {
+      const convError = await convResp.text();
+      console.error("[WORKFLOW] Failed to create conversation:", convError);
+      res.writeHead(convResp.status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ 
+        error: "Failed to create conversation for workflow", 
+        status: convResp.status, 
+        body: convError
+      }));
+      return;
+    }
+    
+    const convData = await convResp.json();
+    const conversationId = convData.id;
+    console.log("[WORKFLOW] Conversation created:", conversationId);
+    
+    // STEP 2: Call the workflow with conversation
+    console.log("[WORKFLOW] Step 2: Calling workflow with conversation...");
+    const responseUrl = `${urlBase}/openai/responses?api-version=${AURA_API_VERSION}`;
+    
+    const requestBody = {
+      agent: {
+        type: "agent_reference",
+        name: workflow.name
+      },
+      input: prompt,
+      conversation: {
+        id: conversationId
+      }
+    };
+    
+    console.log("[WORKFLOW] Request body:", JSON.stringify(requestBody, null, 2));
+    
+    const resp = await fetch(responseUrl, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        ...authHeader 
+      },
+      body: JSON.stringify(requestBody),
+    });
+    
+    console.log("[WORKFLOW] Response status:", resp.status);
+    
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("[WORKFLOW] Error response:", text);
+      res.writeHead(resp.status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ 
+        error: "Workflow call failed", 
+        status: resp.status, 
+        body: text
+      }));
+      return;
+    }
+    
+    // Parse response
+    const text = await resp.text();
+    const isJson = resp.headers.get("content-type")?.includes("application/json");
+    
+    console.log("[WORKFLOW] Response:", text.substring(0, 500) + (text.length > 500 ? "..." : ""));
+    
+    if (isJson) {
+      const responseData = JSON.parse(text);
+      
+      // Find the final synthesized message (last message in output)
+      let outputText = "";
+      
+      if (responseData.output) {
+        // Find the last message type output (synthesized response)
+        const messages = responseData.output.filter(o => o.type === "message");
+        const lastMessage = messages[messages.length - 1];
+        
+        if (lastMessage?.content) {
+          const textContent = lastMessage.content.find(c => c.type === "output_text" || c.type === "text");
+          outputText = textContent?.text || textContent?.value || "";
+        }
+      }
+      
+      // Fallback
+      if (!outputText) {
+        outputText = responseData.output_text || JSON.stringify(responseData);
+      }
+      
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ 
+        output_text: outputText,
+        conversation_id: conversationId,
+        workflow_name: workflow.name,
+        raw: responseData
+      }));
+    } else {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ output_text: text }));
+    }
+    
+  } catch (err) {
+    console.error("[WORKFLOW] Request error:", err);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ 
+      error: err?.message || "Workflow request failed",
+      hint: "Check workflow endpoint and authentication settings"
+    }));
+  }
+}
+
 const server = createServer((req, res) => {
   const { method, url } = req;
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, api-key");
 
   if (method === "OPTIONS") {
@@ -324,7 +655,21 @@ const server = createServer((req, res) => {
     return;
   }
   
-  // List available assistants for debugging
+  // API: List available agents
+  if (method === "GET" && url && url.startsWith("/agents")) {
+    listAgentsAPI(req, res);
+    return;
+  }
+  
+  // API: Switch active agent
+  if (method === "POST" && url && url.startsWith("/agents/switch")) {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk.toString(); });
+    req.on("end", () => { switchAgentAPI(req, res, body); });
+    return;
+  }
+  
+  // List available assistants for debugging (legacy)
   if (method === "GET" && url && url.startsWith("/assistants")) {
     listAssistants(req, res);
     return;
