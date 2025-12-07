@@ -605,28 +605,43 @@ async function handleWorkflowRequest(req, res, body, workflow) {
       // Find the final synthesized message (last message in output)
       let outputText = "";
       
-      if (responseData.output) {
+      if (responseData.output && Array.isArray(responseData.output)) {
         // Find the last message type output (synthesized response)
         const messages = responseData.output.filter(o => o.type === "message");
-        const lastMessage = messages[messages.length - 1];
         
-        if (lastMessage?.content) {
-          const textContent = lastMessage.content.find(c => c.type === "output_text" || c.type === "text");
-          outputText = textContent?.text || textContent?.value || "";
+        // Try to get text from the last message
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const msg = messages[i];
+          if (msg?.content && Array.isArray(msg.content)) {
+            const textContent = msg.content.find(c => c.type === "output_text" || c.type === "text");
+            if (textContent?.text && textContent.text.trim()) {
+              outputText = textContent.text;
+              console.log(`[WORKFLOW] Found output_text in message ${i}:`, outputText.substring(0, 100));
+              break;
+            }
+          }
         }
       }
       
-      // Fallback
-      if (!outputText) {
-        outputText = responseData.output_text || JSON.stringify(responseData);
+      // Fallback to top-level output_text
+      if (!outputText && responseData.output_text) {
+        outputText = responseData.output_text;
+        console.log("[WORKFLOW] Using top-level output_text");
       }
+      
+      // Last fallback: stringify the response (but without the raw field we'd add)
+      if (!outputText) {
+        outputText = "Keine Antwort vom Workflow erhalten.";
+        console.log("[WORKFLOW] No output_text found, using fallback message");
+      }
+      
+      console.log("[WORKFLOW] Final output_text:", outputText.substring(0, 200));
       
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ 
         output_text: outputText,
         conversation_id: conversationId,
-        workflow_name: workflow.name,
-        raw: responseData
+        workflow_name: workflow.name
       }));
     } else {
       res.writeHead(200, { "Content-Type": "application/json" });

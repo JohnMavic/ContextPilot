@@ -412,9 +412,8 @@ button:disabled {
 }
 
 .transcript-box {
-  min-height: 400px;
-  max-height: 600px;
-  overflow: auto;
+  min-height: 200px;
+  overflow: visible;
   border: 1px solid #1f2937;
   border-radius: 12px;
   padding: 16px;
@@ -1241,11 +1240,41 @@ pre {
   margin-bottom: 0;
 }
 
+/* Headings in Agent-Antworten */
+.aura-heading {
+  color: #7dd3fc;
+  font-weight: 600;
+  margin: 0 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.2);
+}
+
+h3.aura-heading {
+  font-size: 14px;
+}
+
+h4.aura-heading {
+  font-size: 13px;
+}
+
+h5.aura-heading {
+  font-size: 12px;
+}
+
+/* Sub-Tags für Quellenangaben */
+.aura-sub {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 2px;
+  font-style: italic;
+}
+
 /* Bullet Points mit hängendem Einzug */
 .aura-bullet-item {
   display: flex;
-  align-items: flex-start;
-  margin-bottom: 6px;
+  flex-direction: column;
+  margin-bottom: 8px;
   gap: 0;
 }
 
@@ -1254,16 +1283,14 @@ pre {
 }
 
 .bullet-marker {
-  flex-shrink: 0;
-  width: 14px;
-  color: #64748b;
-  font-size: 10px;
-  line-height: 1.5;
+  display: none; /* Verstecken, da wir jetzt flex-direction: column nutzen */
 }
 
 .bullet-text {
   flex: 1;
   min-width: 0;
+  padding-left: 12px;
+  border-left: 2px solid rgba(100, 116, 139, 0.3);
 }
 
 /* Fetter Text */

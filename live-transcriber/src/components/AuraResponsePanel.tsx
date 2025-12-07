@@ -9,14 +9,14 @@ const colorMap: Record<HighlightColor, string> = {
   5: "#3b82f6", // blau
 };
 
-// Formatiert eine einzelne Zeile: Bold, Links, Quellenangaben
+// Formatiert eine einzelne Zeile: Bold, Links, Quellenangaben, Sub-Tags
 function formatLine(text: string): React.ReactNode {
   const parts: React.ReactNode[] = [];
   let keyIndex = 0;
   
   // Regex für verschiedene Markdown-Elemente
-  // Reihenfolge: Links, Quellenangaben (【...】), Bold
-  const combinedRegex = /(\*\*(.+?)\*\*)|(\[([^\]]+)\]\(([^)]+)\))|(【[^】]+】)/g;
+  // Reihenfolge: Sub-Tags, Links, Quellenangaben (【...】), Bold
+  const combinedRegex = /(<sub>(.+?)<\/sub>)|(\*\*(.+?)\*\*)|(\[([^\]]+)\]\(([^)]+)\))|(【[^】]+】)/g;
   
   let lastIndex = 0;
   let match;
@@ -28,26 +28,29 @@ function formatLine(text: string): React.ReactNode {
     }
     
     if (match[1]) {
-      // **Bold** - match[2] ist der Text
-      parts.push(<strong key={keyIndex++}>{match[2]}</strong>);
+      // <sub>...</sub> - match[2] ist der Text
+      parts.push(<sub key={keyIndex++} className="aura-sub">{match[2]}</sub>);
     } else if (match[3]) {
-      // [text](url) - match[4] ist Text, match[5] ist URL
+      // **Bold** - match[4] ist der Text
+      parts.push(<strong key={keyIndex++}>{match[4]}</strong>);
+    } else if (match[5]) {
+      // [text](url) - match[6] ist Text, match[7] ist URL
       parts.push(
         <a 
           key={keyIndex++} 
-          href={match[5]} 
+          href={match[7]} 
           target="_blank" 
           rel="noopener noreferrer"
           className="aura-link"
         >
-          {match[4]}
+          {match[6]}
         </a>
       );
-    } else if (match[6]) {
+    } else if (match[8]) {
       // 【Quellenangabe】 - als kleine Badge darstellen
       parts.push(
         <span key={keyIndex++} className="aura-source-badge">
-          {match[6]}
+          {match[8]}
         </span>
       );
     }
@@ -72,6 +75,16 @@ function isBulletLine(line: string): boolean {
          /^\d+\.\s/.test(trimmed);  // Nummerierte Listen
 }
 
+// Prüft ob eine Zeile ein Heading ist (# oder ##)
+function isHeadingLine(line: string): { level: number; text: string } | null {
+  const trimmed = line.trim();
+  const match = trimmed.match(/^(#{1,3})\s+(.*)$/);
+  if (match) {
+    return { level: match[1].length, text: match[2] };
+  }
+  return null;
+}
+
 // Extrahiert Bullet-Zeichen und Text
 function parseBulletLine(line: string): { bullet: string; text: string } {
   const trimmed = line.trim();
@@ -91,26 +104,82 @@ function parseBulletLine(line: string): { bullet: string; text: string } {
   return { bullet: "", text: trimmed };
 }
 
+// Prüft ob eine Zeile eine eingerückte Sub-Zeile ist (gehört zum vorherigen Element)
+function isIndentedSubLine(line: string): boolean {
+  // Zeile beginnt mit Leerzeichen und enthält <sub>
+  return /^\s+<sub>/.test(line);
+}
+
 // Rendert den formatierten Result-Text
 function renderFormattedResult(result: string): React.ReactNode {
   const lines = result.split("\n");
   const elements: React.ReactNode[] = [];
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  // Sammle zusammengehörende Zeilen (Bullet + folgende Sub-Zeilen)
+  interface ParsedBlock {
+    type: "heading" | "bullet" | "paragraph";
+    headingLevel?: number;
+    bullet?: string;
+    lines: string[];
+  }
+  
+  const blocks: ParsedBlock[] = [];
+  let currentBlock: ParsedBlock | null = null;
+  
+  for (const line of lines) {
     if (!line.trim()) continue;
     
-    if (isBulletLine(line)) {
+    // Eingerückte Sub-Zeile gehört zum vorherigen Block
+    if (isIndentedSubLine(line) && currentBlock) {
+      currentBlock.lines.push(line.trim());
+      continue;
+    }
+    
+    // Neuer Block starten
+    const heading = isHeadingLine(line);
+    if (heading) {
+      if (currentBlock) blocks.push(currentBlock);
+      currentBlock = { type: "heading", headingLevel: heading.level, lines: [heading.text] };
+    } else if (isBulletLine(line)) {
+      if (currentBlock) blocks.push(currentBlock);
       const { bullet, text } = parseBulletLine(line);
+      currentBlock = { type: "bullet", bullet, lines: [text] };
+    } else {
+      if (currentBlock) blocks.push(currentBlock);
+      currentBlock = { type: "paragraph", lines: [line.trim()] };
+    }
+  }
+  if (currentBlock) blocks.push(currentBlock);
+  
+  // Blöcke rendern
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    
+    if (block.type === "heading") {
+      const HeadingTag = `h${(block.headingLevel || 1) + 2}` as keyof JSX.IntrinsicElements;
+      elements.push(
+        <HeadingTag key={i} className="aura-heading">
+          {formatLine(block.lines[0])}
+        </HeadingTag>
+      );
+    } else if (block.type === "bullet") {
       elements.push(
         <div key={i} className="aura-bullet-item">
-          <span className="bullet-marker">{bullet}</span>
-          <span className="bullet-text">{formatLine(text)}</span>
+          <span className="bullet-marker">{block.bullet}</span>
+          <span className="bullet-text">
+            {block.lines.map((l, j) => (
+              <span key={j}>{formatLine(l)}</span>
+            ))}
+          </span>
         </div>
       );
     } else {
       elements.push(
-        <p key={i} className="aura-paragraph">{formatLine(line)}</p>
+        <p key={i} className="aura-paragraph">
+          {block.lines.map((l, j) => (
+            <span key={j}>{formatLine(l)}</span>
+          ))}
+        </p>
       );
     }
   }
