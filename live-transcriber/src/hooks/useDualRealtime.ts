@@ -551,23 +551,144 @@ export function useDualRealtime() {
     setMicMutedState(muted);
   }, []);
 
-  // Text aus Segmenten löschen
+  // Text aus Segmenten löschen - robuste Version mit mehreren Matching-Strategien
   const deleteTextFromTranscript = useCallback((textToDelete: string) => {
     if (!textToDelete.trim()) return;
     
+    const trimmedDelete = textToDelete.trim();
+    const normalizedDelete = trimmedDelete.toLowerCase();
+    const deleteWords = normalizedDelete.split(/\s+/).filter(w => w.length > 1);
+    
+    console.log("[Transcript] Attempting to delete:", trimmedDelete.slice(0, 80));
+    
     setSegments(prev => {
-      return prev.map(segment => {
-        // Prüfe ob der zu löschende Text in diesem Segment vorkommt
-        if (segment.text.includes(textToDelete)) {
-          const newText = segment.text.replace(textToDelete, '').trim();
-          // Wenn das Segment leer wird, behalten wir es trotzdem (wird später gefiltert)
-          return { ...segment, text: newText };
+      let deleted = false;
+
+      // Strategie 0: Exakter Match über segment-übergreifenden Text (kontinuierlich)
+      {
+        const spans: { start: number; end: number }[] = [];
+        let merged = "";
+        let pos = 0;
+        prev.forEach((segment, idx) => {
+          const start = pos;
+          merged += segment.text;
+          pos += segment.text.length;
+          spans.push({ start, end: pos });
+          if (idx !== prev.length - 1) {
+            merged += " ";
+            pos += 1; // Space-Trenner
+          }
+        });
+
+        const mergedLower = merged.toLowerCase();
+        const startIdx = mergedLower.indexOf(normalizedDelete);
+        if (startIdx !== -1) {
+          const endIdx = startIdx + normalizedDelete.length;
+          const newSegments = prev.map((segment, i) => {
+            const span = spans[i];
+            const overlapStart = Math.max(span.start, startIdx);
+            const overlapEnd = Math.min(span.end, endIdx);
+            if (overlapStart < overlapEnd) {
+              const localStart = overlapStart - span.start;
+              const localEnd = overlapEnd - span.start;
+              const newTextRaw = segment.text.slice(0, localStart) + segment.text.slice(localEnd);
+              const newText = newTextRaw.replace(/\s+/g, " ");
+              deleted = true;
+              return { ...segment, text: newText };
+            }
+            return segment;
+          });
+
+          if (deleted) {
+            console.log("[Transcript] Strategy 0 (cross-segment exact): Found and deleted");
+            return newSegments;
+          }
+        }
+      }
+      
+      // Strategie 1: Exaktes Matching (case-insensitive)
+      let newSegments = prev.map(segment => {
+        const normalizedSegment = segment.text.toLowerCase();
+        
+        if (normalizedSegment.includes(normalizedDelete)) {
+          const startIdx = normalizedSegment.indexOf(normalizedDelete);
+          if (startIdx !== -1) {
+            const beforeText = segment.text.slice(0, startIdx);
+            const afterText = segment.text.slice(startIdx + trimmedDelete.length);
+            const newText = (beforeText + afterText).trim();
+            deleted = true;
+            console.log("[Transcript] Strategy 1 (exact match): Found and deleted");
+            return { ...segment, text: newText };
+          }
         }
         return segment;
-      }).filter(segment => segment.text.length > 0); // Leere Segmente entfernen
+      }).filter(segment => segment.text.length > 0);
+      
+      if (deleted) return newSegments;
+      
+      // Strategie 2: Substring-Matching (mindestens 80% des Texts)
+      const minMatchLength = Math.floor(trimmedDelete.length * 0.8);
+      newSegments = prev.map(segment => {
+        const normalizedSegment = segment.text.toLowerCase();
+        
+        // Suche nach dem längsten übereinstimmenden Substring
+        for (let len = trimmedDelete.length; len >= minMatchLength; len--) {
+          for (let start = 0; start <= trimmedDelete.length - len; start++) {
+            const subDelete = normalizedDelete.slice(start, start + len);
+            if (normalizedSegment.includes(subDelete)) {
+              const startIdx = normalizedSegment.indexOf(subDelete);
+              const beforeText = segment.text.slice(0, startIdx);
+              const afterText = segment.text.slice(startIdx + len);
+              const newText = (beforeText + afterText).trim();
+              deleted = true;
+              console.log("[Transcript] Strategy 2 (substring match): Found and deleted", len, "chars");
+              return { ...segment, text: newText };
+            }
+          }
+        }
+        return segment;
+      }).filter(segment => segment.text.length > 0);
+      
+      if (deleted) return newSegments;
+      
+      // Strategie 3: Wort-basiertes Matching (mindestens 60% der Wörter)
+      if (deleteWords.length >= 2) {
+        const threshold = Math.ceil(deleteWords.length * 0.6);
+        newSegments = prev.map(segment => {
+          const segmentLower = segment.text.toLowerCase();
+          const segmentWords = segmentLower.split(/\s+/);
+          const matchingWords = deleteWords.filter(w => segmentWords.some(sw => sw.includes(w) || w.includes(sw)));
+          
+          if (matchingWords.length >= threshold) {
+            // Segment enthält genug übereinstimmende Wörter
+            // Wenn Segment ähnlich lang ist wie der zu löschende Text -> komplett entfernen
+            if (segment.text.trim().length <= trimmedDelete.length * 1.5) {
+              deleted = true;
+              console.log("[Transcript] Strategy 3 (word match): Removing entire segment");
+              return { ...segment, text: '' };
+            }
+            // Sonst: Versuche die übereinstimmenden Wörter zu entfernen
+            let newText = segment.text;
+            for (const word of deleteWords) {
+              const regex = new RegExp(`\\b${word}\\b`, 'gi');
+              newText = newText.replace(regex, '').trim();
+            }
+            if (newText !== segment.text) {
+              deleted = true;
+              console.log("[Transcript] Strategy 3 (word match): Removed matching words");
+              return { ...segment, text: newText.replace(/\s+/g, ' ').trim() };
+            }
+          }
+          return segment;
+        }).filter(segment => segment.text.length > 0);
+      }
+      
+      if (!deleted) {
+        console.warn("[Transcript] Could not find text to delete with any strategy");
+      }
+      
+      return newSegments;
     });
-    
-    console.log("[Transcript] Deleted text:", textToDelete.slice(0, 50) + (textToDelete.length > 50 ? "..." : ""));
   }, []);
 
   return {

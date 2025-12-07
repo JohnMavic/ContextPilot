@@ -130,6 +130,7 @@ export default function App() {
     responses: auraResponses,
     queryAgent,
     removeResponse: removeAuraResponse,
+    removeResponseByHighlight,
     clearAllResponses: clearAuraResponses,
   } = useAuraAgent();
 
@@ -231,7 +232,7 @@ export default function App() {
     const container = transcriptBoxRef.current;
 
     if (selection && selection.toString().trim() && container && selection.rangeCount > 0) {
-      const text = selection.toString().trim();
+      const text = selection.toString();
       const range = selection.getRangeAt(0).cloneRange();
       const rect = range.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
@@ -473,7 +474,25 @@ ${customPrompt}`;
 
   // Handler für Copy - kopiert markierten Text in Zwischenablage
   const handleCopy = useCallback(async () => {
-    const text = menuState.selectedText;
+    // Versuche zuerst den Text aus dem aktuellen Mark-Element zu holen
+    let text = menuState.selectedText;
+    
+    // Fallback: Text aus dem Highlight-Objekt holen
+    if (menuState.highlightId) {
+      const highlight = highlights.find(h => h.id === menuState.highlightId);
+      if (highlight) {
+        text = highlight.text;
+      }
+    }
+    
+    // Fallback: Text aus dem DOM-Mark-Element holen
+    if (!text) {
+      const markEl = document.querySelector(`mark[data-highlight-id="${menuState.highlightId}"]`);
+      if (markEl) {
+        text = markEl.textContent || '';
+      }
+    }
+    
     if (!text) return;
     
     try {
@@ -492,19 +511,53 @@ ${customPrompt}`;
     
     // Menü schließen und Highlight entfernen (kein Agent getriggert)
     handleCloseMenu();
-  }, [menuState.selectedText, handleCloseMenu]);
+  }, [menuState.selectedText, menuState.highlightId, highlights, handleCloseMenu]);
 
   // Handler für Delete - löscht markierten Text aus dem Transkript
   const handleDelete = useCallback(() => {
-    const text = menuState.selectedText;
-    if (!text) return;
+    // Mehrere Quellen für den zu löschenden Text
+    let text = menuState.selectedText;
+    const highlightId = menuState.highlightId || lastHighlightRef.current?.id;
+    
+    // Fallback 1: Text aus dem Highlight-Objekt holen
+    if (highlightId) {
+      const highlight = highlights.find(h => h.id === highlightId);
+      if (highlight) {
+        text = highlight.text;
+      }
+    }
+    
+    // Fallback 2: Text aus dem DOM-Mark-Element holen (aktuellster Stand)
+    if (highlightId) {
+      const markEl = document.querySelector(`mark[data-highlight-id="${highlightId}"]`);
+      if (markEl && markEl.textContent) {
+        // Nutze den DOM-Text als primäre Quelle wenn vorhanden
+        text = markEl.textContent;
+      }
+    }
+    
+    if (!text) {
+      console.warn("[Delete] No text to delete");
+      return;
+    }
+    
+    console.log("[Delete] Deleting text:", text.slice(0, 50) + (text.length > 50 ? "..." : ""));
     
     // Text aus Transkript löschen
     deleteTextFromTranscript(text);
     
+    // Zugehörige Highlights und Antworten entfernen
+    if (highlightId) {
+      removeResponseByHighlight(highlightId);
+      removeHighlight(highlightId);
+      if (lastHighlightRef.current?.id === highlightId) {
+        lastHighlightRef.current = null;
+      }
+    }
+
     // Menü schließen und Highlight entfernen (kein Agent getriggert)
     handleCloseMenu();
-  }, [menuState.selectedText, deleteTextFromTranscript, handleCloseMenu]);
+  }, [menuState.selectedText, menuState.highlightId, highlights, deleteTextFromTranscript, removeResponseByHighlight, removeHighlight, handleCloseMenu]);
 
   // Handler für das Löschen einer Agent-Antwort - entfernt auch das zugehörige Highlight
   const handleRemoveAuraResponse = useCallback((responseId: string) => {
@@ -633,8 +686,11 @@ ${customPrompt}`;
     <div className="layout">
       <header>
         <div>
-          <p className="eyebrow">React/Vite x OpenAI Realtime</p>
-          <h1 className="brand-title"><span className="brand-co">CON</span><span className="brand-text">TEXT</span><span className="brand-pilot">PILOT</span></h1>
+          <p className="eyebrow">React/Vite x OpenAI Realtime x Microsoft Foundry Workflows</p>
+          <h1 className="brand-title">
+            <span className="brand-main">CONPILOT</span>
+            <span className="brand-text">TEXT</span>
+          </h1>
         </div>
       </header>
 

@@ -34,8 +34,47 @@ export const HighlightedText = memo(function HighlightedText({
     }
     
     // Filtere nur Highlights für DIESE Gruppe
+    // Highlights dieser Gruppe ODER Multi-Group-Spannen, die diese Gruppe berühren
     const groupHighlights = highlights
-      .filter(h => h.groupId === groupId)
+      .filter(h => {
+        if (h.groupId === groupId && h.span === undefined) return true;
+        if (!h.span) return false;
+        return (
+          h.span.startGroupId === groupId ||
+          h.span.endGroupId === groupId
+        );
+      })
+      .map(h => {
+        // Auf diese Gruppe projizieren
+        if (!h.span) {
+          return h;
+        }
+        // Innerhalb der Spanne: für jede Gruppe eigene Offsets
+        if (groupId === h.span.startGroupId && groupId === h.span.endGroupId) {
+          return {
+            ...h,
+            localStartOffset: h.span.startOffset,
+            localEndOffset: h.span.endOffset,
+          };
+        }
+        if (groupId === h.span.startGroupId) {
+          return {
+            ...h,
+            localStartOffset: h.span.startOffset,
+            localEndOffset: text.length, // bis Ende dieser Gruppe
+          };
+        }
+        if (groupId === h.span.endGroupId) {
+          return {
+            ...h,
+            localStartOffset: 0,
+            localEndOffset: h.span.endOffset,
+          };
+        }
+        // Mittlere Gruppen (falls je später erweitert)
+        return null;
+      })
+      .filter((h): h is Highlight => h !== null)
       .filter(h => h.localStartOffset < text.length && h.localEndOffset > 0);
     
     if (groupHighlights.length === 0) {

@@ -6,10 +6,16 @@ export interface Highlight {
   id: string;
   text: string;
   color: HighlightColor;
-  // NEU: Lokale Offsets relativ zu einer Gruppe
-  groupId: string;        // ID der Gruppe in der das Highlight liegt
-  localStartOffset: number;  // Start-Offset im reinen Gruppen-Text
-  localEndOffset: number;    // End-Offset im reinen Gruppen-Text
+  // Lokale Offsets relativ zu einer Gruppe ODER multiGroup
+  groupId: string;        // ID der primären Gruppe
+  localStartOffset: number;  // Start-Offset im Gruppen-Text
+  localEndOffset: number;    // End-Offset im Gruppen-Text
+  span?: {
+    startGroupId: string;
+    endGroupId: string;
+    startOffset: number;
+    endOffset: number;
+  };
   timestamp: number;
 }
 
@@ -60,66 +66,95 @@ export function useHighlights() {
     if (!text.trim()) return null;
     if (!container.contains(range.commonAncestorContainer)) return null;
 
-    // data-group-id des Segments finden
-    let node: Node | null = range.startContainer;
-    let groupElement: HTMLElement | null = null;
-    
-    while (node) {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const el = node as HTMLElement;
-        if (el.hasAttribute('data-group-id')) {
-          groupElement = el;
-          break;
+    // Hilfsfunktion: nächster data-group-id Vorfahre
+    const findGroup = (node: Node | null): HTMLElement | null => {
+      while (node) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          if (el.hasAttribute('data-group-id')) {
+            return el;
+          }
         }
+        node = node.parentNode;
       }
-      node = node.parentNode;
-    }
-    
-    if (!groupElement) {
-      console.warn("[buildHighlightFromRange] Could not find group element with data-group-id!");
       return null;
-    }
-
-    const groupId = groupElement.getAttribute('data-group-id')!;
-    const groupText = groupElement.textContent || "";
-
-    let localStartOffset = 0;
-    let localEndOffset = 0;
-
-    try {
-      const preRange = document.createRange();
-      preRange.setStart(groupElement, 0);
-      preRange.setEnd(range.startContainer, range.startOffset);
-      localStartOffset = preRange.toString().length;
-      localEndOffset = localStartOffset + text.length;
-    } catch (e) {
-      console.warn("[buildHighlightFromRange] Could not calculate local offsets:", e);
-      return null;
-    }
-
-    const highlightColor = color || getNextColor();
-
-    const highlight: Highlight = {
-      id: generateId(),
-      text,
-      color: highlightColor,
-      groupId,
-      localStartOffset,
-      localEndOffset,
-      timestamp: Date.now(),
     };
 
-    console.log("[buildHighlightFromRange] Created highlight:", {
-      text: text.slice(0, 30),
-      color: highlightColor,
-      groupId,
-      localStartOffset,
-      localEndOffset,
-      groupText: groupText.slice(0, 50),
-    });
+    const startGroup = findGroup(range.startContainer);
+    const endGroup = findGroup(range.endContainer);
 
-    setHighlights((prev) => [...prev, highlight]);
-    return highlight;
+    if (!startGroup || !endGroup) {
+      console.warn("[buildHighlightFromRange] Could not find group element(s) with data-group-id!");
+      return null;
+    }
+
+    const startGroupId = startGroup.getAttribute('data-group-id')!;
+    const endGroupId = endGroup.getAttribute('data-group-id')!;
+
+    // Wenn gleiche Gruppe, wie bisher
+    if (startGroupId === endGroupId) {
+      const groupId = startGroupId;
+      try {
+        const preRange = document.createRange();
+        preRange.setStart(startGroup, 0);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        const localStartOffset = preRange.toString().length;
+        const localEndOffset = localStartOffset + text.length;
+
+        const highlightColor = color || getNextColor();
+        const highlight: Highlight = {
+          id: generateId(),
+          text,
+          color: highlightColor,
+          groupId,
+          localStartOffset,
+          localEndOffset,
+          timestamp: Date.now(),
+        };
+
+        setHighlights((prev) => [...prev, highlight]);
+        return highlight;
+      } catch (e) {
+        console.warn("[buildHighlightFromRange] Could not calculate local offsets:", e);
+        return null;
+      }
+    }
+
+    // Multi-Group Highlight: speichere Spanne, damit wir beim Rendern splitten können
+    try {
+      const preRangeStart = document.createRange();
+      preRangeStart.setStart(startGroup, 0);
+      preRangeStart.setEnd(range.startContainer, range.startOffset);
+      const startOffset = preRangeStart.toString().length;
+
+      const preRangeEnd = document.createRange();
+      preRangeEnd.setStart(endGroup, 0);
+      preRangeEnd.setEnd(range.endContainer, range.endOffset);
+      const endOffset = preRangeEnd.toString().length;
+
+      const highlightColor = color || getNextColor();
+      const highlight: Highlight = {
+        id: generateId(),
+        text,
+        color: highlightColor,
+        groupId: startGroupId,
+        localStartOffset: startOffset,
+        localEndOffset: Number.POSITIVE_INFINITY, // Marker: wird per span genutzt
+        span: {
+          startGroupId,
+          endGroupId,
+          startOffset,
+          endOffset,
+        },
+        timestamp: Date.now(),
+      };
+
+      setHighlights((prev) => [...prev, highlight]);
+      return highlight;
+    } catch (e) {
+      console.warn("[buildHighlightFromRange] Could not calculate cross-group offsets:", e);
+      return null;
+    }
   }, [getNextColor]);
 
   // Show context menu at selection position
@@ -136,7 +171,7 @@ export function useHighlights() {
     const range = opts?.range ?? (selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null);
     if (!range) return;
 
-    const text = (opts?.selectedText ?? selection?.toString() ?? "").trim();
+    const text = opts?.selectedText ?? selection?.toString() ?? "";
     if (!text) return;
 
     // Check if selection is within our container
