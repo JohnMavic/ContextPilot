@@ -35,16 +35,22 @@ function formatLine(text: string): React.ReactNode {
       parts.push(<strong key={keyIndex++}>{match[4]}</strong>);
     } else if (match[5]) {
       // [text](url) - match[6] ist Text, match[7] ist URL
+      const linkText = match[6];
+      const linkUrl = match[7];
       parts.push(
         <a 
           key={keyIndex++} 
-          href={match[7]} 
+          href={linkUrl} 
           target="_blank" 
           rel="noopener noreferrer"
           className="aura-link"
-          onClick={(e) => e.stopPropagation()}
+          style={{ pointerEvents: 'auto', cursor: 'pointer', position: 'relative', zIndex: 10 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            window.open(linkUrl, '_blank', 'noopener,noreferrer');
+          }}
         >
-          {match[6]}
+          {linkText}
         </a>
       );
     } else if (match[8]) {
@@ -56,16 +62,21 @@ function formatLine(text: string): React.ReactNode {
       );
     } else if (match[9]) {
       // Plain URL (https://...)
+      const plainUrl = match[9];
       parts.push(
         <a 
           key={keyIndex++} 
-          href={match[9]} 
+          href={plainUrl} 
           target="_blank" 
           rel="noopener noreferrer"
           className="aura-link"
-          onClick={(e) => e.stopPropagation()}
+          style={{ pointerEvents: 'auto', cursor: 'pointer', position: 'relative', zIndex: 10 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            window.open(plainUrl, '_blank', 'noopener,noreferrer');
+          }}
         >
-          {match[9]}
+          {plainUrl}
         </a>
       );
     }
