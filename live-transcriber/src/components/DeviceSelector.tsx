@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 export type SpeakerSource = "none" | "device" | "tab";
 
@@ -21,47 +21,63 @@ export function DeviceSelector({
   const [speakerSource, setSpeakerSource] = useState<SpeakerSource>("tab");
   const [defaultDeviceLabel, setDefaultDeviceLabel] = useState<string>("");
 
-  useEffect(() => {
-    // Erst Permission anfragen um Labels zu bekommen
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => {
-        // Stream sofort stoppen, wir brauchen nur die Permission
-        stream.getTracks().forEach(track => track.stop());
-        
-        // Jetzt Geräte mit Labels auflisten
-        return navigator.mediaDevices.enumerateDevices();
-      })
-      .then((list) => {
-        const audioInputs = list.filter((d) => d.kind === "audioinput");
-        setDevices(audioInputs);
-        
-        // Finde das Default-Gerät (hat deviceId "default" oder ist das erste)
-        const defaultDevice = audioInputs.find(d => d.deviceId === "default");
-        if (defaultDevice && defaultDevice.label) {
-          // Extrahiere den echten Gerätenamen aus "Default - Gerätename (Hersteller)"
-          const match = defaultDevice.label.match(/^Default\s*-?\s*(.+)$/i);
-          if (match) {
-            setDefaultDeviceLabel(match[1].trim());
-          } else {
-            setDefaultDeviceLabel(defaultDevice.label);
-          }
+  // Funktion zum Auslesen der Geräte - wiederverwendbar
+  const refreshDevices = useCallback(async () => {
+    try {
+      // Erst Permission anfragen um Labels zu bekommen
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Stream sofort stoppen, wir brauchen nur die Permission
+      stream.getTracks().forEach(track => track.stop());
+      
+      // Jetzt Geräte mit Labels auflisten
+      const list = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = list.filter((d) => d.kind === "audioinput");
+      setDevices(audioInputs);
+      
+      // Finde das Default-Gerät (hat deviceId "default" oder ist das erste)
+      const defaultDevice = audioInputs.find(d => d.deviceId === "default");
+      if (defaultDevice && defaultDevice.label) {
+        // Extrahiere den echten Gerätenamen aus "Default - Gerätename (Hersteller)"
+        const match = defaultDevice.label.match(/^Default\s*-?\s*(.+)$/i);
+        if (match) {
+          setDefaultDeviceLabel(match[1].trim());
+        } else {
+          setDefaultDeviceLabel(defaultDevice.label);
         }
-        
-        // Setze das Default-Gerät als ausgewählt
-        if (audioInputs.length > 0 && !micId) {
-          setMicId("default");
-        }
-      })
-      .catch((err) => {
-        console.error("enumerateDevices failed", err);
-        // Fallback: Versuche ohne Permission
-        navigator.mediaDevices.enumerateDevices()
-          .then((list) => {
-            setDevices(list.filter((d) => d.kind === "audioinput"));
-          })
-          .catch(console.error);
-      });
+      } else {
+        setDefaultDeviceLabel("");
+      }
+      
+      console.log("[DeviceSelector] Devices refreshed, default:", defaultDevice?.label);
+    } catch (err) {
+      console.error("enumerateDevices failed", err);
+      // Fallback: Versuche ohne Permission
+      try {
+        const list = await navigator.mediaDevices.enumerateDevices();
+        setDevices(list.filter((d) => d.kind === "audioinput"));
+      } catch (e) {
+        console.error("Fallback enumerate failed", e);
+      }
+    }
   }, []);
+
+  // Initial und bei Device-Änderungen auslesen
+  useEffect(() => {
+    // Sofort beim Mount auslesen
+    refreshDevices();
+    
+    // Listener für Gerätewechsel (z.B. wenn USB-Gerät angeschlossen wird)
+    const handleDeviceChange = () => {
+      console.log("[DeviceSelector] Device change detected, refreshing...");
+      refreshDevices();
+    };
+    
+    navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+    
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+    };
+  }, [refreshDevices]);
 
   useEffect(() => {
     const effectiveSpeakerId = speakerSource === "device" ? speakerId : undefined;
