@@ -56,6 +56,7 @@ export function useDualRealtime() {
   const [errorLog, setErrorLog] = useState<ErrorLogEntry[]>([]);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [volumeLevels, setVolumeLevels] = useState({ mic: 0, speaker: 0 });
+  const [micMuted, setMicMutedState] = useState(false); // Mic mute state
   const [stats, setStats] = useState({
     micFrames: 0,
     speakerFrames: 0,
@@ -534,8 +535,40 @@ export function useDualRealtime() {
     stopSession(micSession);
     stopSession(speakerSession);
     setVolumeLevels({ mic: 0, speaker: 0 });
+    setMicMutedState(false); // Reset mute state on stop
     setStatus("idle");
   };
+
+  // Mic muten/unmuten (enabled/disabled auf dem Track)
+  const setMicMuted = useCallback((muted: boolean) => {
+    const session = micSession.current;
+    if (session.stream) {
+      session.stream.getAudioTracks().forEach(track => {
+        track.enabled = !muted;
+        console.log(`[MIC] Track ${track.label} ${muted ? 'muted' : 'unmuted'}`);
+      });
+    }
+    setMicMutedState(muted);
+  }, []);
+
+  // Text aus Segmenten löschen
+  const deleteTextFromTranscript = useCallback((textToDelete: string) => {
+    if (!textToDelete.trim()) return;
+    
+    setSegments(prev => {
+      return prev.map(segment => {
+        // Prüfe ob der zu löschende Text in diesem Segment vorkommt
+        if (segment.text.includes(textToDelete)) {
+          const newText = segment.text.replace(textToDelete, '').trim();
+          // Wenn das Segment leer wird, behalten wir es trotzdem (wird später gefiltert)
+          return { ...segment, text: newText };
+        }
+        return segment;
+      }).filter(segment => segment.text.length > 0); // Leere Segmente entfernen
+    });
+    
+    console.log("[Transcript] Deleted text:", textToDelete.slice(0, 50) + (textToDelete.length > 50 ? "..." : ""));
+  }, []);
 
   return {
     status,
@@ -543,9 +576,12 @@ export function useDualRealtime() {
     errorLog,
     segments,
     volumeLevels,
+    micMuted,
+    setMicMuted,
     start,
     stop: stopAll,
     resetTranscript: () => setSegments([]),
+    deleteTextFromTranscript,
     clearErrors: () => setErrorLog([]),
     stats,
   };

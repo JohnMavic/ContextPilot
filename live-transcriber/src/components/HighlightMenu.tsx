@@ -10,6 +10,7 @@ interface HighlightMenuProps {
   highlightColor?: HighlightColor;
   onClose: () => void;
   onCopy: () => void;
+  onDelete: () => void;
   onExpand: () => void;
   onFacts: () => void;
   onCustomPrompt: (prompt: string) => void;
@@ -42,6 +43,7 @@ export function HighlightMenu({
   highlightColor,
   onClose,
   onCopy,
+  onDelete,
   onExpand,
   onFacts,
   onCustomPrompt,
@@ -114,6 +116,13 @@ export function HighlightMenu({
           title="Copy to clipboard"
         >
           📋 Copy
+        </button>
+        <button
+          className="action-btn action-btn-delete"
+          onClick={onDelete}
+          title="Delete from transcript"
+        >
+          🗑️ Delete
         </button>
         <button
           className="action-btn"

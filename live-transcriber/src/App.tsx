@@ -117,9 +117,12 @@ export default function App() {
     errorLog,
     segments,
     volumeLevels,
+    micMuted,
+    setMicMuted,
     start,
     stop,
     resetTranscript,
+    deleteTextFromTranscript,
     clearErrors,
     stats,
   } = useDualRealtime();
@@ -491,6 +494,18 @@ ${customPrompt}`;
     handleCloseMenu();
   }, [menuState.selectedText, handleCloseMenu]);
 
+  // Handler für Delete - löscht markierten Text aus dem Transkript
+  const handleDelete = useCallback(() => {
+    const text = menuState.selectedText;
+    if (!text) return;
+    
+    // Text aus Transkript löschen
+    deleteTextFromTranscript(text);
+    
+    // Menü schließen und Highlight entfernen (kein Agent getriggert)
+    handleCloseMenu();
+  }, [menuState.selectedText, deleteTextFromTranscript, handleCloseMenu]);
+
   // Handler für das Löschen einer Agent-Antwort - entfernt auch das zugehörige Highlight
   const handleRemoveAuraResponse = useCallback((responseId: string) => {
     // Finde die Antwort um die highlightId zu bekommen
@@ -701,7 +716,36 @@ ${customPrompt}`;
         <div className="panel sidebar-panel">
           <h3>Audio Levels</h3>
           <div className="volume-meters">
-            <VolumeMeter level={volumeLevels.mic} label="MIC" />
+            <div className="volume-meter-row">
+              <VolumeMeter level={micMuted ? 0 : volumeLevels.mic} label="MIC" />
+              <button 
+                className={`mic-mute-btn ${micMuted ? 'muted' : 'recording'}`}
+                onClick={() => setMicMuted(!micMuted)}
+                title={micMuted ? "Start recording" : "Stop recording"}
+                disabled={status !== "running"}
+              >
+                <div className="mic-icon-wrapper">
+                  {micMuted ? (
+                    /* Muted - Red circle with mic-off */
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="mic-icon-svg">
+                      <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.5"/>
+                      <path d="M12 7v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <circle cx="12" cy="14" r="1" fill="currentColor"/>
+                      <line x1="7" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  ) : (
+                    /* Recording - Green pulsing circle with mic */
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="mic-icon-svg">
+                      <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.25" stroke="currentColor" strokeWidth="1.5"/>
+                      <circle cx="12" cy="12" r="5" fill="currentColor" fillOpacity="0.4"/>
+                      <rect x="10" y="6" width="4" height="8" rx="2" fill="currentColor"/>
+                      <path d="M8 12a4 4 0 0 0 8 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      <line x1="12" y1="16" x2="12" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  )}
+                </div>
+              </button>
+            </div>
             <VolumeMeter level={volumeLevels.speaker} label="SPK" />
           </div>
         </div>
@@ -851,6 +895,7 @@ ${customPrompt}`;
                 highlightColor={menuState.highlightColor}
                 onClose={handleCloseMenu}
                 onCopy={handleCopy}
+                onDelete={handleDelete}
                 onExpand={handleHighlightAndExpand}
                 onFacts={handleHighlightAndFacts}
                 onCustomPrompt={handleCustomPrompt}
