@@ -613,7 +613,7 @@ Die Response enthält alle Workflow-Aktionen im `output` Array:
 # Workflows benötigen eine Conversation (stateful) im Gegensatz zu Agents
 
 WORKFLOW_1_NAME=CONTEXTPILOT
-WORKFLOW_1_LABEL=CONTEXTPILOT (Multi-Agent)
+WORKFLOW_1_LABEL=CONTEXTPILOT (Index & Web)
 WORKFLOW_1_ENDPOINT=https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot
 # Auth: Azure AD (az login) - kein API Key
 ```
