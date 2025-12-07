@@ -468,6 +468,29 @@ ${customPrompt}`;
     hideMenu();
   }, [hideMenu, removeHighlight]);
 
+  // Handler für Copy - kopiert markierten Text in Zwischenablage
+  const handleCopy = useCallback(async () => {
+    const text = menuState.selectedText;
+    if (!text) return;
+    
+    try {
+      await navigator.clipboard.writeText(text);
+      console.log("[Copy] Text copied to clipboard:", text.slice(0, 50) + (text.length > 50 ? "..." : ""));
+    } catch (err) {
+      console.error("[Copy] Failed to copy:", err);
+      // Fallback für ältere Browser
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    
+    // Menü schließen und Highlight entfernen (kein Agent getriggert)
+    handleCloseMenu();
+  }, [menuState.selectedText, handleCloseMenu]);
+
   // Handler für das Löschen einer Agent-Antwort - entfernt auch das zugehörige Highlight
   const handleRemoveAuraResponse = useCallback((responseId: string) => {
     // Finde die Antwort um die highlightId zu bekommen
@@ -827,6 +850,7 @@ ${customPrompt}`;
                 selectedText={menuState.selectedText}
                 highlightColor={menuState.highlightColor}
                 onClose={handleCloseMenu}
+                onCopy={handleCopy}
                 onExpand={handleHighlightAndExpand}
                 onFacts={handleHighlightAndFacts}
                 onCustomPrompt={handleCustomPrompt}

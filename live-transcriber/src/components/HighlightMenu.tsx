@@ -9,6 +9,7 @@ interface HighlightMenuProps {
   selectedText: string;
   highlightColor?: HighlightColor;
   onClose: () => void;
+  onCopy: () => void;
   onExpand: () => void;
   onFacts: () => void;
   onCustomPrompt: (prompt: string) => void;
@@ -40,6 +41,7 @@ export function HighlightMenu({
   selectedText,
   highlightColor,
   onClose,
+  onCopy,
   onExpand,
   onFacts,
   onCustomPrompt,
@@ -106,6 +108,13 @@ export function HighlightMenu({
       }}
     >
       <div className="action-buttons">
+        <button
+          className="action-btn action-btn-copy"
+          onClick={onCopy}
+          title="Copy to clipboard"
+        >
+          📋 Copy
+        </button>
         <button
           className="action-btn"
           onClick={onExpand}
