@@ -4,6 +4,7 @@ import { VolumeMeter } from "./components/VolumeMeter";
 import { HighlightedText } from "./components/HighlightedText";
 import { HighlightMenu } from "./components/HighlightMenu";
 import { AuraResponsePanel } from "./components/AuraResponsePanel";
+import { InlineAgentResponse } from "./components/InlineAgentResponse";
 import type { SpeakerSource } from "./components/DeviceSelector";
 import { useDualRealtime } from "./hooks/useDualRealtime";
 import { useTabCapture } from "./hooks/useTabCapture";
@@ -216,7 +217,13 @@ export default function App() {
   }, [showMenuAtSelection]);
 
   // Also show menu on mouseup if text selected
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    // WICHTIG: Wenn auf einen Link geklickt wurde, nicht interferieren
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'A' || target.closest('a')) {
+      return; // Link-Klick nicht blockieren
+    }
+
     const selection = window.getSelection();
     const container = transcriptBoxRef.current;
 
@@ -226,15 +233,40 @@ export default function App() {
       const rect = range.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
 
+      // Remove previous pending highlight if exists (user selected new text without querying agent)
+      if (pendingHighlightIdRef.current) {
+        removeHighlight(pendingHighlightIdRef.current);
+        pendingHighlightIdRef.current = null;
+      }
+
       // Sofort echtes Highlight erzeugen (mark-Element)
       const highlight = createHighlightFromSelection(range, text, container);
       if (highlight) {
+        // Prüfe ob das Highlight in einer Agent-Response liegt
+        let parentResponseId: string | undefined;
+        let node: Node | null = range.startContainer;
+        while (node && node !== container) {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const el = node as HTMLElement;
+            if (el.hasAttribute('data-response-id')) {
+              parentResponseId = el.getAttribute('data-response-id') || undefined;
+              break;
+            }
+          }
+          node = node.parentNode;
+        }
+        
         lastHighlightRef.current = {
           id: highlight.id,
           text: highlight.text,
           color: highlight.color,
           anchorTop: rect.bottom - containerRect.top,
+          groupId: highlight.groupId,
+          parentResponseId,
         };
+        // Mark this highlight as pending (not yet confirmed with agent query)
+        pendingHighlightIdRef.current = highlight.id;
+        
         // Menü unterhalb des markierten Bereichs anzeigen
         showMenuAtSelection(container, {
           range,
@@ -254,6 +286,12 @@ export default function App() {
 
   // Beim Klick auf bestehendes Highlight: Optionen erneut anzeigen
   const handleHighlightClick = useCallback((e: React.MouseEvent) => {
+    // WICHTIG: Wenn auf einen Link geklickt wurde, nicht interferieren
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'A' || target.closest('a')) {
+      return; // Link-Klick nicht blockieren
+    }
+
     const container = transcriptBoxRef.current;
     if (!container) return;
 
@@ -262,6 +300,12 @@ export default function App() {
 
     const highlightId = markEl.getAttribute("data-highlight-id");
     if (!highlightId) return;
+
+    // Remove previous pending highlight if it's a different one
+    if (pendingHighlightIdRef.current && pendingHighlightIdRef.current !== highlightId) {
+      removeHighlight(pendingHighlightIdRef.current);
+      pendingHighlightIdRef.current = null;
+    }
 
     const highlight = highlights.find(h => h.id === highlightId);
     if (!highlight) return;
@@ -272,11 +316,27 @@ export default function App() {
     const rect = markEl.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
 
+    // Prüfe ob das Highlight in einer Agent-Response liegt
+    let parentResponseId: string | undefined;
+    let node: Node | null = markEl;
+    while (node && node !== container) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.hasAttribute('data-response-id')) {
+          parentResponseId = el.getAttribute('data-response-id') || undefined;
+          break;
+        }
+      }
+      node = node.parentNode;
+    }
+
     lastHighlightRef.current = {
       id: highlight.id,
       text: highlight.text,
       color: highlight.color,
       anchorTop: rect.bottom - containerRect.top,
+      groupId: highlight.groupId,
+      parentResponseId,
     };
 
     showMenuAtSelection(container, {
@@ -291,7 +351,18 @@ export default function App() {
   }, [highlights, showMenuAtSelection]);
 
   // Ref für letztes erstelltes Highlight (für Agent-Queries)
-  const lastHighlightRef = useRef<{ id: string; text: string; color: HighlightColor; anchorTop: number } | null>(null);
+  const lastHighlightRef = useRef<{ 
+    id: string; 
+    text: string; 
+    color: HighlightColor; 
+    anchorTop: number;
+    groupId: string;           // GroupId wo das Highlight liegt
+    parentResponseId?: string; // Falls in einer Response markiert wurde
+  } | null>(null);
+
+  // Track "pending" highlight that hasn't been confirmed with an agent query
+  // Will be removed when clicking elsewhere or selecting new text
+  const pendingHighlightIdRef = useRef<string | null>(null);
 
   // Hilfs-Snapshot für Agent-Queries (nutzt Auto-Highlight wenn vorhanden)
   const getCurrentHighlightSnapshot = useCallback(() => {
@@ -303,6 +374,8 @@ export default function App() {
       text: highlight.text,
       color: highlight.color,
       anchorTop: menuState.y,
+      groupId: highlight.groupId,
+      parentResponseId: undefined as string | undefined,
     };
     lastHighlightRef.current = snapshot;
     return snapshot;
@@ -313,11 +386,23 @@ export default function App() {
     const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
     
+    // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
+    pendingHighlightIdRef.current = null;
+    
     const prompt = `Context: "${highlight.text}"
 
 Give me 3-5 bullet points with key facts I can use in conversation. Short, precise, no fluff.`;
     
-    queryAgent(prompt, highlight.id, highlight.text, highlight.color, highlight.anchorTop, "expand");
+    queryAgent(
+      prompt, 
+      highlight.id, 
+      highlight.text, 
+      highlight.color, 
+      highlight.anchorTop, 
+      "expand",
+      highlight.groupId,
+      highlight.parentResponseId
+    );
     hideMenu();
   }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
 
@@ -326,11 +411,23 @@ Give me 3-5 bullet points with key facts I can use in conversation. Short, preci
     const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
     
+    // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
+    pendingHighlightIdRef.current = null;
+    
     const prompt = `Context: "${highlight.text}"
 
 Find 2-3 similar deal examples from Microsoft Switzerland in your index. One line each, max. Focus on facts such as contract scope, number of users, etc.`;
     
-    queryAgent(prompt, highlight.id, highlight.text, highlight.color, highlight.anchorTop, "facts");
+    queryAgent(
+      prompt, 
+      highlight.id, 
+      highlight.text, 
+      highlight.color, 
+      highlight.anchorTop, 
+      "facts",
+      highlight.groupId,
+      highlight.parentResponseId
+    );
     hideMenu();
   }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
 
@@ -339,13 +436,37 @@ Find 2-3 similar deal examples from Microsoft Switzerland in your index. One lin
     const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
 
+    // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
+    pendingHighlightIdRef.current = null;
+
     const prompt = `Context: "${highlight.text}"
 
 ${customPrompt}`;
 
-    queryAgent(prompt, highlight.id, highlight.text, highlight.color, highlight.anchorTop, "expand");
+    queryAgent(
+      prompt, 
+      highlight.id, 
+      highlight.text, 
+      highlight.color, 
+      highlight.anchorTop, 
+      "expand",
+      highlight.groupId,
+      highlight.parentResponseId
+    );
     hideMenu();
   }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
+
+  // Handler für das Schließen des Menüs - entfernt auch das pending Highlight
+  const handleCloseMenu = useCallback(() => {
+    // Wenn ein pending Highlight existiert und das Menü geschlossen wird (ohne Agent-Query),
+    // dann entferne das Highlight wieder
+    if (pendingHighlightIdRef.current) {
+      removeHighlight(pendingHighlightIdRef.current);
+      pendingHighlightIdRef.current = null;
+      lastHighlightRef.current = null;
+    }
+    hideMenu();
+  }, [hideMenu, removeHighlight]);
 
   // Handler für das Löschen einer Agent-Antwort - entfernt auch das zugehörige Highlight
   const handleRemoveAuraResponse = useCallback((responseId: string) => {
@@ -625,27 +746,74 @@ ${customPrompt}`;
                 <p className="muted">No input yet. Pick at least one audio source and hit Start.</p>
               )}
               {/* Gruppierte Segmente - Tag nur bei Speaker-Wechsel, Cursor bei Live-Content */}
+              {/* Mit Inline Agent Responses nach relevanten Segmenten */}
               {groupedSegmentsWithOffsets.map((group) => {
                 const groupText = group.texts.join(" ");
                 
+                // Finde alle Responses die zu diesem Segment gehören
+                // (sourceGroupId = group.id UND keine insertAfterResponseId)
+                const responsesForGroup = auraResponses.filter(r => 
+                  r.sourceGroupId === group.id && !r.insertAfterResponseId
+                );
+                
                 return (
-                  <div key={group.id} className={`final-line source-${group.source} ${group.isSourceChange ? 'has-tag' : 'no-tag'}`}>
-                    {group.isSourceChange && (
-                      <span className="source-tag">{group.source === "mic" ? "MIC" : "SPK"}</span>
-                    )}
-                    <span className="segment-text">
-                      {/* 
-                        IMMER HighlightedText verwenden - KEIN TypewriterText mehr!
-                        TypewriterText verfälscht textContent und macht Offset-Berechnung unmöglich.
-                        
-                        data-group-id NUR auf diesem span mit dem reinen Text.
-                        Cursor ist AUSSERHALB dieses spans.
-                      */}
-                      <span data-group-id={group.id}>
-                        <HighlightedText text={groupText} highlights={highlights} groupId={group.id} />
+                  <div key={group.id}>
+                    {/* Das Transkript-Segment */}
+                    <div className={`final-line source-${group.source} ${group.isSourceChange ? 'has-tag' : 'no-tag'}`}>
+                      {group.isSourceChange && (
+                        <span className="source-tag">{group.source === "mic" ? "MIC" : "SPK"}</span>
+                      )}
+                      <span className="segment-text">
+                        {/* 
+                          IMMER HighlightedText verwenden - KEIN TypewriterText mehr!
+                          TypewriterText verfälscht textContent und macht Offset-Berechnung unmöglich.
+                          
+                          data-group-id NUR auf diesem span mit dem reinen Text.
+                          Cursor ist AUSSERHALB dieses spans.
+                        */}
+                        <span data-group-id={group.id}>
+                          <HighlightedText text={groupText} highlights={highlights} groupId={group.id} />
+                        </span>
+                        {group.hasLive && <span className="cursor">|</span>}
                       </span>
-                      {group.hasLive && <span className="cursor">|</span>}
-                    </span>
+                    </div>
+                    
+                    {/* Inline Agent Responses für dieses Segment */}
+                    {responsesForGroup.map(response => {
+                      // Sammle auch alle Folge-Responses (wenn in dieser Response markiert wurde)
+                      const getChainedResponses = (parentId: string): typeof auraResponses => {
+                        const children = auraResponses.filter(r => r.insertAfterResponseId === parentId);
+                        return children.flatMap(child => [child, ...getChainedResponses(child.id)]);
+                      };
+                      const chainedResponses = getChainedResponses(response.id);
+                      
+                      return (
+                        <div key={response.id} className="inline-responses-chain">
+                          <InlineAgentResponse
+                            responseId={response.id}
+                            result={response.result}
+                            loading={response.loading}
+                            error={response.error}
+                            color={response.color}
+                            highlights={highlights}
+                            onClose={handleRemoveAuraResponse}
+                          />
+                          {/* Folge-Responses (nicht verschachtelt, untereinander) */}
+                          {chainedResponses.map(chainedResponse => (
+                            <InlineAgentResponse
+                              key={chainedResponse.id}
+                              responseId={chainedResponse.id}
+                              result={chainedResponse.result}
+                              loading={chainedResponse.loading}
+                              error={chainedResponse.error}
+                              color={chainedResponse.color}
+                              highlights={highlights}
+                              onClose={handleRemoveAuraResponse}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -658,7 +826,7 @@ ${customPrompt}`;
                 width={menuState.width}
                 selectedText={menuState.selectedText}
                 highlightColor={menuState.highlightColor}
-                onClose={hideMenu}
+                onClose={handleCloseMenu}
                 onExpand={handleHighlightAndExpand}
                 onFacts={handleHighlightAndFacts}
                 onCustomPrompt={handleCustomPrompt}

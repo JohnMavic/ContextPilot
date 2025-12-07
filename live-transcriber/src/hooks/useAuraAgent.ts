@@ -12,6 +12,9 @@ export interface AuraResponse {
   error: string | null;
   anchorTop: number;       // Y-Position des zugehörigen Highlights
   statusNote?: string;     // z.B. Rate-Limit Hinweis
+  // NEU: Position im Transkript für Inline-Darstellung
+  sourceGroupId: string;   // GroupId wo das Highlight liegt
+  insertAfterResponseId?: string; // Falls in einer Response markiert wurde
 }
 
 export function useAuraAgent() {
@@ -28,7 +31,9 @@ export function useAuraAgent() {
     sourceText: string,
     color: HighlightColor,
     anchorTop: number,
-    queryType: "expand" | "facts" | "full" = "expand"
+    queryType: "expand" | "facts" | "full" = "expand",
+    sourceGroupId: string = "",           // GroupId wo das Highlight liegt
+    insertAfterResponseId?: string        // Falls in einer Response markiert wurde
   ) => {
     if (!prompt) return;
 
@@ -50,6 +55,8 @@ export function useAuraAgent() {
       error: null,
       anchorTop,
       statusNote: undefined,
+      sourceGroupId,
+      insertAfterResponseId,
     };
 
     setResponses(prev => [...prev, newResponse]);

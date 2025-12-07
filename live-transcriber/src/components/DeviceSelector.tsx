@@ -16,18 +16,50 @@ export function DeviceSelector({
   tabCaptureError = null,
 }: Props) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [micId, setMicId] = useState<string>("");
+  const [micId, setMicId] = useState<string>("default"); // Default: Windows Standard-Gerät
   const [speakerId, setSpeakerId] = useState<string>("");
   const [speakerSource, setSpeakerSource] = useState<SpeakerSource>("tab");
+  const [defaultDeviceLabel, setDefaultDeviceLabel] = useState<string>("");
 
   useEffect(() => {
-    navigator.mediaDevices
-      .enumerateDevices()
-      .then((list) =>
-        setDevices(list.filter((d) => d.kind === "audioinput")),
-      )
+    // Erst Permission anfragen um Labels zu bekommen
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        // Stream sofort stoppen, wir brauchen nur die Permission
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Jetzt Geräte mit Labels auflisten
+        return navigator.mediaDevices.enumerateDevices();
+      })
+      .then((list) => {
+        const audioInputs = list.filter((d) => d.kind === "audioinput");
+        setDevices(audioInputs);
+        
+        // Finde das Default-Gerät (hat deviceId "default" oder ist das erste)
+        const defaultDevice = audioInputs.find(d => d.deviceId === "default");
+        if (defaultDevice && defaultDevice.label) {
+          // Extrahiere den echten Gerätenamen aus "Default - Gerätename (Hersteller)"
+          const match = defaultDevice.label.match(/^Default\s*-?\s*(.+)$/i);
+          if (match) {
+            setDefaultDeviceLabel(match[1].trim());
+          } else {
+            setDefaultDeviceLabel(defaultDevice.label);
+          }
+        }
+        
+        // Setze das Default-Gerät als ausgewählt
+        if (audioInputs.length > 0 && !micId) {
+          setMicId("default");
+        }
+      })
       .catch((err) => {
         console.error("enumerateDevices failed", err);
+        // Fallback: Versuche ohne Permission
+        navigator.mediaDevices.enumerateDevices()
+          .then((list) => {
+            setDevices(list.filter((d) => d.kind === "audioinput"));
+          })
+          .catch(console.error);
       });
   }, []);
 
@@ -40,6 +72,16 @@ export function DeviceSelector({
     onSpeakerSourceChange(speakerSource);
   }, [speakerSource, onSpeakerSourceChange]);
 
+  // Formatiere Device-Label für Anzeige
+  const formatDeviceLabel = (device: MediaDeviceInfo): string => {
+    if (!device.label) return "Audio input";
+    // Kürze lange Labels
+    if (device.label.length > 50) {
+      return device.label.slice(0, 47) + "...";
+    }
+    return device.label;
+  };
+
   return (
     <div className="device-selectors">
       <label className="field">
@@ -49,11 +91,16 @@ export function DeviceSelector({
           onChange={(e) => setMicId(e.target.value)}
         >
           <option value="">-- Do not use --</option>
-          {devices.map((d) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label || "Audio input"}
-            </option>
-          ))}
+          <option value="default">
+            🎤 Windows Default{defaultDeviceLabel ? ` (${defaultDeviceLabel})` : ""}
+          </option>
+          {devices
+            .filter(d => d.deviceId !== "default") // Default nicht doppelt anzeigen
+            .map((d) => (
+              <option key={d.deviceId} value={d.deviceId}>
+                {formatDeviceLabel(d)}
+              </option>
+            ))}
         </select>
       </label>
 

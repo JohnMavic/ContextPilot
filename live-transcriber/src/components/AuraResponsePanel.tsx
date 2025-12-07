@@ -15,8 +15,8 @@ function formatLine(text: string): React.ReactNode {
   let keyIndex = 0;
   
   // Regex für verschiedene Markdown-Elemente
-  // Reihenfolge: Sub-Tags, Links, Quellenangaben (【...】), Bold
-  const combinedRegex = /(<sub>(.+?)<\/sub>)|(\*\*(.+?)\*\*)|(\[([^\]]+)\]\(([^)]+)\))|(【[^】]+】)/g;
+  // Reihenfolge: Sub-Tags, Bold, Markdown-Links, Quellenangaben (【...】), Plain URLs
+  const combinedRegex = /(<sub>(.+?)<\/sub>)|(\*\*(.+?)\*\*)|(\[([^\]]+)\]\(([^)]+)\))|(【[^】]+】)|(https?:\/\/[^\s<>]+)/g;
   
   let lastIndex = 0;
   let match;
@@ -42,6 +42,7 @@ function formatLine(text: string): React.ReactNode {
           target="_blank" 
           rel="noopener noreferrer"
           className="aura-link"
+          onClick={(e) => e.stopPropagation()}
         >
           {match[6]}
         </a>
@@ -52,6 +53,20 @@ function formatLine(text: string): React.ReactNode {
         <span key={keyIndex++} className="aura-source-badge">
           {match[8]}
         </span>
+      );
+    } else if (match[9]) {
+      // Plain URL (https://...)
+      parts.push(
+        <a 
+          key={keyIndex++} 
+          href={match[9]} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="aura-link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {match[9]}
+        </a>
       );
     }
     
