@@ -29,6 +29,7 @@ type AudioSession = {
   queueDurationMs?: number;
   sampleRate?: number;
   lastLoudAt?: number;
+  durationSinceCommit?: number;
 };
 
 const floatToInt16Base64 = (floatData: Float32Array) => {
@@ -145,6 +146,7 @@ export function useDualRealtime() {
         session.current.hasAudioSinceCommit = false;
         session.current.framesSinceCommit = 0;
         session.current.bytesSinceCommit = 0;
+        session.current.durationSinceCommit = 0;
       }
 
       // Speaker-ID aus Diarization extrahieren (falls vorhanden)
@@ -169,9 +171,19 @@ export function useDualRealtime() {
       }
 
       if (msg.type === "error") {
-        const errMsg = msg.error?.message || msg.error?.code || JSON.stringify(msg.error);
+        const code = msg.error?.code;
+        const errMsg = msg.error?.message || code || JSON.stringify(msg.error);
         console.error(`[WS ${source.toUpperCase()} ERROR]`, msg.error);
         addError(source, errMsg);
+
+        // Bei leeren Commits Zähler zurücksetzen, um erneute leere Commits zu vermeiden
+        if (code === "input_audio_buffer_commit_empty") {
+          const session = source === "mic" ? micSession : speakerSession;
+          session.current.hasAudioSinceCommit = false;
+          session.current.framesSinceCommit = 0;
+          session.current.bytesSinceCommit = 0;
+          session.current.durationSinceCommit = 0;
+        }
       }
     } catch (err) {
       console.warn("Parse error:", err);
@@ -272,6 +284,7 @@ export function useDualRealtime() {
       session.current.queue = [];
       session.current.queueDurationMs = 0;
       session.current.bytesSinceCommit = 0;
+      session.current.durationSinceCommit = 0;
       
       // AudioContext mit fixer 24 kHz, damit der Stream zur API passt
       // (Chrome resampelt eingehende 48 kHz Tab-Audio entsprechend runter)
@@ -346,18 +359,21 @@ export function useDualRealtime() {
       // Regelmäßige Commits schicken, damit der Server sehr kurze Abschnitte verarbeitet
       // und wir Zeile für Zeile Updates bekommen (auch wenn kein Silence erkannt wird).
       const commitIntervalMs = source === "speaker" ? 2600 : 3500;
-      const minFramesForCommit = source === "mic" ? 15 : 1;
+      const minFramesForCommit = source === "mic" ? 20 : 3;
+      const minDurationMsForCommit = source === "mic" ? 400 : 250;
       session.current.commitTimer = setInterval(() => {
         if (
           session.current.ws?.readyState === WebSocket.OPEN &&
           session.current.hasAudioSinceCommit &&
           (session.current.framesSinceCommit || 0) >= minFramesForCommit &&
-          (session.current.bytesSinceCommit || 0) > 0
+          (session.current.bytesSinceCommit || 0) > 0 &&
+          (session.current.durationSinceCommit || 0) >= minDurationMsForCommit
         ) {
           session.current.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
           session.current.hasAudioSinceCommit = false;
           session.current.framesSinceCommit = 0;
           session.current.bytesSinceCommit = 0;
+          session.current.durationSinceCommit = 0;
         }
       }, commitIntervalMs);
 
@@ -403,22 +419,23 @@ export function useDualRealtime() {
         session.current.queueDurationMs += chunkDurationMs;
 
         while (session.current.queueDurationMs > prebufferMs && session.current.queue.length > 0) {
-          const chunk = session.current.queue.shift()!;
-          session.current.queueDurationMs -= chunk.durationMs;
+        const chunk = session.current.queue.shift()!;
+        session.current.queueDurationMs -= chunk.durationMs;
 
-          const b64 = floatToInt16Base64(chunk.data);
-          setStats((s) => ({
+        const b64 = floatToInt16Base64(chunk.data);
+        setStats((s) => ({
             ...s,
             [source === "mic" ? "micFrames" : "speakerFrames"]: 
               s[source === "mic" ? "micFrames" : "speakerFrames"] + 1,
           }));
-          session.current.framesSinceCommit = (session.current.framesSinceCommit || 0) + 1;
-          session.current.bytesSinceCommit = (session.current.bytesSinceCommit || 0) + chunk.data.byteLength;
+        session.current.framesSinceCommit = (session.current.framesSinceCommit || 0) + 1;
+        session.current.bytesSinceCommit = (session.current.bytesSinceCommit || 0) + chunk.data.byteLength;
+        session.current.durationSinceCommit = (session.current.durationSinceCommit || 0) + chunk.durationMs;
 
-          session.current.ws.send(
-            JSON.stringify({ type: "input_audio_buffer.append", audio: b64 }),
-          );
-        }
+        session.current.ws.send(
+          JSON.stringify({ type: "input_audio_buffer.append", audio: b64 }),
+        );
+      }
       };
 
       return true;
@@ -435,7 +452,8 @@ export function useDualRealtime() {
       session.current.ws?.readyState === WebSocket.OPEN &&
       session.current.hasAudioSinceCommit &&
       (session.current.framesSinceCommit || 0) > 0 &&
-      (session.current.bytesSinceCommit || 0) > 0
+      (session.current.bytesSinceCommit || 0) > 0 &&
+      (session.current.durationSinceCommit || 0) > 0
     ) {
       // Letztes Commit senden, um offene Fragmente zu schließen
       session.current.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));

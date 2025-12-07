@@ -11,6 +11,7 @@ export interface AuraResponse {
   result: string | null;
   error: string | null;
   anchorTop: number;       // Y-Position des zugehörigen Highlights
+  statusNote?: string;     // z.B. Rate-Limit Hinweis
 }
 
 export function useAuraAgent() {
@@ -48,79 +49,120 @@ export function useAuraAgent() {
       result: null,
       error: null,
       anchorTop,
+      statusNote: undefined,
     };
 
     setResponses(prev => [...prev, newResponse]);
 
     try {
-      const resp = await fetch("http://localhost:8080/agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, stream: true }),
-        signal: abortController.signal,
-      });
+      const maxRetries = 3;
+      let attempt = 0;
+      let shouldRetry = false;
 
-      if (!resp.ok) {
-        const json = await resp.json();
-        throw new Error(json?.error || `Agent request failed (${resp.status})`);
-      }
+      do {
+        shouldRetry = false;
+        const resp = await fetch("http://localhost:8080/agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, stream: true }),
+          signal: abortController.signal,
+        });
 
-      const contentType = resp.headers.get("content-type") || "";
+        if (resp.status === 429) {
+          const retryAfterHeader = resp.headers.get("retry-after");
+          let retryDelayMs = 0;
+          if (retryAfterHeader) {
+            const parsed = parseFloat(retryAfterHeader);
+            if (!Number.isNaN(parsed)) {
+              retryDelayMs = parsed * 1000;
+            }
+          }
+          if (retryDelayMs === 0) {
+            retryDelayMs = Math.min(8000, 1000 * Math.pow(2, attempt));
+          }
 
-      if (contentType.includes("text/event-stream")) {
-        // STREAMING: Read SSE events
-        const reader = resp.body?.getReader();
-        if (!reader) throw new Error("No response body");
+          if (attempt < maxRetries) {
+            attempt += 1;
+            const waitSeconds = Math.round(retryDelayMs / 100) / 10;
+            setResponses(prev =>
+              prev.map(r =>
+                r.id === responseId
+                  ? { ...r, statusNote: `Rate limit, retrying in ${waitSeconds}s...` }
+                  : r
+              )
+            );
+            await new Promise(res => setTimeout(res, retryDelayMs));
+            shouldRetry = true;
+            continue;
+          } else {
+            const json = await resp.json().catch(() => null);
+            const msg = json?.error || "Rate limit exceeded";
+            throw new Error(msg);
+          }
+        }
 
-        const decoder = new TextDecoder();
-        let fullText = "";
+        if (!resp.ok) {
+          const json = await resp.json().catch(() => null);
+          throw new Error(json?.error || `Agent request failed (${resp.status})`);
+        }
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        const contentType = resp.headers.get("content-type") || "";
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
+        if (contentType.includes("text/event-stream")) {
+          // STREAMING: Read SSE events
+          const reader = resp.body?.getReader();
+          if (!reader) throw new Error("No response body");
 
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              try {
-                const event = JSON.parse(data);
-                if (event.done) {
-                  fullText = event.output_text || fullText;
-                } else if (event.partial) {
-                  fullText = event.partial;
+          const decoder = new TextDecoder();
+          let fullText = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6);
+                try {
+                  const event = JSON.parse(data);
+                  if (event.done) {
+                    fullText = event.output_text || fullText;
+                  } else if (event.partial) {
+                    fullText = event.partial;
+                  }
+                  // Update this specific response
+                  setResponses(prev =>
+                    prev.map(r =>
+                      r.id === responseId ? { ...r, result: fullText, statusNote: undefined } : r
+                    )
+                  );
+                } catch {
+                  // Ignore parse errors
                 }
-                // Update this specific response
-                setResponses(prev =>
-                  prev.map(r =>
-                    r.id === responseId ? { ...r, result: fullText } : r
-                  )
-                );
-              } catch {
-                // Ignore parse errors
               }
             }
           }
+        } else {
+          // NON-STREAMING
+          const json = await resp.json();
+          const output = json.output_text || JSON.stringify(json);
+          setResponses(prev =>
+            prev.map(r =>
+              r.id === responseId ? { ...r, result: output, statusNote: undefined } : r
+            )
+          );
         }
-      } else {
-        // NON-STREAMING
-        const json = await resp.json();
-        const output = json.output_text || JSON.stringify(json);
+
+        // Mark as done loading
         setResponses(prev =>
           prev.map(r =>
-            r.id === responseId ? { ...r, result: output } : r
+            r.id === responseId ? { ...r, loading: false, statusNote: undefined } : r
           )
         );
-      }
-
-      // Mark as done loading
-      setResponses(prev =>
-        prev.map(r =>
-          r.id === responseId ? { ...r, loading: false } : r
-        )
-      );
+      } while (shouldRetry);
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         // Request was cancelled, remove the response
@@ -131,7 +173,7 @@ export function useAuraAgent() {
       setResponses(prev =>
         prev.map(r =>
           r.id === responseId
-            ? { ...r, loading: false, error: err instanceof Error ? err.message : String(err) }
+            ? { ...r, loading: false, error: err instanceof Error ? err.message : String(err), statusNote: undefined }
             : r
         )
       );

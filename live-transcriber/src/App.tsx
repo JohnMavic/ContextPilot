@@ -45,6 +45,7 @@ export default function App() {
     showMenuAtSelection,
     hideMenu,
     createHighlight,
+    createHighlightFromSelection,
     removeHighlight,
     clearHighlights,
   } = useHighlights();
@@ -66,6 +67,7 @@ export default function App() {
     removeResponse: removeAuraResponse,
     clearAllResponses: clearAuraResponses,
   } = useAuraAgent();
+
 
   const handleDeviceSelect = useCallback((micId?: string, speakerId?: string) => {
     setMicDeviceId(micId);
@@ -155,62 +157,147 @@ export default function App() {
   // Also show menu on mouseup if text selected
   const handleMouseUp = useCallback(() => {
     const selection = window.getSelection();
-    if (selection && selection.toString().trim() && transcriptBoxRef.current) {
-      // Small delay to ensure selection is complete
-      setTimeout(() => {
-        showMenuAtSelection(transcriptBoxRef.current!);
-      }, 10);
+    const container = transcriptBoxRef.current;
+
+    if (selection && selection.toString().trim() && container && selection.rangeCount > 0) {
+      const text = selection.toString().trim();
+      const range = selection.getRangeAt(0).cloneRange();
+      const rect = range.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      // Sofort echtes Highlight erzeugen (mark-Element)
+      const highlight = createHighlightFromSelection(range, text, container);
+      if (highlight) {
+        lastHighlightRef.current = {
+          id: highlight.id,
+          text: highlight.text,
+          color: highlight.color,
+          anchorTop: rect.bottom - containerRect.top,
+        };
+        // Menü unterhalb des markierten Bereichs anzeigen
+        showMenuAtSelection(container, {
+          range,
+          selectedText: text,
+          highlightColor: highlight.color,
+          highlightId: highlight.id,
+          width: rect.width,
+          x: rect.left - containerRect.left,
+          y: rect.bottom - containerRect.top + 8,
+        });
+      }
+
+      // Native Selection entfernen, damit nur das mark sichtbar ist
+      selection.removeAllRanges();
     }
-  }, [showMenuAtSelection]);
+  }, [showMenuAtSelection, createHighlightFromSelection]);
+
+  // Beim Klick auf bestehendes Highlight: Optionen erneut anzeigen
+  const handleHighlightClick = useCallback((e: React.MouseEvent) => {
+    const container = transcriptBoxRef.current;
+    if (!container) return;
+
+    const markEl = (e.target as HTMLElement).closest("mark[data-highlight-id]") as HTMLElement | null;
+    if (!markEl) return;
+
+    const highlightId = markEl.getAttribute("data-highlight-id");
+    if (!highlightId) return;
+
+    const highlight = highlights.find(h => h.id === highlightId);
+    if (!highlight) return;
+
+    const range = document.createRange();
+    range.selectNodeContents(markEl);
+
+    const rect = markEl.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    lastHighlightRef.current = {
+      id: highlight.id,
+      text: highlight.text,
+      color: highlight.color,
+      anchorTop: rect.bottom - containerRect.top,
+    };
+
+    showMenuAtSelection(container, {
+      range,
+      selectedText: highlight.text,
+      highlightColor: highlight.color,
+      highlightId: highlight.id,
+      width: rect.width,
+      x: rect.left - containerRect.left,
+      y: rect.bottom - containerRect.top + 8,
+    });
+  }, [highlights, showMenuAtSelection]);
 
   // Ref für letztes erstelltes Highlight (für Agent-Queries)
   const lastHighlightRef = useRef<{ id: string; text: string; color: HighlightColor; anchorTop: number } | null>(null);
 
-  // Highlight erstellen und Info speichern
-  const handleCreateHighlight = useCallback((color?: HighlightColor) => {
-    const highlight = createHighlight(color);
-    if (highlight) {
-      lastHighlightRef.current = {
-        id: highlight.id,
-        text: highlight.text,
-        color: highlight.color,
-        anchorTop: menuState.y,
-      };
-    }
-    return highlight;
+  // Hilfs-Snapshot für Agent-Queries (nutzt Auto-Highlight wenn vorhanden)
+  const getCurrentHighlightSnapshot = useCallback(() => {
+    if (lastHighlightRef.current) return lastHighlightRef.current;
+    const highlight = createHighlight();
+    if (!highlight) return null;
+    const snapshot = {
+      id: highlight.id,
+      text: highlight.text,
+      color: highlight.color,
+      anchorTop: menuState.y,
+    };
+    lastHighlightRef.current = snapshot;
+    return snapshot;
   }, [createHighlight, menuState.y]);
 
   // Kombinierter Handler: Highlight erstellen UND Expand-Query starten
   const handleHighlightAndExpand = useCallback(() => {
-    const highlight = createHighlight();
+    const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
     
     const prompt = `Context: "${highlight.text}"
 
 Give me 3-5 bullet points with key facts I can use in conversation. Short, precise, no fluff.`;
     
-    queryAgent(prompt, highlight.id, highlight.text, highlight.color, menuState.y, "expand");
-  }, [createHighlight, queryAgent, menuState.y]);
+    queryAgent(prompt, highlight.id, highlight.text, highlight.color, highlight.anchorTop, "expand");
+    hideMenu();
+  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
 
   // Kombinierter Handler: Highlight erstellen UND Facts-Query starten
   const handleHighlightAndFacts = useCallback(() => {
-    const highlight = createHighlight();
+    const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
     
     const prompt = `Context: "${highlight.text}"
 
 Find 2-3 similar examples or related cases from your index. One line each, max.`;
     
-    queryAgent(prompt, highlight.id, highlight.text, highlight.color, menuState.y, "facts");
-  }, [createHighlight, queryAgent, menuState.y]);
+    queryAgent(prompt, highlight.id, highlight.text, highlight.color, highlight.anchorTop, "facts");
+    hideMenu();
+  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
+
+  // Custom Prompt Handler (Enter im Textfeld)
+  const handleCustomPrompt = useCallback((customPrompt: string) => {
+    const highlight = getCurrentHighlightSnapshot();
+    if (!highlight) return;
+
+    const prompt = `Context: "${highlight.text}"
+
+${customPrompt}`;
+
+    queryAgent(prompt, highlight.id, highlight.text, highlight.color, highlight.anchorTop, "expand");
+    hideMenu();
+  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
 
   // Handler für das Löschen einer Agent-Antwort - entfernt auch das zugehörige Highlight
   const handleRemoveAuraResponse = useCallback((responseId: string) => {
     // Finde die Antwort um die highlightId zu bekommen
     const response = auraResponses.find(r => r.id === responseId);
     if (response) {
-      // Entferne das zugehörige Highlight
-      removeHighlight(response.highlightId);
+      const remaining = auraResponses.filter(r => r.highlightId === response.highlightId && r.id !== responseId);
+      if (remaining.length === 0) {
+        removeHighlight(response.highlightId);
+        if (lastHighlightRef.current?.id === response.highlightId) {
+          lastHighlightRef.current = null;
+        }
+      }
     }
     // Entferne die Antwort
     removeAuraResponse(responseId);
@@ -319,6 +406,7 @@ Find 2-3 similar examples or related cases from your index. One line each, max.`
     clearErrors();
     clearHighlights();
     clearAuraResponses();
+    lastHighlightRef.current = null;
   }, [resetTranscript, clearErrors, clearHighlights, clearAuraResponses]);
 
   return (
@@ -428,6 +516,7 @@ Find 2-3 similar examples or related cases from your index. One line each, max.`
               ref={transcriptBoxRef}
               onScroll={handleScroll}
               onMouseUp={handleMouseUp}
+              onClick={handleHighlightClick}
               onContextMenu={handleContextMenu}
               style={{ position: "relative" }}
             >
@@ -465,11 +554,13 @@ Find 2-3 similar examples or related cases from your index. One line each, max.`
                 visible={menuState.visible}
                 x={menuState.x}
                 y={menuState.y}
+                width={menuState.width}
                 selectedText={menuState.selectedText}
+                highlightColor={menuState.highlightColor}
                 onClose={hideMenu}
-                onHighlight={handleCreateHighlight}
-                onHighlightAndExpand={handleHighlightAndExpand}
-                onHighlightAndFacts={handleHighlightAndFacts}
+                onExpand={handleHighlightAndExpand}
+                onFacts={handleHighlightAndFacts}
+                onCustomPrompt={handleCustomPrompt}
                 isLoading={anyAuraLoading}
               />
             </div>
@@ -495,6 +586,7 @@ Find 2-3 similar examples or related cases from your index. One line each, max.`
                       result={response.result}
                       loading={response.loading}
                       error={response.error}
+                      statusNote={response.statusNote}
                       onClose={handleRemoveAuraResponse}
                     />
                   ))}

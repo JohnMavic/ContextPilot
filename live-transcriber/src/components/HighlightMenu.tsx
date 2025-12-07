@@ -1,32 +1,57 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { HighlightColor } from "../hooks/useHighlights";
 
 interface HighlightMenuProps {
   visible: boolean;
   x: number;
   y: number;
+  width: number;
   selectedText: string;
+  highlightColor?: HighlightColor;
   onClose: () => void;
-  onHighlight: (color?: HighlightColor) => void;
-  onHighlightAndExpand: () => void;  // Kombiniert: Highlight + Expand
-  onHighlightAndFacts: () => void;   // Kombiniert: Highlight + Facts
+  onExpand: () => void;
+  onFacts: () => void;
+  onCustomPrompt: (prompt: string) => void;
   isLoading?: boolean;
+}
+
+const colorHexMap: Record<HighlightColor, string> = {
+  1: "#ef4444",
+  2: "#22c55e",
+  3: "#f97316",
+  4: "#facc15",
+  5: "#3b82f6",
+};
+
+function hexToRgba(hex: string, alpha: number) {
+  const clean = hex.replace("#", "");
+  const num = parseInt(clean, 16);
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export function HighlightMenu({
   visible,
   x,
   y,
+  width,
   selectedText,
+  highlightColor,
   onClose,
-  onHighlight,
-  onHighlightAndExpand,
-  onHighlightAndFacts,
+  onExpand,
+  onFacts,
+  onCustomPrompt,
   isLoading,
 }: HighlightMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [customPrompt, setCustomPrompt] = useState("");
 
-  // Close on click outside
+  const barColor = highlightColor ? colorHexMap[highlightColor] : "#60a5fa";
+  const barBackground = useMemo(() => hexToRgba(barColor, 0.4), [barColor]);
+
+  // Close on click outside / escape
   useEffect(() => {
     if (!visible) return;
 
@@ -42,11 +67,10 @@ export function HighlightMenu({
       }
     };
 
-    // Delay to prevent immediate close
     const timer = setTimeout(() => {
       document.addEventListener("mousedown", handleClickOutside);
       document.addEventListener("keydown", handleEscape);
-    }, 100);
+    }, 50);
 
     return () => {
       clearTimeout(timer);
@@ -55,56 +79,63 @@ export function HighlightMenu({
     };
   }, [visible, onClose]);
 
+  // Reset custom prompt when bar reopened
+  useEffect(() => {
+    if (visible) {
+      setCustomPrompt("");
+    }
+  }, [visible]);
+
   if (!visible) return null;
 
-  const preview =
-    selectedText.length > 80
-      ? selectedText.slice(0, 77) + "..."
-      : selectedText;
+  const handleCustomSubmit = () => {
+    if (!customPrompt.trim() || isLoading) return;
+    onCustomPrompt(customPrompt.trim());
+  };
 
   return (
     <div
       ref={menuRef}
-      className="highlight-context-menu"
-      style={{ left: x, top: y }}
+      className="highlight-action-bar"
+      style={{
+        left: x,
+        top: y,
+        minWidth: Math.max(width, 180),
+        background: barBackground,
+        borderColor: barColor,
+      }}
     >
-      <div className="menu-header">
-        <div className="selected-preview">"{preview}"</div>
+      <div className="action-buttons">
+        <button
+          className="action-btn"
+          onClick={onExpand}
+          disabled={isLoading}
+        >
+          Show more details
+        </button>
+        <button
+          className="action-btn"
+          onClick={onFacts}
+          disabled={isLoading}
+        >
+          Find similar examples
+        </button>
+        <div className="action-custom">
+          <input
+            type="text"
+            value={customPrompt}
+            placeholder="Custom instruction + Enter"
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleCustomSubmit();
+              }
+            }}
+            disabled={isLoading}
+          />
+        </div>
       </div>
-
-      {/* Mark Only - ohne Agent */}
-      <button
-        className="menu-btn"
-        onClick={() => {
-          onHighlight();
-        }}
-      >
-        <span className="icon">✏️</span>
-        <span className="label">Nur markieren</span>
-      </button>
-
-      {/* AURA Actions */}
-      <button
-        className="menu-btn"
-        onClick={() => {
-          onHighlightAndExpand();
-        }}
-        disabled={isLoading}
-      >
-        <span className="icon">🔍</span>
-        <span className="label">Show more details</span>
-      </button>
-
-      <button
-        className="menu-btn"
-        onClick={() => {
-          onHighlightAndFacts();
-        }}
-        disabled={isLoading}
-      >
-        <span className="icon">🔗</span>
-        <span className="label">Find similar examples</span>
-      </button>
     </div>
   );
 }

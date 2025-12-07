@@ -125,6 +125,7 @@ interface AuraResponsePanelProps {
   result: string | null;
   loading: boolean;
   error: string | null;
+  statusNote?: string;
   onClose: (id: string) => void;
 }
 
@@ -135,6 +136,7 @@ export function AuraResponsePanel({
   result,
   loading,
   error,
+  statusNote,
   onClose,
 }: AuraResponsePanelProps) {
   const borderColor = colorMap[color];
@@ -176,7 +178,7 @@ export function AuraResponsePanel({
         {loading && (
           <div className="aura-loading">
             <span className="aura-spinner" style={{ color: borderColor }}>◌</span>
-            <span>Analysiert...</span>
+            <span>{statusNote || "Analysiert..."}</span>
           </div>
         )}
         
@@ -202,3 +204,4 @@ export function AuraResponsePanel({
     </div>
   );
 }
+
