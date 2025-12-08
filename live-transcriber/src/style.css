@@ -587,6 +587,30 @@ button:disabled {
   flex: 1;
 }
 
+/* Editierbare Segmente */
+.segment-text [contenteditable="true"] {
+  cursor: text;
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: -1px -2px;
+  transition: background-color 150ms ease;
+}
+
+.segment-text [contenteditable="true"]:hover {
+  background-color: rgba(59, 130, 246, 0.08);
+}
+
+.segment-text [contenteditable="true"]:focus {
+  background-color: rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3);
+}
+
+/* Whitespace und Tabs im editierbaren Bereich erhalten */
+.segment-text [contenteditable="true"] {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
 .source-tag {
   font-size: 11px;
   font-weight: 600;
@@ -1026,36 +1050,42 @@ pre {
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 8px;
-  border: 1px solid;
+  gap: 3px;
+  padding: 5px 6px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 8px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
+  background: linear-gradient(120deg, rgba(17, 24, 39, 0.9), rgba(30, 41, 59, 0.9));
 }
 
 .highlight-action-bar .action-buttons {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 .highlight-action-bar .action-btn {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(145deg, #2c3750, #1c2538);
+  border: 1px solid rgba(148, 163, 184, 0.5);
   color: #f8fafc;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
   cursor: pointer;
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
 }
 
 .highlight-action-bar .action-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.35);
-  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(191, 219, 254, 0.7);
+  background: linear-gradient(145deg, #334155, #222c3f);
 }
 
 .highlight-action-bar .action-btn:disabled {
@@ -1063,31 +1093,94 @@ pre {
   cursor: not-allowed;
 }
 
+/* Copy button - grün accent */
+.highlight-action-bar .action-btn-copy {
+  background: linear-gradient(145deg, rgba(34, 197, 94, 0.15), rgba(21, 128, 61, 0.3));
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #bbf7d0;
+}
+
+.highlight-action-bar .action-btn-copy:hover:not(:disabled) {
+  background: linear-gradient(145deg, rgba(34, 197, 94, 0.25), rgba(21, 128, 61, 0.45));
+  border-color: rgba(74, 222, 128, 0.7);
+  color: #dcfce7;
+}
+
 /* Delete button - red accent */
 .highlight-action-bar .action-btn-delete {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #fca5a5;
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.18), rgba(127, 29, 29, 0.35));
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fecdd3;
 }
 
 .highlight-action-bar .action-btn-delete:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.25);
-  border-color: rgba(239, 68, 68, 0.6);
-  color: #fecaca;
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.25), rgba(127, 29, 29, 0.5));
+  border-color: rgba(248, 113, 113, 0.8);
+  color: #ffe4e6;
 }
 
-.highlight-action-bar .action-custom input {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 6px;
-  padding: 6px 10px;
+/* Inline Web Toggle - direkt im Button integriert */
+.highlight-action-bar .web-toggle-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  margin-left: 2px;
+  background: rgba(59, 130, 246, 0.15);
+  border-radius: 3px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.highlight-action-bar .web-toggle-inline:hover {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.highlight-action-bar .web-toggle-inline input {
+  width: 9px;
+  height: 9px;
+  margin: 0;
+  accent-color: #60a5fa;
+  cursor: pointer;
+}
+
+.highlight-action-bar .web-toggle-inline .web-label {
+  font-size: 8px;
+  font-weight: 500;
+  color: #93c5fd;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Custom Input Group - gleiche Höhe wie Buttons */
+.highlight-action-bar .custom-input-group {
+  display: inline-flex;
+  align-items: center;
+  background: linear-gradient(145deg, #2c3750, #1c2538);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 5px;
+  padding: 4px 4px 4px 6px;
+  gap: 5px;
+}
+
+.highlight-action-bar .custom-input-group input[type="text"] {
+  background: transparent;
+  border: none;
+  padding: 0;
   color: #e2e8f0;
-  min-width: 200px;
+  font-size: 10px;
+  width: 110px;
 }
 
-.highlight-action-bar .action-custom input:focus {
-  outline: 2px solid rgba(255, 255, 255, 0.35);
-  outline-offset: 1px;
+.highlight-action-bar .custom-input-group input[type="text"]::placeholder {
+  color: #64748b;
+  font-size: 9px;
+}
+
+.highlight-action-bar .custom-input-group input[type="text"]:focus {
+  outline: none;
 }
 
 /* Floating action button for highlights */

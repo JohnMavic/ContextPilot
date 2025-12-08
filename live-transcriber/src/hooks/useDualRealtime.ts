@@ -716,6 +716,11 @@ export function useDualRealtime() {
     stop: stopAll,
     resetTranscript: () => setSegments([]),
     deleteTextFromTranscript,
+    updateSegmentText: (itemId: string, newText: string) => {
+      setSegments(prev => prev.map(seg => 
+        seg.itemId === itemId ? { ...seg, text: newText } : seg
+      ));
+    },
     clearErrors: () => setErrorLog([]),
     stats,
     forceCommitMic: () => forceCommit("mic"),

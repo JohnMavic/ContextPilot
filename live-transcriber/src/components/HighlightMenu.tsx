@@ -11,9 +11,9 @@ interface HighlightMenuProps {
   onClose: () => void;
   onCopy: () => void;
   onDelete: () => void;
-  onExpand: () => void;
-  onFacts: () => void;
-  onCustomPrompt: (prompt: string) => void;
+  onExpand: (useWeb: boolean) => void;
+  onFacts: (useWeb: boolean) => void;
+  onCustomPrompt: (prompt: string, useWeb: boolean) => void;
   isLoading?: boolean;
 }
 
@@ -52,11 +52,14 @@ export function HighlightMenu({
   void _selectedText;
   const menuRef = useRef<HTMLDivElement>(null);
   const [customPrompt, setCustomPrompt] = useState("");
+  const [expandUseWeb, setExpandUseWeb] = useState(true);
+  const [factsUseWeb, setFactsUseWeb] = useState(true);
+  const [customUseWeb, setCustomUseWeb] = useState(true);
 
   const barColor = highlightColor ? colorHexMap[highlightColor] : "#60a5fa";
   const barBackground = useMemo(() => hexToRgba(barColor, 0.4), [barColor]);
 
-  // Close on click outside / escape
+  // Close on click outside / escape / delete
   useEffect(() => {
     if (!visible) return;
 
@@ -66,28 +69,35 @@ export function HighlightMenu({
       }
     };
 
-    const handleEscape = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        // Delete-Taste löscht den markierten Text
+        e.preventDefault();
+        onDelete();
       }
     };
 
     const timer = setTimeout(() => {
       document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("keydown", handleEscape);
+      document.addEventListener("keydown", handleKeyDown);
     }, 50);
 
     return () => {
       clearTimeout(timer);
       document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [visible, onClose]);
+  }, [visible, onClose, onDelete]);
 
   // Reset custom prompt when bar reopened
   useEffect(() => {
     if (visible) {
       setCustomPrompt("");
+      setExpandUseWeb(true);
+      setFactsUseWeb(true);
+      setCustomUseWeb(true);
     }
   }, [visible]);
 
@@ -95,7 +105,7 @@ export function HighlightMenu({
 
   const handleCustomSubmit = () => {
     if (!customPrompt.trim() || isLoading) return;
-    onCustomPrompt(customPrompt.trim());
+    onCustomPrompt(customPrompt.trim(), customUseWeb);
   };
 
   return (
@@ -126,20 +136,36 @@ export function HighlightMenu({
           🗑️ Delete
         </button>
         <button
-          className="action-btn"
-          onClick={onExpand}
+          className="action-btn action-btn-with-web"
+          onClick={() => onExpand(expandUseWeb)}
           disabled={isLoading}
         >
-          Show more details
+          <span>Show more details</span>
+          <label className="web-toggle-inline" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={expandUseWeb}
+              onChange={(e) => setExpandUseWeb(e.target.checked)}
+            />
+            <span className="web-label">Web</span>
+          </label>
         </button>
         <button
-          className="action-btn"
-          onClick={onFacts}
+          className="action-btn action-btn-with-web"
+          onClick={() => onFacts(factsUseWeb)}
           disabled={isLoading}
         >
-          Find similar examples
+          <span>Find similar examples</span>
+          <label className="web-toggle-inline" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={factsUseWeb}
+              onChange={(e) => setFactsUseWeb(e.target.checked)}
+            />
+            <span className="web-label">Web</span>
+          </label>
         </button>
-        <div className="action-custom">
+        <div className="custom-input-group">
           <input
             type="text"
             value={customPrompt}
@@ -153,6 +179,14 @@ export function HighlightMenu({
             }}
             disabled={isLoading}
           />
+          <label className="web-toggle-inline" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={customUseWeb}
+              onChange={(e) => setCustomUseWeb(e.target.checked)}
+            />
+            <span className="web-label">Web</span>
+          </label>
         </div>
       </div>
     </div>

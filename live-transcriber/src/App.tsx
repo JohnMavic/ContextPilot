@@ -24,6 +24,7 @@ interface AgentInfo {
 
 // Feature-Flag: Stabilere Selektion/Löschen für Mic-Transkripte aktivieren
 const enableMicStableSelection = true;
+const WEB_SEARCH_INSTRUCTION = "Also search the web for detailed, up-to-date information to answer.";
 
 function statusLabel(status: string) {
   switch (status) {
@@ -46,6 +47,7 @@ export default function App() {
   const [agentPanelWidth, setAgentPanelWidth] = useState(400); // Default doppelte Breite
   const [isResizing, setIsResizing] = useState(false);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   
   // Agent selection state
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -61,16 +63,53 @@ export default function App() {
     fetch("http://localhost:8080/agents")
       .then(res => res.json())
       .then(data => {
-        if (data.agents) {
-          // Add type to agents for UI display
-          setAgents(data.agents.map((a: AgentInfo) => ({ ...a, type: "agent" as const })));
+        const agentsList: AgentInfo[] = data.agents
+          ? data.agents.map((a: AgentInfo) => ({ ...a, type: "agent" as const }))
+          : [];
+        const workflowsList: AgentInfo[] = data.workflows
+          ? data.workflows.map((w: AgentInfo) => ({ ...w, type: "workflow" as const }))
+          : [];
+
+        const DEFAULT_LABEL = "CONTEXTPILOT (Index & Web)";
+        const hasCurrent =
+          data.currentAgentId !== undefined && data.currentAgentId !== null;
+        let selectedId: number | null = hasCurrent ? data.currentAgentId : null;
+        let needsDefaultSwitch = false;
+
+        if (selectedId === null) {
+          const defaultMatch =
+            workflowsList.find((w) => (w.label || w.name) === DEFAULT_LABEL) ||
+            agentsList.find((a) => (a.label || a.name) === DEFAULT_LABEL);
+          if (defaultMatch) {
+            selectedId = defaultMatch.id;
+            needsDefaultSwitch = true;
+          }
         }
-        if (data.workflows) {
-          // Add type to workflows for UI display
-          setWorkflows(data.workflows.map((w: AgentInfo) => ({ ...w, type: "workflow" as const })));
-        }
-        if (data.currentAgentId !== undefined) {
-          setCurrentAgentId(data.currentAgentId);
+
+        setAgents(
+          agentsList.map((a) => ({
+            ...a,
+            active: selectedId !== null ? a.id === selectedId : a.active,
+          })),
+        );
+        setWorkflows(
+          workflowsList.map((w) => ({
+            ...w,
+            active: selectedId !== null ? w.id === selectedId : w.active,
+          })),
+        );
+
+        if (selectedId !== null) {
+          setCurrentAgentId(selectedId);
+
+          // Wenn vom Default gesetzt: Backend informieren, damit der Agent wirklich aktiv ist
+          if (needsDefaultSwitch) {
+            fetch("http://localhost:8080/agents/switch", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ agentId: selectedId }),
+            }).catch((err) => console.error("Failed to auto-switch to default agent:", err));
+          }
         }
       })
       .catch(err => console.error("Failed to load agents:", err));
@@ -127,6 +166,7 @@ export default function App() {
     stop,
     resetTranscript,
     deleteTextFromTranscript,
+    updateSegmentText,
     forceCommitMic,
     clearErrors,
     stats,
@@ -335,16 +375,19 @@ export default function App() {
   }, [createHighlight, menuState.y]);
 
   // Kombinierter Handler: Highlight erstellen UND Expand-Query starten
-  const handleHighlightAndExpand = useCallback(() => {
+  const handleHighlightAndExpand = useCallback((useWeb: boolean) => {
     const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
     
     // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
     pendingHighlightIdRef.current = null;
     
-    const prompt = `Context: "${highlight.text}"
+    const basePrompt = `Context: "${highlight.text}"
 
 Give me 3-5 bullet points with key facts I can use in conversation. Short, precise, no fluff.`;
+    const prompt = useWeb ? `${basePrompt}
+
+${WEB_SEARCH_INSTRUCTION}` : basePrompt;
     
     queryAgent(
       prompt, 
@@ -360,16 +403,19 @@ Give me 3-5 bullet points with key facts I can use in conversation. Short, preci
   }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
 
   // Kombinierter Handler: Highlight erstellen UND Facts-Query starten
-  const handleHighlightAndFacts = useCallback(() => {
+  const handleHighlightAndFacts = useCallback((useWeb: boolean) => {
     const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
     
     // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
     pendingHighlightIdRef.current = null;
     
-    const prompt = `Context: "${highlight.text}"
+    const basePrompt = `Context: "${highlight.text}"
 
 Find 2-3 similar deal examples from Microsoft Switzerland in your index. One line each, max. Focus on facts such as contract scope, number of users, etc.`;
+    const prompt = useWeb ? `${basePrompt}
+
+${WEB_SEARCH_INSTRUCTION}` : basePrompt;
     
     queryAgent(
       prompt, 
@@ -385,16 +431,19 @@ Find 2-3 similar deal examples from Microsoft Switzerland in your index. One lin
   }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
 
   // Custom Prompt Handler (Enter im Textfeld)
-  const handleCustomPrompt = useCallback((customPrompt: string) => {
+  const handleCustomPrompt = useCallback((customPrompt: string, useWeb: boolean) => {
     const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
 
     // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
     pendingHighlightIdRef.current = null;
 
-    const prompt = `Context: "${highlight.text}"
+    const basePrompt = `Context: "${highlight.text}"
 
 ${customPrompt}`;
+    const prompt = useWeb ? `${basePrompt}
+
+${WEB_SEARCH_INSTRUCTION}` : basePrompt;
 
     queryAgent(
       prompt, 
@@ -569,6 +618,7 @@ ${customPrompt}`;
       id: string;  // Eindeutige Gruppen-ID für Highlighting
       source: string; 
       texts: string[]; 
+      itemIds: string[];  // Item IDs für Editing
       lastTimestamp: number; 
       isSourceChange: boolean; 
       hasLive: boolean;
@@ -587,6 +637,7 @@ ${customPrompt}`;
           id: `group-${groupIndex++}`,
           source: seg.source,
           texts: [seg.text],
+          itemIds: [seg.itemId],
           lastTimestamp: seg.timestamp,
           isSourceChange: sourceChanged,
           hasLive: !seg.isFinal,
@@ -594,6 +645,7 @@ ${customPrompt}`;
       } else {
         // Zu bestehender Gruppe hinzufügen
         lastGroup.texts.push(seg.text);
+        lastGroup.itemIds.push(seg.itemId);
         lastGroup.lastTimestamp = seg.timestamp;
         if (!seg.isFinal) lastGroup.hasLive = true;
       }
@@ -695,6 +747,30 @@ ${customPrompt}`;
       selection.removeAllRanges();
     }
   }, [showMenuAtSelection, createHighlightFromSelection, findGroupElement, groupMetaMap, forceCommitMic]);
+
+  // Handler für das Editieren von Gruppen-Text (Notepad-Funktionalität)
+  const handleGroupTextChange = useCallback((groupId: string, newText: string, itemIds: string[]) => {
+    // Wenn nur ein Segment in der Gruppe: direkt updaten
+    if (itemIds.length === 1) {
+      updateSegmentText(itemIds[0], newText);
+    } else {
+      // Mehrere Segmente: Text auf erstes Segment setzen, Rest leeren
+      // Das vereinfacht die Logik beim Editieren
+      updateSegmentText(itemIds[0], newText);
+      for (let i = 1; i < itemIds.length; i++) {
+        updateSegmentText(itemIds[i], "");
+      }
+    }
+  }, [updateSegmentText]);
+
+  // Handler für Tastatureingaben im editierbaren Bereich
+  const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLSpanElement>, groupId: string) => {
+    // Tab für Einrückung
+    if (e.key === "Tab") {
+      e.preventDefault();
+      document.execCommand("insertText", false, "\t");
+    }
+  }, []);
 
   const mergedTranscript = useMemo(
     () => groupedSegmentsWithOffsets.map((g) => `[${g.source.toUpperCase()}] ${g.texts.join(" ")}`).join("\n\n"),
@@ -924,23 +1000,59 @@ ${customPrompt}`;
                   r.sourceGroupId === group.id && !r.insertAfterResponseId
                 );
                 
+                // Prüfe ob es Highlights für diese Gruppe gibt
+                const hasHighlights = highlights.some(h => 
+                  h.groupId === group.id || 
+                  h.span?.startGroupId === group.id || 
+                  h.span?.endGroupId === group.id ||
+                  h.span?.groupIds?.includes(group.id)
+                );
+                
                 return (
                   <div key={group.id}>
-                    {/* Das Transkript-Segment */}
+                    {/* Das Transkript-Segment - editierbar wenn keine Highlights */}
                     <div className={`final-line source-${group.source} ${group.isSourceChange ? 'has-tag' : 'no-tag'}`}>
                       {group.isSourceChange && (
                         <span className="source-tag">{group.source === "mic" ? "MIC" : "SPK"}</span>
                       )}
                       <span className="segment-text">
                         {/* 
-                          IMMER HighlightedText verwenden - KEIN TypewriterText mehr!
-                          TypewriterText verfälscht textContent und macht Offset-Berechnung unmöglich.
+                          Editierbar wenn:
+                          - Keine Highlights auf diesem Segment
+                          - Nicht gerade live (hasLive = false)
                           
-                          data-group-id NUR auf diesem span mit dem reinen Text.
-                          Cursor ist AUSSERHALB dieses spans.
+                          Bei Highlights: HighlightedText verwenden (nicht editierbar)
+                          Ohne Highlights: contentEditable span für direktes Editing
                         */}
-                        <span data-group-id={group.id}>
-                          <HighlightedText text={groupText} highlights={highlights} groupId={group.id} />
+                        <span 
+                          data-group-id={group.id}
+                          contentEditable={!hasHighlights && !group.hasLive}
+                          suppressContentEditableWarning
+                          spellCheck={false}
+                          onBlur={(e) => {
+                            if (!hasHighlights && !group.hasLive) {
+                              const newText = e.currentTarget.innerText;
+                              if (newText !== groupText) {
+                                handleGroupTextChange(group.id, newText, group.itemIds);
+                              }
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (!hasHighlights && !group.hasLive) {
+                              handleEditKeyDown(e, group.id);
+                            }
+                          }}
+                          style={!hasHighlights && !group.hasLive ? { 
+                            outline: 'none',
+                            minWidth: '1px',
+                            cursor: 'text'
+                          } : undefined}
+                        >
+                          {hasHighlights ? (
+                            <HighlightedText text={groupText} highlights={highlights} groupId={group.id} />
+                          ) : (
+                            groupText
+                          )}
                         </span>
                         {group.hasLive && <span className="cursor">|</span>}
                       </span>
