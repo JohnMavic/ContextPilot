@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""
+Live Transcriber - Server Starter
+==================================
+Startet den Proxy-Server und den Vite/React Dev-Server parallel.
+"""
+
+import subprocess
+import sys
+import os
+import signal
+import time
+import threading
+from datetime import datetime
+
+# Farbcodes für Windows Terminal
+class Colors:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+
+# Status der Server
+server_status = {
+    'proxy': {'running': False, 'process': None},
+    'vite': {'running': False, 'process': None}
+}
+
+def print_banner():
+    """Zeigt das Start-Banner an."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(f"""
+{Colors.CYAN}{Colors.BOLD}╔══════════════════════════════════════════════════════════════╗
+║                 🎙️  LIVE TRANSCRIBER                          ║
+║                    Server Manager                             ║
+╚══════════════════════════════════════════════════════════════╝{Colors.END}
+""")
+
+def print_status():
+    """Zeigt den aktuellen Status beider Server an."""
+    proxy_icon = f"{Colors.GREEN}●{Colors.END}" if server_status['proxy']['running'] else f"{Colors.RED}○{Colors.END}"
+    vite_icon = f"{Colors.GREEN}●{Colors.END}" if server_status['vite']['running'] else f"{Colors.RED}○{Colors.END}"
+    
+    print(f"""
+{Colors.BOLD}┌─────────────────────────────────────────────────────────────┐
+│  SERVER STATUS                                               │
+├─────────────────────────────────────────────────────────────┤{Colors.END}
+│  {proxy_icon}  Proxy Server     →  http://localhost:3001            │
+│  {vite_icon}  Vite/React       →  http://localhost:5173            │
+{Colors.BOLD}└─────────────────────────────────────────────────────────────┘{Colors.END}
+""")
+
+def print_commands():
+    """Zeigt die verfügbaren Befehle an."""
+    print(f"""
+{Colors.YELLOW}{Colors.BOLD}┌─────────────────────────────────────────────────────────────┐
+│  BEFEHLE                                                    │
+├─────────────────────────────────────────────────────────────┤
+│  [q] oder [Ctrl+C]  →  Beide Server stoppen & beenden       │
+│  [r]                →  Beide Server neu starten             │
+│  [s]                →  Status anzeigen                      │
+│  [o]                →  App im Browser öffnen                │
+└─────────────────────────────────────────────────────────────┘{Colors.END}
+""")
+
+def start_proxy_server():
+    """Startet den Proxy-Server."""
+    try:
+        process = subprocess.Popen(
+            ['node', 'proxy-server.js'],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
+        )
+        server_status['proxy']['process'] = process
+        server_status['proxy']['running'] = True
+        print(f"  {Colors.GREEN}✓{Colors.END} Proxy Server gestartet (PID: {process.pid})")
+        return process
+    except Exception as e:
+        print(f"  {Colors.RED}✗{Colors.END} Proxy Server Fehler: {e}")
+        server_status['proxy']['running'] = False
+        return None
+
+def start_vite_server():
+    """Startet den Vite/React Dev-Server."""
+    try:
+        # npm run dev starten
+        process = subprocess.Popen(
+            ['npm', 'run', 'dev'],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=True,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
+        )
+        server_status['vite']['process'] = process
+        server_status['vite']['running'] = True
+        print(f"  {Colors.GREEN}✓{Colors.END} Vite/React Server gestartet (PID: {process.pid})")
+        return process
+    except Exception as e:
+        print(f"  {Colors.RED}✗{Colors.END} Vite Server Fehler: {e}")
+        server_status['vite']['running'] = False
+        return None
+
+def stop_servers():
+    """Stoppt beide Server."""
+    print(f"\n  {Colors.YELLOW}Stoppe Server...{Colors.END}")
+    
+    for name, server in server_status.items():
+        if server['process']:
+            try:
+                if os.name == 'nt':
+                    # Windows: Benutze taskkill für den Prozessbaum
+                    subprocess.run(['taskkill', '/F', '/T', '/PID', str(server['process'].pid)], 
+                                 capture_output=True)
+                else:
+                    os.killpg(os.getpgid(server['process'].pid), signal.SIGTERM)
+                server['running'] = False
+                print(f"  {Colors.GREEN}✓{Colors.END} {name.capitalize()} Server gestoppt")
+            except Exception as e:
+                print(f"  {Colors.YELLOW}!{Colors.END} {name.capitalize()}: {e}")
+    
+    server_status['proxy']['process'] = None
+    server_status['vite']['process'] = None
+
+def restart_servers():
+    """Startet beide Server neu."""
+    print(f"\n{Colors.CYAN}Neustart der Server...{Colors.END}\n")
+    stop_servers()
+    time.sleep(2)
+    start_all_servers()
+
+def start_all_servers():
+    """Startet beide Server."""
+    print(f"\n{Colors.CYAN}Starte Server...{Colors.END}\n")
+    start_proxy_server()
+    time.sleep(1)
+    start_vite_server()
+    time.sleep(2)
+    print_status()
+
+def open_browser():
+    """Öffnet die App im Standard-Browser."""
+    import webbrowser
+    webbrowser.open('http://localhost:5173')
+    print(f"  {Colors.GREEN}✓{Colors.END} Browser geöffnet")
+
+def monitor_processes():
+    """Überwacht die Prozesse im Hintergrund."""
+    while True:
+        for name, server in server_status.items():
+            if server['process']:
+                poll = server['process'].poll()
+                if poll is not None:
+                    server['running'] = False
+        time.sleep(2)
+
+def main():
+    """Hauptfunktion."""
+    print_banner()
+    
+    # Wechsle ins Script-Verzeichnis
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    
+    # Server starten
+    start_all_servers()
+    print_commands()
+    
+    # Monitor-Thread starten
+    monitor_thread = threading.Thread(target=monitor_processes, daemon=True)
+    monitor_thread.start()
+    
+    # Auf Benutzereingaben warten
+    try:
+        while True:
+            print(f"\n{Colors.BOLD}Eingabe:{Colors.END} ", end='', flush=True)
+            try:
+                cmd = input().strip().lower()
+            except EOFError:
+                break
+                
+            if cmd in ['q', 'quit', 'exit']:
+                break
+            elif cmd == 'r':
+                restart_servers()
+                print_commands()
+            elif cmd == 's':
+                print_status()
+            elif cmd == 'o':
+                open_browser()
+            elif cmd == '':
+                continue
+            else:
+                print(f"  {Colors.YELLOW}Unbekannter Befehl. Nutze Q, R, S oder O.{Colors.END}")
+                
+    except KeyboardInterrupt:
+        pass
+    
+    # Aufräumen
+    print(f"\n{Colors.CYAN}Beende...{Colors.END}")
+    stop_servers()
+    print(f"\n{Colors.GREEN}Auf Wiedersehen! 👋{Colors.END}\n")
+
+if __name__ == '__main__':
+    # Windows: ANSI-Escape-Codes aktivieren
+    if os.name == 'nt':
+        os.system('')
+    
+    try:
+        main()
+    except Exception as e:
+        print(f"\n{Colors.RED}{Colors.BOLD}╔══════════════════════════════════════════════════════════════╗")
+        print(f"║  FEHLER AUFGETRETEN                                          ║")
+        print(f"╚══════════════════════════════════════════════════════════════╝{Colors.END}")
+        print(f"\n{Colors.RED}{e}{Colors.END}\n")
+        input("Drücke Enter zum Beenden...")
