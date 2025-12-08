@@ -22,6 +22,9 @@ interface AgentInfo {
   active: boolean;
 }
 
+// Feature-Flag: Stabilere Selektion/Löschen für Mic-Transkripte aktivieren
+const enableMicStableSelection = true;
+
 function statusLabel(status: string) {
   switch (status) {
     case "connecting":
@@ -42,6 +45,7 @@ export default function App() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [agentPanelWidth, setAgentPanelWidth] = useState(400); // Default doppelte Breite
   const [isResizing, setIsResizing] = useState(false);
+  const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   
   // Agent selection state
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -123,6 +127,7 @@ export default function App() {
     stop,
     resetTranscript,
     deleteTextFromTranscript,
+    forceCommitMic,
     clearErrors,
     stats,
   } = useDualRealtime();
@@ -211,6 +216,18 @@ export default function App() {
     }
   };
 
+  // Nächsten data-group-id Vorfahren eines Nodes finden (für Selektions-Validierung)
+  const findGroupElement = useCallback((node: Node | null): HTMLElement | null => {
+    while (node) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.hasAttribute("data-group-id")) return el;
+      }
+      node = node.parentNode;
+    }
+    return null;
+  }, []);
+
   // Context menu on right-click or text selection
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     const selection = window.getSelection();
@@ -219,74 +236,6 @@ export default function App() {
       showMenuAtSelection(transcriptBoxRef.current);
     }
   }, [showMenuAtSelection]);
-
-  // Also show menu on mouseup if text selected
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    // WICHTIG: Wenn auf einen Link geklickt wurde, nicht interferieren
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'A' || target.closest('a')) {
-      return; // Link-Klick nicht blockieren
-    }
-
-    const selection = window.getSelection();
-    const container = transcriptBoxRef.current;
-
-    if (selection && selection.toString().trim() && container && selection.rangeCount > 0) {
-      const text = selection.toString();
-      const range = selection.getRangeAt(0).cloneRange();
-      const rect = range.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-
-      // Remove previous pending highlight if exists (user selected new text without querying agent)
-      if (pendingHighlightIdRef.current) {
-        removeHighlight(pendingHighlightIdRef.current);
-        pendingHighlightIdRef.current = null;
-      }
-
-      // Sofort echtes Highlight erzeugen (mark-Element)
-      const highlight = createHighlightFromSelection(range, text, container);
-      if (highlight) {
-        // Prüfe ob das Highlight in einer Agent-Response liegt
-        let parentResponseId: string | undefined;
-        let node: Node | null = range.startContainer;
-        while (node && node !== container) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const el = node as HTMLElement;
-            if (el.hasAttribute('data-response-id')) {
-              parentResponseId = el.getAttribute('data-response-id') || undefined;
-              break;
-            }
-          }
-          node = node.parentNode;
-        }
-        
-        lastHighlightRef.current = {
-          id: highlight.id,
-          text: highlight.text,
-          color: highlight.color,
-          anchorTop: rect.bottom - containerRect.top,
-          groupId: highlight.groupId,
-          parentResponseId,
-        };
-        // Mark this highlight as pending (not yet confirmed with agent query)
-        pendingHighlightIdRef.current = highlight.id;
-        
-        // Menü unterhalb des markierten Bereichs anzeigen
-        showMenuAtSelection(container, {
-          range,
-          selectedText: text,
-          highlightColor: highlight.color,
-          highlightId: highlight.id,
-          width: rect.width,
-          x: rect.left - containerRect.left,
-          y: rect.bottom - containerRect.top + 8,
-        });
-      }
-
-      // Native Selection entfernen, damit nur das mark sichtbar ist
-      selection.removeAllRanges();
-    }
-  }, [showMenuAtSelection, createHighlightFromSelection]);
 
   // Beim Klick auf bestehendes Highlight: Optionen erneut anzeigen
   const handleHighlightClick = useCallback((e: React.MouseEvent) => {
@@ -469,6 +418,7 @@ ${customPrompt}`;
       pendingHighlightIdRef.current = null;
       lastHighlightRef.current = null;
     }
+    setSelectionNotice(null);
     hideMenu();
   }, [hideMenu, removeHighlight]);
 
@@ -652,6 +602,100 @@ ${customPrompt}`;
     return groups;
   }, [sortedSegments]);
 
+  // Map für schnellen Zugriff auf Gruppen-Metadaten (z.B. ob Mic-Gruppe noch live ist)
+  const groupMetaMap = useMemo(() => {
+    const map = new Map<string, { source: string; hasLive: boolean }>();
+    groupedSegmentsWithOffsets.forEach(g => {
+      map.set(g.id, { source: g.source, hasLive: g.hasLive });
+    });
+    return map;
+  }, [groupedSegmentsWithOffsets]);
+
+  // Also show menu on mouseup if text selected (mit Mic-Live-Guard)
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    // WICHTIG: Wenn auf einen Link geklickt wurde, nicht interferieren
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'A' || target.closest('a')) {
+      return; // Link-Klick nicht blockieren
+    }
+
+    const selection = window.getSelection();
+    const container = transcriptBoxRef.current;
+
+    if (selection && selection.toString().trim() && container && selection.rangeCount > 0) {
+      const text = selection.toString();
+      const range = selection.getRangeAt(0).cloneRange();
+      const rect = range.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      
+      // Falls der Auswahlbereich noch Live-Mic-Text enthält, vorher committen und abbrechen
+      const startGroupId = findGroupElement(range.startContainer)?.getAttribute("data-group-id");
+      const endGroupId = findGroupElement(range.endContainer)?.getAttribute("data-group-id");
+      const touchesLiveMic = enableMicStableSelection && [startGroupId, endGroupId].some(id => {
+        if (!id) return false;
+        const meta = groupMetaMap.get(id);
+        return meta?.source === "mic" && meta.hasLive;
+      });
+      if (touchesLiveMic) {
+        setSelectionNotice("Mic-Text wird noch finalisiert. Warte kurz, dann erneut markieren.");
+        forceCommitMic();
+        selection.removeAllRanges();
+        return;
+      } else {
+        setSelectionNotice(null);
+      }
+
+      // Remove previous pending highlight if exists (user selected new text without querying agent)
+      if (pendingHighlightIdRef.current) {
+        removeHighlight(pendingHighlightIdRef.current);
+        pendingHighlightIdRef.current = null;
+      }
+
+      // Sofort echtes Highlight erzeugen (mark-Element)
+      const highlight = createHighlightFromSelection(range, text, container);
+      if (highlight) {
+        // Prüfe ob das Highlight in einer Agent-Response liegt
+        let parentResponseId: string | undefined;
+        let node: Node | null = range.startContainer;
+        while (node && node !== container) {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const el = node as HTMLElement;
+            if (el.hasAttribute('data-response-id')) {
+              parentResponseId = el.getAttribute('data-response-id') || undefined;
+              break;
+            }
+          }
+          node = node.parentNode;
+        }
+        
+        lastHighlightRef.current = {
+          id: highlight.id,
+          text: highlight.text,
+          color: highlight.color,
+          anchorTop: rect.bottom - containerRect.top,
+          groupId: highlight.groupId,
+          parentResponseId,
+        };
+        // Mark this highlight as pending (not yet confirmed with agent query)
+        pendingHighlightIdRef.current = highlight.id;
+        
+        // Menü unterhalb des markierten Bereichs anzeigen
+        showMenuAtSelection(container, {
+          range,
+          selectedText: text,
+          highlightColor: highlight.color,
+          highlightId: highlight.id,
+          width: rect.width,
+          x: rect.left - containerRect.left,
+          y: rect.bottom - containerRect.top + 8,
+        });
+      }
+
+      // Native Selection entfernen, damit nur das mark sichtbar ist
+      selection.removeAllRanges();
+    }
+  }, [showMenuAtSelection, createHighlightFromSelection, findGroupElement, groupMetaMap, forceCommitMic]);
+
   const mergedTranscript = useMemo(
     () => groupedSegmentsWithOffsets.map((g) => `[${g.source.toUpperCase()}] ${g.texts.join(" ")}`).join("\n\n"),
     [groupedSegmentsWithOffsets],
@@ -680,6 +724,7 @@ ${customPrompt}`;
     clearHighlights();
     clearAuraResponses();
     lastHighlightRef.current = null;
+    setSelectionNotice(null);
   }, [resetTranscript, clearErrors, clearHighlights, clearAuraResponses]);
 
   return (
@@ -1016,6 +1061,11 @@ ${customPrompt}`;
             >
               {anyAuraLoading ? "Asking AURA..." : "Ask AURA: Analyze full transcript"}
             </button>
+            {selectionNotice && (
+              <p className="muted" style={{ marginTop: 8, color: "#f59e0b" }}>
+                {selectionNotice}
+              </p>
+            )}
           </div>
         </section>
       </div>

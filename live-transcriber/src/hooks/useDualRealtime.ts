@@ -217,9 +217,9 @@ export function useDualRealtime() {
             ? {
                 // Mic: VAD aktiviert für natürliche Sprechpausen
                 type: "server_vad",
-                threshold: 0.28,
-                prefix_padding_ms: 450,
-                silence_duration_ms: 1000,
+                threshold: 0.25,
+                prefix_padding_ms: 420,
+                silence_duration_ms: 700,
               }
             : {
                 // Speaker: VAD etwas weniger empfindlich, mehr Kontext
@@ -317,7 +317,7 @@ export function useDualRealtime() {
         inputGain.gain.value = 500;
       } else {
         // Mic: leicht erhöhtes Gain, um leises Signal anzuheben
-        inputGain.gain.value = 2;
+        inputGain.gain.value = 3;
       }
       
       // AnalyserNode für Volume-Level-Anzeige
@@ -359,9 +359,9 @@ export function useDualRealtime() {
 
       // Regelmäßige Commits schicken, damit der Server sehr kurze Abschnitte verarbeitet
       // und wir Zeile für Zeile Updates bekommen (auch wenn kein Silence erkannt wird).
-      const commitIntervalMs = source === "speaker" ? 2600 : 3500;
-      const minFramesForCommit = source === "mic" ? 20 : 3;
-      const minDurationMsForCommit = source === "mic" ? 400 : 250;
+      const commitIntervalMs = source === "speaker" ? 2600 : 2200;
+      const minFramesForCommit = source === "mic" ? 6 : 3;
+      const minDurationMsForCommit = source === "mic" ? 250 : 250;
       session.current.commitTimer = setInterval(() => {
         if (
           session.current.ws?.readyState === WebSocket.OPEN &&
@@ -539,6 +539,19 @@ export function useDualRealtime() {
     setStatus("idle");
   };
 
+  // Sofortiges Commit anstoßen (z.B. nach Selektion), um laufende Fragmente zu schließen
+  const forceCommit = useCallback((source: Source) => {
+    const session = source === "mic" ? micSession : speakerSession;
+    if (session.current.ws?.readyState === WebSocket.OPEN) {
+      session.current.ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
+      session.current.hasAudioSinceCommit = false;
+      session.current.framesSinceCommit = 0;
+      session.current.bytesSinceCommit = 0;
+      session.current.durationSinceCommit = 0;
+      console.log(`[${source.toUpperCase()}] Forced commit triggered`);
+    }
+  }, []);
+
   // Mic muten/unmuten (enabled/disabled auf dem Track)
   const setMicMuted = useCallback((muted: boolean) => {
     const session = micSession.current;
@@ -705,5 +718,6 @@ export function useDualRealtime() {
     deleteTextFromTranscript,
     clearErrors: () => setErrorLog([]),
     stats,
+    forceCommitMic: () => forceCommit("mic"),
   };
 }
