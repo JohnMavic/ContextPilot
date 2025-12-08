@@ -15,6 +15,7 @@ export interface Highlight {
     endGroupId: string;
     startOffset: number;
     endOffset: number;
+    groupIds: string[];      // Alle Gruppen, die die Selektion berührt (inkl. Mittelstücke)
   };
   timestamp: number;
 }
@@ -132,6 +133,26 @@ export function useHighlights() {
       preRangeEnd.setEnd(range.endContainer, range.endOffset);
       const endOffset = preRangeEnd.toString().length;
 
+      // Alle Gruppen im Container in DOM-Reihenfolge sammeln (einmalig je ID)
+      const orderedGroupIds: string[] = [];
+      container.querySelectorAll<HTMLElement>('[data-group-id]').forEach((el) => {
+        const id = el.getAttribute('data-group-id');
+        if (id && !orderedGroupIds.includes(id)) {
+          orderedGroupIds.push(id);
+        }
+      });
+
+      const startIndex = orderedGroupIds.indexOf(startGroupId);
+      const endIndex = orderedGroupIds.indexOf(endGroupId);
+
+      if (startIndex === -1 || endIndex === -1) {
+        console.warn("[buildHighlightFromRange] Could not determine group order for multi-group highlight");
+        return null;
+      }
+
+      const [from, to] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+      const groupsInRange = orderedGroupIds.slice(from, to + 1);
+
       const highlightColor = color || getNextColor();
       const highlight: Highlight = {
         id: generateId(),
@@ -145,6 +166,7 @@ export function useHighlights() {
           endGroupId,
           startOffset,
           endOffset,
+          groupIds: groupsInRange,
         },
         timestamp: Date.now(),
       };

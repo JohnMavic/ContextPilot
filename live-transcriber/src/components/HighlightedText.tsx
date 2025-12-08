@@ -41,7 +41,8 @@ export const HighlightedText = memo(function HighlightedText({
         if (!h.span) return false;
         return (
           h.span.startGroupId === groupId ||
-          h.span.endGroupId === groupId
+          h.span.endGroupId === groupId ||
+          h.span.groupIds?.includes(groupId)
         );
       })
       .map(h => {
@@ -49,29 +50,38 @@ export const HighlightedText = memo(function HighlightedText({
         if (!h.span) {
           return h;
         }
-        // Innerhalb der Spanne: für jede Gruppe eigene Offsets
-        if (groupId === h.span.startGroupId && groupId === h.span.endGroupId) {
+        // Innerhalb der Spanne: f?r jede Gruppe eigene Offsets
+        const { startGroupId, endGroupId, groupIds } = h.span;
+        const isMiddleGroup = groupIds?.includes(groupId) && groupId !== startGroupId && groupId !== endGroupId;
+
+        if (groupId === startGroupId && groupId === endGroupId) {
           return {
             ...h,
             localStartOffset: h.span.startOffset,
             localEndOffset: h.span.endOffset,
           };
         }
-        if (groupId === h.span.startGroupId) {
+        if (groupId === startGroupId) {
           return {
             ...h,
             localStartOffset: h.span.startOffset,
             localEndOffset: text.length, // bis Ende dieser Gruppe
           };
         }
-        if (groupId === h.span.endGroupId) {
+        if (groupId === endGroupId) {
           return {
             ...h,
             localStartOffset: 0,
             localEndOffset: h.span.endOffset,
           };
         }
-        // Mittlere Gruppen (falls je später erweitert)
+        if (isMiddleGroup) {
+          return {
+            ...h,
+            localStartOffset: 0,
+            localEndOffset: text.length, // komplette mittlere Gruppe hervorheben
+          };
+        }
         return null;
       })
       .filter((h): h is Highlight => h !== null)

@@ -39,7 +39,7 @@ export function HighlightMenu({
   x,
   y,
   width,
-  selectedText,
+  selectedText: _selectedText,
   highlightColor,
   onClose,
   onCopy,
@@ -49,6 +49,7 @@ export function HighlightMenu({
   onCustomPrompt,
   isLoading,
 }: HighlightMenuProps) {
+  void _selectedText;
   const menuRef = useRef<HTMLDivElement>(null);
   const [customPrompt, setCustomPrompt] = useState("");
 

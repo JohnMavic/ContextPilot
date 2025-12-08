@@ -58,10 +58,11 @@ def print_commands():
 {Colors.YELLOW}{Colors.BOLD}┌─────────────────────────────────────────────────────────────┐
 │  BEFEHLE                                                    │
 ├─────────────────────────────────────────────────────────────┤
-│  [q] oder [Ctrl+C]  →  Beide Server stoppen & beenden       │
+│  [q]                →  Server stoppen (Fenster bleibt offen)│
 │  [r]                →  Beide Server neu starten             │
 │  [s]                →  Status anzeigen                      │
 │  [o]                →  App im Browser öffnen                │
+│  [x] oder [Ctrl+C]  →  Programm komplett beenden            │
 └─────────────────────────────────────────────────────────────┘{Colors.END}
 """)
 
@@ -269,7 +270,11 @@ def main():
             except EOFError:
                 break
                 
-            if cmd in ['q', 'quit', 'exit']:
+            if cmd in ['q', 'quit']:
+                stop_servers()
+                print(f"\n{Colors.CYAN}Server gestoppt. Drücke [R] zum Neustarten oder [X] zum Beenden.{Colors.END}")
+                print_commands()
+            elif cmd in ['x', 'exit']:
                 break
             elif cmd == 'r':
                 restart_servers()
