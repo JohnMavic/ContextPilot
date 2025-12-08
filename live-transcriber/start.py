@@ -65,18 +65,57 @@ def print_commands():
 └─────────────────────────────────────────────────────────────┘{Colors.END}
 """)
 
+def drain_output(process, name):
+    """Leert den Output-Buffer eines Prozesses im Hintergrund."""
+    def reader():
+        try:
+            while True:
+                line = process.stdout.readline()
+                if not line and process.poll() is not None:
+                    break
+                # Optional: Ausgabe anzeigen (auskommentiert für weniger Spam)
+                # if line:
+                #     print(f"  [{name}] {line.decode('utf-8', errors='ignore').strip()}")
+        except:
+            pass
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+    return thread
+
 def start_proxy_server():
-    """Startet den Proxy-Server."""
+    """Startet den Proxy-Server in einem komplett separaten Prozess."""
     try:
-        process = subprocess.Popen(
-            ['node', 'proxy-server.js'],
-            cwd=os.path.dirname(os.path.abspath(__file__)),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
-        )
+        # Eigene Umgebung für den Prozess
+        env = os.environ.copy()
+        
+        # Windows: START /B für komplett unabhängigen Prozess
+        if os.name == 'nt':
+            process = subprocess.Popen(
+                ['node', 'proxy-server.js'],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                env=env,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+            )
+        else:
+            process = subprocess.Popen(
+                ['node', 'proxy-server.js'],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                env=env,
+                start_new_session=True
+            )
+        
         server_status['proxy']['process'] = process
         server_status['proxy']['running'] = True
+        
+        # Buffer im Hintergrund leeren, damit Prozess nicht blockiert
+        drain_output(process, 'PROXY')
+        
         print(f"  {Colors.GREEN}✓{Colors.END} Proxy Server gestartet (PID: {process.pid})")
         return process
     except Exception as e:
@@ -85,19 +124,39 @@ def start_proxy_server():
         return None
 
 def start_vite_server():
-    """Startet den Vite/React Dev-Server."""
+    """Startet den Vite/React Dev-Server in einem komplett separaten Prozess."""
     try:
-        # npm run dev starten
-        process = subprocess.Popen(
-            ['npm', 'run', 'dev'],
-            cwd=os.path.dirname(os.path.abspath(__file__)),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
-        )
+        # Eigene Umgebung für den Prozess
+        env = os.environ.copy()
+        
+        # Windows: cmd /c für Shell-Kommandos
+        if os.name == 'nt':
+            process = subprocess.Popen(
+                ['cmd', '/c', 'npm', 'run', 'dev'],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                env=env,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+            )
+        else:
+            process = subprocess.Popen(
+                ['npm', 'run', 'dev'],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                env=env,
+                start_new_session=True
+            )
+        
         server_status['vite']['process'] = process
         server_status['vite']['running'] = True
+        
+        # Buffer im Hintergrund leeren, damit Prozess nicht blockiert
+        drain_output(process, 'VITE')
+        
         print(f"  {Colors.GREEN}✓{Colors.END} Vite/React Server gestartet (PID: {process.pid})")
         return process
     except Exception as e:
@@ -106,25 +165,46 @@ def start_vite_server():
         return None
 
 def stop_servers():
-    """Stoppt beide Server."""
+    """Stoppt beide Server und alle Kindprozesse."""
     print(f"\n  {Colors.YELLOW}Stoppe Server...{Colors.END}")
     
     for name, server in server_status.items():
         if server['process']:
             try:
+                pid = server['process'].pid
                 if os.name == 'nt':
-                    # Windows: Benutze taskkill für den Prozessbaum
-                    subprocess.run(['taskkill', '/F', '/T', '/PID', str(server['process'].pid)], 
-                                 capture_output=True)
+                    # Windows: Benutze taskkill für den gesamten Prozessbaum
+                    # /F = Force, /T = Tree (alle Kindprozesse)
+                    result = subprocess.run(
+                        ['taskkill', '/F', '/T', '/PID', str(pid)], 
+                        capture_output=True,
+                        timeout=10
+                    )
+                    # Auch nach node/npm Prozessen suchen, falls taskkill nicht alles erwischt
+                    if name == 'proxy':
+                        subprocess.run(['taskkill', '/F', '/IM', 'node.exe', '/FI', f'WINDOWTITLE eq proxy*'], 
+                                       capture_output=True, timeout=5)
                 else:
-                    os.killpg(os.getpgid(server['process'].pid), signal.SIGTERM)
+                    # Unix: Prozessgruppe beenden
+                    try:
+                        os.killpg(os.getpgid(pid), signal.SIGTERM)
+                        time.sleep(0.5)
+                        os.killpg(os.getpgid(pid), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                
                 server['running'] = False
                 print(f"  {Colors.GREEN}✓{Colors.END} {name.capitalize()} Server gestoppt")
+            except subprocess.TimeoutExpired:
+                print(f"  {Colors.YELLOW}!{Colors.END} {name.capitalize()}: Timeout beim Beenden")
             except Exception as e:
                 print(f"  {Colors.YELLOW}!{Colors.END} {name.capitalize()}: {e}")
     
     server_status['proxy']['process'] = None
     server_status['vite']['process'] = None
+    
+    # Kurz warten, damit Ports freigegeben werden
+    time.sleep(1)
 
 def restart_servers():
     """Startet beide Server neu."""
@@ -134,12 +214,19 @@ def restart_servers():
     start_all_servers()
 
 def start_all_servers():
-    """Startet beide Server."""
+    """Startet beide Server nacheinander mit ausreichend Abstand."""
     print(f"\n{Colors.CYAN}Starte Server...{Colors.END}\n")
+    
+    # Erst Proxy starten und warten bis er bereit ist
     start_proxy_server()
-    time.sleep(1)
+    print(f"  {Colors.YELLOW}Warte auf Proxy-Server...{Colors.END}")
+    time.sleep(3)  # Mehr Zeit für Node.js Startup
+    
+    # Dann Vite starten
     start_vite_server()
-    time.sleep(2)
+    print(f"  {Colors.YELLOW}Warte auf Vite-Server...{Colors.END}")
+    time.sleep(4)  # Vite braucht mehr Zeit zum Kompilieren
+    
     print_status()
 
 def open_browser():
