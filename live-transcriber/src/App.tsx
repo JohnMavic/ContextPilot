@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+﻿import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { DeviceSelector } from "./components/DeviceSelector";
 import { VolumeMeter } from "./components/VolumeMeter";
 import { HighlightedText } from "./components/HighlightedText";
@@ -42,6 +42,12 @@ export default function App() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [agentPanelWidth, setAgentPanelWidth] = useState(400); // Default doppelte Breite
   const [isResizing, setIsResizing] = useState(false);
+  
+  // TEXT FREEZE: Wenn User klickt/selektiert, wird neuer Text gepuffert statt angezeigt
+  const [isTextFrozen, setIsTextFrozen] = useState(false);
+  const frozenSegmentsRef = useRef<typeof segments | null>(null);
+  const frozenHtmlRef = useRef<string | null>(null); // HTML-Snapshot im Freeze-Modus (für Edit-Speicherung)
+  const frozenHtmlSetRef = useRef(false); // Flag für Edit-Tracking
   
   // Agent selection state
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -123,6 +129,7 @@ export default function App() {
     stop,
     resetTranscript,
     deleteTextFromTranscript,
+    updateSegmentsFromEdit,
     clearErrors,
     stats,
   } = useDualRealtime();
@@ -211,6 +218,105 @@ export default function App() {
     }
   };
 
+  // TEXT FREEZE: Bei MouseDown einfrieren, damit Selektion nicht durch neuen Text gestört wird
+  const handleMouseDown = useCallback(() => {
+    if (!isTextFrozen && segments.length > 0) {
+      // HTML-Snapshot speichern BEVOR React etwas ändert
+      if (transcriptBoxRef.current) {
+        frozenHtmlRef.current = transcriptBoxRef.current.innerHTML;
+      }
+      frozenSegmentsRef.current = [...segments];
+      setIsTextFrozen(true);
+    }
+  }, [isTextFrozen, segments]);
+
+  // TEXT UNFREEZE MIT EDIT-SPEICHERUNG: Für User-Edits (Klick außerhalb, Enter, Escape)
+  const unfreezeTextWithSave = useCallback(() => {
+    if (isTextFrozen && transcriptBoxRef.current) {
+      // Editierten Text aus dem DOM auslesen und in Segments speichern
+      const editedGroups = new Map<string, string>();
+      const groupElements = transcriptBoxRef.current.querySelectorAll('[data-group-id]');
+      
+      groupElements.forEach((el) => {
+        const groupId = el.getAttribute('data-group-id');
+        if (groupId) {
+          // Nur den reinen Text (ohne Mark-Tags etc.)
+          const text = el.textContent || '';
+          editedGroups.set(groupId, text);
+        }
+      });
+      
+      // Segments mit editiertem Text aktualisieren
+      if (editedGroups.size > 0) {
+        updateSegmentsFromEdit(editedGroups);
+      }
+      
+      frozenHtmlRef.current = null;
+      frozenSegmentsRef.current = null;
+      frozenHtmlSetRef.current = false; // Reset für nächsten Freeze
+      setIsTextFrozen(false);
+    }
+  }, [isTextFrozen, updateSegmentsFromEdit]);
+
+  // TEXT UNFREEZE OHNE EDIT-SPEICHERUNG: Für programmatische Aktionen (Delete, Copy, Agent-Query)
+  // Diese Funktion überschreibt NICHT die segments - wichtig wenn deleteTextFromTranscript bereits aufgerufen wurde
+  const unfreezeText = useCallback(() => {
+    if (isTextFrozen) {
+      frozenHtmlRef.current = null;
+      frozenSegmentsRef.current = null;
+      frozenHtmlSetRef.current = false; // Reset für nächsten Freeze
+      setIsTextFrozen(false);
+    }
+  }, [isTextFrozen]);
+
+  // Globaler Click-Handler: Klick außerhalb des Textfeldes beendet Freeze-Modus
+  useEffect(() => {
+    if (!isTextFrozen) return;
+
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const transcriptBox = transcriptBoxRef.current;
+      
+      // Prüfe ob Klick AUSSERHALB des Textfeldes war
+      if (transcriptBox && !transcriptBox.contains(target)) {
+        // Auch nicht im Highlight-Menü
+        const highlightMenu = document.querySelector('.highlight-menu');
+        if (!highlightMenu || !highlightMenu.contains(target)) {
+          unfreezeTextWithSave(); // User-Edit speichern
+        }
+      }
+    };
+
+    // Mit kleiner Verzögerung registrieren, damit der initiale Klick nicht sofort unfreezt
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleGlobalClick);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleGlobalClick);
+    };
+  }, [isTextFrozen, unfreezeTextWithSave]);
+
+  // Keyboard-Handler für Freeze-Modus: Escape oder Enter beendet Edit-Modus
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!isTextFrozen) return;
+    
+    // Escape: Edit abbrechen, Freeze beenden (OHNE Speichern - Änderungen verwerfen)
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      window.getSelection()?.removeAllRanges();
+      unfreezeText(); // Ohne Speichern - verwirft Änderungen
+    }
+    
+    // Enter: Edit bestätigen, Freeze beenden (MIT Speichern)
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      window.getSelection()?.removeAllRanges();
+      unfreezeTextWithSave(); // Mit Speichern - behält Änderungen
+    }
+  }, [isTextFrozen, unfreezeText, unfreezeTextWithSave]);
+
   // Context menu on right-click or text selection
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     const selection = window.getSelection();
@@ -225,7 +331,7 @@ export default function App() {
     // WICHTIG: Wenn auf einen Link geklickt wurde, nicht interferieren
     const target = e.target as HTMLElement;
     if (target.tagName === 'A' || target.closest('a')) {
-      return; // Link-Klick nicht blockieren
+      return; // Link-Klick nicht blockieren - Freeze bleibt aktiv
     }
 
     const selection = window.getSelection();
@@ -286,6 +392,7 @@ export default function App() {
       // Native Selection entfernen, damit nur das mark sichtbar ist
       selection.removeAllRanges();
     }
+    // KEINE unfreezeText() hier - Freeze bleibt aktiv bis Klick AUSSERHALB des Textfeldes
   }, [showMenuAtSelection, createHighlightFromSelection]);
 
   // Beim Klick auf bestehendes Highlight: Optionen erneut anzeigen
@@ -408,7 +515,8 @@ Give me 3-5 bullet points with key facts I can use in conversation. Short, preci
       highlight.parentResponseId
     );
     hideMenu();
-  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
+    unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
+  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu, unfreezeText]);
 
   // Kombinierter Handler: Highlight erstellen UND Facts-Query starten
   const handleHighlightAndFacts = useCallback(() => {
@@ -433,7 +541,8 @@ Find 2-3 similar deal examples from Microsoft Switzerland in your index. One lin
       highlight.parentResponseId
     );
     hideMenu();
-  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
+    unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
+  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu, unfreezeText]);
 
   // Custom Prompt Handler (Enter im Textfeld)
   const handleCustomPrompt = useCallback((customPrompt: string) => {
@@ -458,7 +567,8 @@ ${customPrompt}`;
       highlight.parentResponseId
     );
     hideMenu();
-  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu]);
+    unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
+  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu, unfreezeText]);
 
   // Handler für das Schließen des Menüs - entfernt auch das pending Highlight
   const handleCloseMenu = useCallback(() => {
@@ -470,6 +580,7 @@ ${customPrompt}`;
       lastHighlightRef.current = null;
     }
     hideMenu();
+    // KEIN unfreezeText() - Freeze bleibt bis Klick außerhalb
   }, [hideMenu, removeHighlight]);
 
   // Handler für Copy - kopiert markierten Text in Zwischenablage
@@ -511,7 +622,8 @@ ${customPrompt}`;
     
     // Menü schließen und Highlight entfernen (kein Agent getriggert)
     handleCloseMenu();
-  }, [menuState.selectedText, menuState.highlightId, highlights, handleCloseMenu]);
+    unfreezeText(); // Text kopiert - Freeze beenden
+  }, [menuState.selectedText, menuState.highlightId, highlights, handleCloseMenu, unfreezeText]);
 
   // Handler für Delete - löscht markierten Text aus dem Transkript
   const handleDelete = useCallback(() => {
@@ -557,7 +669,8 @@ ${customPrompt}`;
 
     // Menü schließen und Highlight entfernen (kein Agent getriggert)
     handleCloseMenu();
-  }, [menuState.selectedText, menuState.highlightId, highlights, deleteTextFromTranscript, removeResponseByHighlight, removeHighlight, handleCloseMenu]);
+    unfreezeText(); // Text gelöscht - Freeze beenden
+  }, [menuState.selectedText, menuState.highlightId, highlights, deleteTextFromTranscript, removeResponseByHighlight, removeHighlight, handleCloseMenu, unfreezeText]);
 
   // Handler für das Löschen einer Agent-Antwort - entfernt auch das zugehörige Highlight
   const handleRemoveAuraResponse = useCallback((responseId: string) => {
@@ -605,9 +718,14 @@ ${customPrompt}`;
   };
 
   // Segmente nach Timestamp sortieren (alle zusammen, nicht getrennt)
+  // Segmente nach Timestamp sortieren - bei Freeze die gefrorenen verwenden
+  const displaySegments = isTextFrozen && frozenSegmentsRef.current 
+    ? frozenSegmentsRef.current 
+    : segments;
+    
   const sortedSegments = useMemo(() => 
-    [...segments].sort((a, b) => a.timestamp - b.timestamp),
-    [segments]
+    [...displaySegments].sort((a, b) => a.timestamp - b.timestamp),
+    [displaySegments]
   );
 
   // Gruppiere ALLE Segmente (final + live): Neue Gruppe bei Speaker-Wechsel ODER lange Pause
@@ -856,16 +974,22 @@ ${customPrompt}`;
             {!autoScroll && <span style={{ color: "#fbbf24", fontSize: 13 }}>↓ New updates below</span>}
           </div>
           <div className="transcript-area" ref={transcriptAreaRef}>
+            {/* EIN Container für beide Modi - contentEditable wird umgeschaltet */}
             <div 
-              className="transcript-box" 
+              className={`transcript-box ${isTextFrozen ? 'editable-mode' : ''}`}
               ref={transcriptBoxRef}
               onScroll={handleScroll}
+              onMouseDown={handleMouseDown}
               onMouseUp={handleMouseUp}
+              onKeyDown={handleKeyDown}
               onClick={handleHighlightClick}
               onContextMenu={handleContextMenu}
+              contentEditable={isTextFrozen}
+              suppressContentEditableWarning={true}
               style={{ position: "relative" }}
             >
-              {segments.length === 0 && (
+              {/* Content wird IMMER gerendert */}
+              {displaySegments.length === 0 && (
                 <p className="muted">No input yet. Pick at least one audio source and hit Start.</p>
               )}
               {/* Gruppierte Segmente - Tag nur bei Speaker-Wechsel, Cursor bei Live-Content */}

@@ -691,6 +691,58 @@ export function useDualRealtime() {
     });
   }, []);
 
+  // Update segments from edited text (nach Freeze-Mode Edit)
+  const updateSegmentsFromEdit = useCallback((editedGroups: Map<string, string>) => {
+    setSegments(prev => {
+      // Erstelle eine Map von groupId zu den zugehörigen Segment-Indizes
+      const groupToIndices = new Map<string, number[]>();
+      let groupIndex = 0;
+      let lastSource = '';
+      const PAUSE_THRESHOLD_MS = 3500;
+      
+      for (let i = 0; i < prev.length; i++) {
+        const seg = prev[i];
+        const pauseSinceLast = i > 0 ? seg.timestamp - prev[i-1].timestamp : 0;
+        const sourceChanged = seg.source !== lastSource;
+        
+        if (sourceChanged || pauseSinceLast > PAUSE_THRESHOLD_MS || i === 0) {
+          groupIndex++;
+          lastSource = seg.source;
+        }
+        
+        const groupId = `group-${groupIndex - 1}`;
+        if (!groupToIndices.has(groupId)) {
+          groupToIndices.set(groupId, []);
+        }
+        groupToIndices.get(groupId)!.push(i);
+      }
+      
+      // Wende die Edits an
+      const newSegments = [...prev];
+      for (const [groupId, newText] of editedGroups) {
+        const indices = groupToIndices.get(groupId);
+        if (indices && indices.length > 0) {
+          // Setze den neuen Text auf das erste Segment der Gruppe
+          // und lösche den Text der anderen Segmente in der Gruppe
+          const words = newText.trim().split(/\s+/);
+          const wordsPerSegment = Math.ceil(words.length / indices.length);
+          
+          indices.forEach((segIndex, i) => {
+            const startWord = i * wordsPerSegment;
+            const segmentWords = words.slice(startWord, startWord + wordsPerSegment);
+            newSegments[segIndex] = {
+              ...newSegments[segIndex],
+              text: segmentWords.join(' ')
+            };
+          });
+        }
+      }
+      
+      // Entferne leere Segmente
+      return newSegments.filter(seg => seg.text.trim().length > 0);
+    });
+  }, []);
+
   return {
     status,
     error,
@@ -703,6 +755,7 @@ export function useDualRealtime() {
     stop: stopAll,
     resetTranscript: () => setSegments([]),
     deleteTextFromTranscript,
+    updateSegmentsFromEdit,
     clearErrors: () => setErrorLog([]),
     stats,
   };
