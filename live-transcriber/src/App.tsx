@@ -6,7 +6,7 @@ import { HighlightMenu } from "./components/HighlightMenu";
 import { AuraResponsePanel } from "./components/AuraResponsePanel";
 import { InlineAgentResponse } from "./components/InlineAgentResponse";
 import type { SpeakerSource } from "./components/DeviceSelector";
-import { useDualRealtime } from "./hooks/useDualRealtime";
+import { useDualRealtime, type TranscriptionProvider } from "./hooks/useDualRealtime";
 import { useTabCapture } from "./hooks/useTabCapture";
 import { useAuraAgent } from "./hooks/useAuraAgent";
 import { useHighlights, type HighlightColor } from "./hooks/useHighlights";
@@ -21,6 +21,32 @@ interface AgentInfo {
   type: "agent" | "workflow";
   active: boolean;
 }
+
+// Transcription Model configuration
+interface TranscriptionModel {
+  id: string;
+  name: string;
+  provider: string;
+  providerLabel: string;
+}
+
+// Available transcription models - OpenAI is DEFAULT and must always work
+// NOTE: gpt-4o-transcribe-diarize does NOT work over WebSocket Realtime API!
+// Diarization is only available via REST API, not real-time streaming.
+const TRANSCRIPTION_MODELS: TranscriptionModel[] = [
+  { 
+    id: "openai", 
+    name: "gpt-4o-transcribe", 
+    provider: "openai", 
+    providerLabel: "OpenAI" 
+  },
+  { 
+    id: "azure", 
+    name: "gpt-4o-transcribe", 
+    provider: "azure", 
+    providerLabel: "Azure OpenAI" 
+  },
+];
 
 function statusLabel(status: string) {
   switch (status) {
@@ -54,6 +80,9 @@ export default function App() {
   const [workflows, setWorkflows] = useState<AgentInfo[]>([]);
   const [currentAgentId, setCurrentAgentId] = useState<number | null>(null);
   const [agentSwitching, setAgentSwitching] = useState(false);
+  
+  // Transcription Model selection - DEFAULT is OpenAI (id: "openai")
+  const [transcriptionModelId, setTranscriptionModelId] = useState<string>("openai");
   
   const transcriptBoxRef = useRef<HTMLDivElement>(null);
   const transcriptAreaRef = useRef<HTMLDivElement>(null);
@@ -118,6 +147,12 @@ export default function App() {
     clearHighlights,
   } = useHighlights();
   
+  // Get the provider from the selected transcription model
+  const transcriptionProvider = useMemo((): TranscriptionProvider => {
+    const model = TRANSCRIPTION_MODELS.find(m => m.id === transcriptionModelId);
+    return (model?.provider as TranscriptionProvider) || "openai";
+  }, [transcriptionModelId]);
+  
   const {
     status,
     errorLog,
@@ -132,7 +167,7 @@ export default function App() {
     updateSegmentsFromEdit,
     clearErrors,
     stats,
-  } = useDualRealtime();
+  } = useDualRealtime(transcriptionProvider);
   const {
     responses: auraResponses,
     queryAgent,
@@ -814,6 +849,31 @@ ${customPrompt}`;
 
       {/* Sidebar links */}
       <aside className="sidebar">
+        {/* Transcription Model Selection - oberhalb Agent Selection */}
+        <div className="panel sidebar-panel">
+          <h3>Transcription Model</h3>
+          <div className="agent-selector">
+            <select
+              value={transcriptionModelId}
+              onChange={(e) => setTranscriptionModelId(e.target.value)}
+              disabled={status === "running" || status === "connecting"}
+              className="agent-dropdown"
+              title={status === "running" ? "Stop transcription to change model" : "Select transcription model"}
+            >
+              {TRANSCRIPTION_MODELS.map(model => (
+                <option key={model.id} value={model.id}>
+                  {model.name} ({model.providerLabel})
+                </option>
+              ))}
+            </select>
+            {(status === "running" || status === "connecting") && (
+              <span className="agent-switching" style={{ fontSize: 10, opacity: 0.7 }}>
+                Stop to change
+              </span>
+            )}
+          </div>
+        </div>
+        
         {/* Agent Selection - oberhalb Audio Settings */}
         <div className="panel sidebar-panel">
           <h3>AI Agent / Workflow</h3>

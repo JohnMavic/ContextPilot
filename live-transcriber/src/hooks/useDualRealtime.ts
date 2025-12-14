@@ -50,7 +50,10 @@ export type ErrorLogEntry = {
   message: string;
 };
 
-export function useDualRealtime() {
+// Transcription provider configuration
+export type TranscriptionProvider = "openai" | "azure";
+
+export function useDualRealtime(provider: TranscriptionProvider = "openai") {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [errorLog, setErrorLog] = useState<ErrorLogEntry[]>([]);
@@ -171,6 +174,14 @@ export function useDualRealtime() {
         return;
       }
 
+      // Log transcription failures with full error details
+      if (msg.type === "conversation.item.input_audio_transcription.failed") {
+        console.error(`[WS ${source.toUpperCase()} TRANSCRIPTION FAILED]`, JSON.stringify(msg, null, 2));
+        const errMsg = msg.error?.message || msg.error?.code || "Transcription failed";
+        addError(source, errMsg);
+        return;
+      }
+
       if (msg.type === "error") {
         const code = msg.error?.code;
         const errMsg = msg.error?.message || code || JSON.stringify(msg.error);
@@ -195,21 +206,25 @@ export function useDualRealtime() {
   const connectWs = (source: Source): WebSocket => {
     const transcriptionPrompt =
       "Auto-detect language. Produce verbatim transcripts (no summaries), keep names and numbers exactly as spoken. Merge adjacent fragments into complete, coherent sentences when they clearly belong together; lightly fix punctuation and obvious word breaks; do not add, omit, or change facts.";
-    const url = `ws://localhost:8080`;
-    console.log(`[WS ${source.toUpperCase()}] Verbinde zu Proxy:`, url);
+    // Provider via Query-Parameter an Proxy übergeben (default: openai)
+    const url = `ws://localhost:8080?provider=${provider}`;
+    console.log(`[WS ${source.toUpperCase()}] Verbinde zu Proxy (${provider}):`, url);
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
-      console.log(`[WS ${source.toUpperCase()}] Connected`);
+      console.log(`[WS ${source.toUpperCase()}] Connected to ${provider}`);
       
       // Unterschiedliche Konfiguration für Mic vs Speaker
-      // gpt-4o-transcribe für Standard-Transkription
-      // gpt-4o-transcribe-diarize wäre für Speaker-Erkennung (noch nicht überall verfügbar)
+      // Model name is required for both providers
+      // OpenAI: "gpt-4o-transcribe"
+      // Azure: Use deployment name (gpt-4o-transcribe - NOT diarize, that doesn't work over WebSocket!)
+      const modelName = "gpt-4o-transcribe";  // Same for both providers
+      
       const sessionUpdate = {
         type: "transcription_session.update",
         session: {
           input_audio_transcription: {
-            model: "gpt-4o-transcribe",
+            model: modelName,
             prompt: transcriptionPrompt,
             // language weglassen -> automatische Spracherkennung durch Modell
           },

@@ -30,6 +30,12 @@ try {
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 const PORT = 8080;
 
+// Azure OpenAI Transcription Configuration (for gpt-4o-transcribe-diarize)
+const AZURE_TRANSCRIBE_ENDPOINT = process.env.AZURE_TRANSCRIBE_ENDPOINT;
+const AZURE_TRANSCRIBE_DEPLOYMENT = process.env.AZURE_TRANSCRIBE_DEPLOYMENT || "gpt-4o-transcribe-diarize";
+const AZURE_TRANSCRIBE_API_KEY = process.env.AZURE_TRANSCRIBE_API_KEY;
+const AZURE_TRANSCRIBE_API_VERSION = process.env.AZURE_TRANSCRIBE_API_VERSION || "2024-12-01-preview";
+
 // Azure AI Foundry Agent Configuration (NEW Foundry API - November 2025+)
 // Supports multiple agents configured in .env.local
 const AURA_API_VERSION = process.env.AURA_API_VERSION || "2025-11-15-preview";
@@ -709,54 +715,97 @@ const server = createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 
 wss.on("connection", (clientWs, req) => {
-  console.log("[PROXY] Client verbunden");
+  // Parse query parameter to determine provider (default: openai)
+  const url = new URL(req.url, `http://localhost:${PORT}`);
+  const provider = url.searchParams.get("provider") || "openai";
+  
+  console.log(`[PROXY] Client verbunden, Provider: ${provider}`);
 
-  // Message-Buffer bis OpenAI verbunden ist
-  let openaiReady = false;
+  // Message-Buffer bis Backend verbunden ist
+  let backendReady = false;
   const messageBuffer = [];
-
-  // Verbinde zu OpenAI mit Authorization Header
-  const openaiUrl = "wss://api.openai.com/v1/realtime?intent=transcription";
-  const openaiWs = new WebSocket(openaiUrl, {
-    headers: {
+  
+  // Determine backend URL and headers based on provider
+  let backendUrl;
+  let backendHeaders;
+  let providerLabel;
+  
+  if (provider === "azure") {
+    // Azure OpenAI Realtime API for gpt-4o-transcribe-diarize
+    console.log("[PROXY] Azure config check:", {
+      endpoint: AZURE_TRANSCRIBE_ENDPOINT,
+      deployment: AZURE_TRANSCRIBE_DEPLOYMENT,
+      apiVersion: AZURE_TRANSCRIBE_API_VERSION,
+      hasApiKey: !!AZURE_TRANSCRIBE_API_KEY
+    });
+    if (!AZURE_TRANSCRIBE_ENDPOINT || !AZURE_TRANSCRIBE_API_KEY) {
+      console.error("[PROXY] Azure Transcription not configured! Check AZURE_TRANSCRIBE_ENDPOINT and AZURE_TRANSCRIBE_API_KEY");
+      clientWs.close(1011, "Azure Transcription not configured");
+      return;
+    }
+    backendUrl = `wss://${AZURE_TRANSCRIBE_ENDPOINT}/openai/realtime?api-version=${AZURE_TRANSCRIBE_API_VERSION}&deployment=${AZURE_TRANSCRIBE_DEPLOYMENT}&intent=transcription`;
+    backendHeaders = {
+      "api-key": AZURE_TRANSCRIBE_API_KEY,
+    };
+    providerLabel = "Azure OpenAI";
+  } else {
+    // DEFAULT: OpenAI Realtime API (existing behavior - DO NOT BREAK)
+    if (!OPENAI_API_KEY) {
+      console.error("[PROXY] OpenAI API Key not configured!");
+      clientWs.close(1011, "OpenAI API Key not configured");
+      return;
+    }
+    backendUrl = "wss://api.openai.com/v1/realtime?intent=transcription";
+    backendHeaders = {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
       "OpenAI-Beta": "realtime=v1",
-    },
+    };
+    providerLabel = "OpenAI";
+  }
+  
+  console.log(`[PROXY] Connecting to ${providerLabel}: ${backendUrl.substring(0, 80)}...`);
+  
+  const backendWs = new WebSocket(backendUrl, {
+    headers: backendHeaders,
   });
 
-  openaiWs.on("open", () => {
-    console.log("[PROXY] Mit OpenAI verbunden");
-    openaiReady = true;
+  backendWs.on("open", () => {
+    console.log(`[PROXY] Mit ${providerLabel} verbunden`);
+    backendReady = true;
     
     // Gepufferte Messages senden
     if (messageBuffer.length > 0) {
       console.log(`[PROXY] Sende ${messageBuffer.length} gepufferte Messages`);
       messageBuffer.forEach((msg) => {
         console.log("[PROXY] Client (buffered) ->", msg.substring(0, 100) + (msg.length > 100 ? "..." : ""));
-        openaiWs.send(msg);
+        backendWs.send(msg);
       });
       messageBuffer.length = 0;
     }
   });
 
-  openaiWs.on("message", (data) => {
+  backendWs.on("message", (data) => {
     const msg = data.toString();
+    // Log full message for transcription failures to see the error details
+    if (msg.includes('transcription.failed')) {
+      console.log(`[PROXY] ${providerLabel} TRANSCRIPTION FAILED:`, msg);
+    }
     // Only log non-audio events (skip verbose audio buffer responses)
-    if (!msg.includes('"type":"input_audio_buffer')) {
-      console.log("[PROXY] OpenAI ->", msg.substring(0, 150) + (msg.length > 150 ? "..." : ""));
+    else if (!msg.includes('"type":"input_audio_buffer')) {
+      console.log(`[PROXY] ${providerLabel} ->`, msg.substring(0, 150) + (msg.length > 150 ? "..." : ""));
     }
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(msg);
     }
   });
 
-  openaiWs.on("error", (err) => {
-    console.error("[PROXY] OpenAI Fehler:", err.message);
-    clientWs.close(1011, "OpenAI connection error");
+  backendWs.on("error", (err) => {
+    console.error(`[PROXY] ${providerLabel} Fehler:`, err.message);
+    clientWs.close(1011, `${providerLabel} connection error`);
   });
 
-  openaiWs.on("close", (code, reason) => {
-    console.log("[PROXY] OpenAI geschlossen:", code, reason.toString());
+  backendWs.on("close", (code, reason) => {
+    console.log(`[PROXY] ${providerLabel} geschlossen:`, code, reason.toString());
     clientWs.close(code, reason.toString());
   });
 
@@ -767,27 +816,28 @@ wss.on("connection", (clientWs, req) => {
       console.log("[PROXY] Client ->", msg.substring(0, 100) + (msg.length > 100 ? "..." : ""));
     }
     
-    if (openaiReady && openaiWs.readyState === WebSocket.OPEN) {
-      openaiWs.send(msg);
+    if (backendReady && backendWs.readyState === WebSocket.OPEN) {
+      backendWs.send(msg);
     } else {
-      // Puffern bis OpenAI bereit
-      console.log("[PROXY] OpenAI noch nicht bereit, puffere Message");
+      // Puffern bis Backend bereit
+      console.log(`[PROXY] ${providerLabel} noch nicht bereit, puffere Message`);
       messageBuffer.push(msg);
     }
   });
 
   clientWs.on("close", () => {
     console.log("[PROXY] Client getrennt");
-    openaiWs.close();
+    backendWs.close();
   });
 
   clientWs.on("error", (err) => {
     console.error("[PROXY] Client Fehler:", err.message);
-    openaiWs.close();
+    backendWs.close();
   });
 });
 
 server.listen(PORT, () => {
   console.log(`[PROXY] WebSocket Proxy läuft auf ws://localhost:${PORT}`);
+  console.log("[PROXY] Provider via Query-Parameter: ?provider=openai (default) oder ?provider=azure");
   console.log("[PROXY] Die Vite-App muss auf diesen Proxy zeigen statt direkt auf OpenAI");
 });
