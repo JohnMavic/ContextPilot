@@ -6,7 +6,6 @@ interface HighlightMenuProps {
   x: number;
   y: number;
   width: number;
-  selectedText: string;
   highlightColor?: HighlightColor;
   onClose: () => void;
   onCopy: () => void;
@@ -15,6 +14,7 @@ interface HighlightMenuProps {
   onFacts: () => void;
   onCustomPrompt: (prompt: string) => void;
   isLoading?: boolean;
+  disableDelete?: boolean;
 }
 
 const colorHexMap: Record<HighlightColor, string> = {
@@ -39,7 +39,6 @@ export function HighlightMenu({
   x,
   y,
   width,
-  selectedText,
   highlightColor,
   onClose,
   onCopy,
@@ -48,6 +47,7 @@ export function HighlightMenu({
   onFacts,
   onCustomPrompt,
   isLoading,
+  disableDelete,
 }: HighlightMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [customPrompt, setCustomPrompt] = useState("");
@@ -121,6 +121,7 @@ export function HighlightMenu({
           className="action-btn action-btn-delete"
           onClick={onDelete}
           title="Delete from transcript"
+          disabled={disableDelete}
         >
           🗑️ Delete
         </button>

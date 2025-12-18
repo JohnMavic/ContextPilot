@@ -1,3 +1,4 @@
+import { HighlightedText } from "./HighlightedText";
 import type { HighlightColor, Highlight } from "../hooks/useHighlights";
 
 // Farben passend zu den Highlight-Klassen
@@ -101,6 +102,8 @@ function isIndentedSubLine(line: string): boolean {
 
 interface InlineAgentResponseProps {
   responseId: string;
+  taskLabel: string;
+  taskDetail?: string;
   result: string | null;
   loading: boolean;
   error: string | null;
@@ -111,6 +114,8 @@ interface InlineAgentResponseProps {
 
 export function InlineAgentResponse({
   responseId,
+  taskLabel,
+  taskDetail,
   result,
   loading,
   error,
@@ -120,6 +125,8 @@ export function InlineAgentResponse({
 }: InlineAgentResponseProps) {
   const borderColor = colorMap[color];
   const groupId = `response-${responseId}`;
+  const taskGroupId = `${groupId}-task`;
+  const taskText = taskDetail ? `${taskLabel}: ${taskDetail}` : taskLabel;
   
   // Rendert den formatierten Result-Text mit Links und Markdown
   const renderFormattedResult = (resultText: string): React.ReactNode => {
@@ -214,9 +221,6 @@ export function InlineAgentResponse({
     return elements;
   };
 
-  // Mark unused for now - will be used for highlight support later
-  void highlights;
-
   return (
     <div 
       className="inline-agent-response"
@@ -241,6 +245,12 @@ export function InlineAgentResponse({
       
       {/* Content - markierbarer Text */}
       <div className="inline-response-content" data-group-id={groupId}>
+        <div className="inline-response-task">
+          <span className="inline-response-task-label">Task:</span>{" "}
+          <span data-group-id={taskGroupId}>
+            <HighlightedText text={taskText} highlights={highlights} groupId={taskGroupId} />
+          </span>
+        </div>
         {loading && (
           <div className="inline-response-loading">
             <span className="aura-spinner" style={{ color: borderColor }}>◌</span>

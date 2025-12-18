@@ -1236,15 +1236,25 @@ pre {
 .aura-responses-container {
   flex-shrink: 0;
   width: 400px;  /* Default: doppelte Breite */
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
   padding-left: 8px;
+  position: relative;
+  overflow: hidden;
 }
 
 /* Verstecken wenn keine Responses */
 .aura-responses-container:empty {
   display: none;
+}
+
+.aura-responses-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.aura-response-positioner {
+  position: absolute;
+  left: 0;
+  right: 0;
 }
 
 .aura-response-panel {
@@ -1329,6 +1339,33 @@ pre {
   gap: 2px;
 }
 
+.aura-task {
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.aura-task-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+}
+
+.aura-task-icon {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.aura-task-body {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #cbd5e1;
+}
+
 .quote-mark {
   font-size: 14px;
   line-height: 1;
@@ -1341,6 +1378,87 @@ pre {
 
 .aura-panel-content {
   padding: 10px;
+}
+
+.aura-followups {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.aura-followup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aura-followup-q,
+.aura-followup-a {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.aura-followup-badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  color: #94a3b8;
+  background: rgba(100, 116, 139, 0.2);
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  border-radius: 999px;
+  padding: 1px 6px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.aura-followup-error {
+  color: #f87171;
+  font-size: 11px;
+}
+
+.aura-followup-input {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.aura-followup-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+  background: rgba(2, 6, 23, 0.35);
+  color: #e2e8f0;
+  font-size: 12px;
+}
+
+.aura-followup-input input:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 1px;
+  border-color: rgba(59, 130, 246, 0.6);
+}
+
+.aura-followup-btn {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.18);
+  color: #bfdbfe;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.aura-followup-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .aura-loading {
@@ -1537,10 +1655,22 @@ h5.aura-heading {
   .aura-responses-container {
     width: 100% !important;
     max-height: none;
+    display: flex;
     flex-direction: row;
     flex-wrap: wrap;
+    gap: 10px;
     padding-left: 0;
     padding-top: 10px;
+    overflow: visible;
+  }
+
+  .aura-responses-spacer {
+    height: auto !important;
+    transform: none !important;
+  }
+
+  .aura-response-positioner {
+    position: static;
   }
   
   .aura-response-panel {
@@ -1639,6 +1769,17 @@ h5.aura-heading {
   font-size: 13px;
   line-height: 1.5;
   color: #e2e8f0;
+}
+
+.inline-response-task {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.inline-response-task-label {
+  font-weight: 600;
+  color: #cbd5e1;
 }
 
 .inline-response-loading {

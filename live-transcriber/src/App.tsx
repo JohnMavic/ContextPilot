@@ -1,4 +1,5 @@
-﻿import { useMemo, useState, useRef, useEffect, useCallback } from "react";
+﻿import { useMemo, useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { DeviceSelector } from "./components/DeviceSelector";
 import { VolumeMeter } from "./components/VolumeMeter";
 import { HighlightedText } from "./components/HighlightedText";
@@ -66,8 +67,13 @@ export default function App() {
   const [speakerDeviceId, setSpeakerDeviceId] = useState<string>();
   const [speakerSource, setSpeakerSource] = useState<SpeakerSource>("tab");
   const [autoScroll, setAutoScroll] = useState(true);
+  const [transcriptScrollTop, setTranscriptScrollTop] = useState(0);
+  const [transcriptScrollHeight, setTranscriptScrollHeight] = useState(0);
+  const [auraPanelHeights, setAuraPanelHeights] = useState<Record<string, number>>({});
   const [agentPanelWidth, setAgentPanelWidth] = useState(400); // Default doppelte Breite
   const [isResizing, setIsResizing] = useState(false);
+  const [highlightMenuContainer, setHighlightMenuContainer] = useState<HTMLElement | null>(null);
+  const [disableDeleteInMenu, setDisableDeleteInMenu] = useState(false);
   
   // TEXT FREEZE: Wenn User klickt/selektiert, wird neuer Text gepuffert statt angezeigt
   const [isTextFrozen, setIsTextFrozen] = useState(false);
@@ -86,6 +92,7 @@ export default function App() {
   
   const transcriptBoxRef = useRef<HTMLDivElement>(null);
   const transcriptAreaRef = useRef<HTMLDivElement>(null);
+  const auraResponsesContainerRef = useRef<HTMLDivElement>(null);
   
   // Load available agents and workflows from proxy server
   useEffect(() => {
@@ -171,6 +178,7 @@ export default function App() {
   const {
     responses: auraResponses,
     queryAgent,
+    askFollowUp,
     removeResponse: removeAuraResponse,
     removeResponseByHighlight,
     clearAllResponses: clearAuraResponses,
@@ -250,6 +258,8 @@ export default function App() {
       const { scrollTop, scrollHeight, clientHeight } = transcriptBoxRef.current;
       const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
       setAutoScroll(isAtBottom);
+      setTranscriptScrollTop(scrollTop);
+      setTranscriptScrollHeight(scrollHeight);
     }
   };
 
@@ -315,7 +325,7 @@ export default function App() {
       // Prüfe ob Klick AUSSERHALB des Textfeldes war
       if (transcriptBox && !transcriptBox.contains(target)) {
         // Auch nicht im Highlight-Menü
-        const highlightMenu = document.querySelector('.highlight-menu');
+        const highlightMenu = document.querySelector('.highlight-action-bar');
         if (!highlightMenu || !highlightMenu.contains(target)) {
           unfreezeTextWithSave(); // User-Edit speichern
         }
@@ -357,6 +367,8 @@ export default function App() {
     const selection = window.getSelection();
     if (selection && selection.toString().trim() && transcriptBoxRef.current) {
       e.preventDefault();
+      setHighlightMenuContainer(transcriptBoxRef.current);
+      setDisableDeleteInMenu(false);
       showMenuAtSelection(transcriptBoxRef.current);
     }
   }, [showMenuAtSelection]);
@@ -405,17 +417,19 @@ export default function App() {
           id: highlight.id,
           text: highlight.text,
           color: highlight.color,
-          anchorTop: rect.bottom - containerRect.top,
+          anchorTop: rect.top - containerRect.top + container.scrollTop,
           groupId: highlight.groupId,
           parentResponseId,
         };
         // Mark this highlight as pending (not yet confirmed with agent query)
         pendingHighlightIdRef.current = highlight.id;
+        setHighlightMenuContainer(container);
+        setDisableDeleteInMenu(false);
         
         // Menü unterhalb des markierten Bereichs anzeigen
         showMenuAtSelection(container, {
           range,
-          selectedText: text,
+          selectedText: highlight.text,
           highlightColor: highlight.color,
           highlightId: highlight.id,
           width: rect.width,
@@ -429,6 +443,65 @@ export default function App() {
     }
     // KEINE unfreezeText() hier - Freeze bleibt aktiv bis Klick AUSSERHALB des Textfeldes
   }, [showMenuAtSelection, createHighlightFromSelection]);
+
+  const openHighlightMenuForMark = useCallback((markEl: HTMLElement, container: HTMLElement) => {
+    const highlightId = markEl.getAttribute("data-highlight-id");
+    if (!highlightId) return;
+
+    // Remove previous pending highlight if it's a different one
+    if (pendingHighlightIdRef.current && pendingHighlightIdRef.current !== highlightId) {
+      removeHighlight(pendingHighlightIdRef.current);
+      pendingHighlightIdRef.current = null;
+    }
+
+    const highlight = highlights.find(h => h.id === highlightId);
+    if (!highlight) return;
+
+    const range = document.createRange();
+    range.selectNodeContents(markEl);
+
+    const rect = markEl.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    // Pr\u00fcfe ob das Highlight in einer Agent-Response liegt
+    let parentResponseId: string | undefined;
+    let node: Node | null = markEl;
+    while (node && node !== container) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.hasAttribute('data-response-id')) {
+          parentResponseId = el.getAttribute('data-response-id') || undefined;
+          break;
+        }
+      }
+      node = node.parentNode;
+    }
+
+    lastHighlightRef.current = {
+      id: highlight.id,
+      text: highlight.text,
+      color: highlight.color,
+      anchorTop: rect.top - containerRect.top + container.scrollTop,
+      groupId: highlight.groupId,
+      parentResponseId,
+    };
+
+    // In der rechten Spalte ist \"Delete from transcript\" nicht sinnvoll/gef\u00e4hrlich
+    setDisableDeleteInMenu(!highlight.groupId.startsWith("group-"));
+    setHighlightMenuContainer(container);
+
+    setHighlightMenuContainer(container);
+    setDisableDeleteInMenu(false);
+    showMenuAtSelection(container, {
+      range,
+      selectedText: highlight.text,
+      highlightColor: highlight.color,
+      highlightId: highlight.id,
+      width: rect.width,
+      x: rect.left - containerRect.left,
+      y: rect.bottom - containerRect.top + 8,
+    });
+  }, [highlights, removeHighlight, showMenuAtSelection]);
 
   // Beim Klick auf bestehendes Highlight: Optionen erneut anzeigen
   const handleHighlightClick = useCallback((e: React.MouseEvent) => {
@@ -476,14 +549,22 @@ export default function App() {
       node = node.parentNode;
     }
 
+    const scrollTopForAnchor =
+      container === transcriptBoxRef.current
+        ? container.scrollTop
+        : (transcriptBoxRef.current?.scrollTop ?? transcriptScrollTop);
+
     lastHighlightRef.current = {
       id: highlight.id,
       text: highlight.text,
       color: highlight.color,
-      anchorTop: rect.bottom - containerRect.top,
+      anchorTop: rect.top - containerRect.top + scrollTopForAnchor,
       groupId: highlight.groupId,
       parentResponseId,
     };
+
+    setHighlightMenuContainer(container);
+    setDisableDeleteInMenu(!highlight.groupId.startsWith("group-"));
 
     showMenuAtSelection(container, {
       range,
@@ -494,7 +575,7 @@ export default function App() {
       x: rect.left - containerRect.left,
       y: rect.bottom - containerRect.top + 8,
     });
-  }, [highlights, showMenuAtSelection]);
+  }, [highlights, removeHighlight, showMenuAtSelection, transcriptScrollTop]);
 
   // Ref für letztes erstelltes Highlight (für Agent-Queries)
   const lastHighlightRef = useRef<{ 
@@ -519,13 +600,13 @@ export default function App() {
       id: highlight.id,
       text: highlight.text,
       color: highlight.color,
-      anchorTop: menuState.y,
+      anchorTop: Math.max(0, menuState.y - 8) + (highlightMenuContainer?.scrollTop ?? transcriptBoxRef.current?.scrollTop ?? 0),
       groupId: highlight.groupId,
       parentResponseId: undefined as string | undefined,
     };
     lastHighlightRef.current = snapshot;
     return snapshot;
-  }, [createHighlight, menuState.y]);
+  }, [createHighlight, menuState.y, highlightMenuContainer]);
 
   // Kombinierter Handler: Highlight erstellen UND Expand-Query starten
   const handleHighlightAndExpand = useCallback(() => {
@@ -547,7 +628,8 @@ Give me 3-5 bullet points with key facts I can use in conversation. Short, preci
       highlight.anchorTop, 
       "expand",
       highlight.groupId,
-      highlight.parentResponseId
+      highlight.parentResponseId,
+      "Show more details"
     );
     hideMenu();
     unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
@@ -573,7 +655,8 @@ Find 2-3 similar deal examples from Microsoft Switzerland in your index. One lin
       highlight.anchorTop, 
       "facts",
       highlight.groupId,
-      highlight.parentResponseId
+      highlight.parentResponseId,
+      "Find similar examples"
     );
     hideMenu();
     unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
@@ -599,7 +682,9 @@ ${customPrompt}`;
       highlight.anchorTop, 
       "expand",
       highlight.groupId,
-      highlight.parentResponseId
+      highlight.parentResponseId,
+      "Custom instruction",
+      customPrompt
     );
     hideMenu();
     unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
@@ -619,6 +704,101 @@ ${customPrompt}`;
   }, [hideMenu, removeHighlight]);
 
   // Handler für Copy - kopiert markierten Text in Zwischenablage
+  // Rechter Panel: Textselektion ebenfalls highlightbar machen (Agent-Aufträge markieren)
+  const handleAuraPanelContextMenu = useCallback((e: React.MouseEvent) => {
+    const selection = window.getSelection();
+    const container = auraResponsesContainerRef.current;
+    if (!container) return;
+
+    if (selection && selection.toString().trim()) {
+      e.preventDefault();
+      setHighlightMenuContainer(container);
+      setDisableDeleteInMenu(true);
+      showMenuAtSelection(container);
+    }
+  }, [showMenuAtSelection]);
+
+  const handleAuraPanelMouseUp = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'A' || target.closest('a')) {
+      return;
+    }
+
+    const selection = window.getSelection();
+    const container = auraResponsesContainerRef.current;
+    if (!container) return;
+
+    if (selection && selection.toString().trim() && selection.rangeCount > 0) {
+      const text = selection.toString();
+      const range = selection.getRangeAt(0).cloneRange();
+      const rect = range.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      if (pendingHighlightIdRef.current) {
+        removeHighlight(pendingHighlightIdRef.current);
+        pendingHighlightIdRef.current = null;
+      }
+
+      const highlight = createHighlightFromSelection(range, text, container);
+      if (highlight) {
+        let parentResponseId: string | undefined;
+        let node: Node | null = range.startContainer;
+        while (node && node !== container) {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const el = node as HTMLElement;
+            if (el.hasAttribute('data-response-id')) {
+              parentResponseId = el.getAttribute('data-response-id') || undefined;
+              break;
+            }
+          }
+          node = node.parentNode;
+        }
+
+        const transcriptScrollTopNow = transcriptBoxRef.current?.scrollTop ?? transcriptScrollTop;
+
+        lastHighlightRef.current = {
+          id: highlight.id,
+          text: highlight.text,
+          color: highlight.color,
+          anchorTop: rect.top - containerRect.top + transcriptScrollTopNow,
+          groupId: highlight.groupId,
+          parentResponseId,
+        };
+        pendingHighlightIdRef.current = highlight.id;
+
+        setHighlightMenuContainer(container);
+        setDisableDeleteInMenu(true);
+
+        showMenuAtSelection(container, {
+          range,
+          selectedText: highlight.text,
+          highlightColor: highlight.color,
+          highlightId: highlight.id,
+          width: rect.width,
+          x: rect.left - containerRect.left,
+          y: rect.bottom - containerRect.top + 8,
+        });
+      }
+
+      selection.removeAllRanges();
+    }
+  }, [createHighlightFromSelection, removeHighlight, showMenuAtSelection, transcriptScrollTop]);
+
+  const handleAuraPanelHighlightClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'A' || target.closest('a')) {
+      return;
+    }
+
+    const container = auraResponsesContainerRef.current;
+    if (!container) return;
+
+    const markEl = (e.target as HTMLElement).closest("mark[data-highlight-id]") as HTMLElement | null;
+    if (!markEl) return;
+
+    openHighlightMenuForMark(markEl, container);
+  }, [openHighlightMenuForMark]);
+
   const handleCopy = useCallback(async () => {
     // Versuche zuerst den Text aus dem aktuellen Mark-Element zu holen
     let text = menuState.selectedText;
@@ -635,7 +815,14 @@ ${customPrompt}`;
     if (!text) {
       const markEl = document.querySelector(`mark[data-highlight-id="${menuState.highlightId}"]`);
       if (markEl) {
-        text = markEl.textContent || '';
+        const highlightId = menuState.highlightId;
+        const markEls = highlightId ? document.querySelectorAll(`mark[data-highlight-id="${highlightId}"]`) : [];
+        const joined = Array.from(markEls)
+          .map((el) => el.textContent || "")
+          .join(" ")
+          .replace(/\\s+/g, " ")
+          .trim();
+        text = joined || markEl.textContent || "";
       }
     }
     
@@ -679,7 +866,13 @@ ${customPrompt}`;
       const markEl = document.querySelector(`mark[data-highlight-id="${highlightId}"]`);
       if (markEl && markEl.textContent) {
         // Nutze den DOM-Text als primäre Quelle wenn vorhanden
-        text = markEl.textContent;
+        const markEls = document.querySelectorAll(`mark[data-highlight-id="${highlightId}"]`);
+        const joined = Array.from(markEls)
+          .map((el) => el.textContent || "")
+          .join(" ")
+          .replace(/\\s+/g, " ")
+          .trim();
+        text = joined || markEl.textContent;
       }
     }
     
@@ -805,6 +998,13 @@ ${customPrompt}`;
     return groups;
   }, [sortedSegments]);
 
+  useLayoutEffect(() => {
+    if (!transcriptBoxRef.current) return;
+    const { scrollTop, scrollHeight } = transcriptBoxRef.current;
+    setTranscriptScrollTop(scrollTop);
+    setTranscriptScrollHeight(scrollHeight);
+  }, [groupedSegmentsWithOffsets.length, auraResponses.length, isTextFrozen]);
+
   const mergedTranscript = useMemo(
     () => groupedSegmentsWithOffsets.map((g) => `[${g.source.toUpperCase()}] ${g.texts.join(" ")}`).join("\n\n"),
     [groupedSegmentsWithOffsets],
@@ -817,13 +1017,58 @@ ${customPrompt}`;
   
   // Check if any AURA response is loading
   const anyAuraLoading = auraResponses.some(r => r.loading);
+
+  // Rechte Spalte muss Context-Panels vollständig zeigen, auch wenn das Transkript (noch) kurz ist.
+  // Daher messen wir die tatsächlichen Panel-Höhen und erhöhen den Spacer so, dass die gesamte Box sichtbar ist.
+  useLayoutEffect(() => {
+    const container = auraResponsesContainerRef.current;
+    if (!container) return;
+
+    const panels = Array.from(
+      container.querySelectorAll(".aura-response-panel[data-response-id]")
+    ) as HTMLElement[];
+
+    if (panels.length === 0) return;
+
+    const update = (el: HTMLElement) => {
+      const id = el.getAttribute("data-response-id");
+      if (!id) return;
+      const h = Math.max(0, Math.ceil(el.getBoundingClientRect().height));
+      setAuraPanelHeights((prev) => {
+        if (prev[id] === h) return prev;
+        return { ...prev, [id]: h };
+      });
+    };
+
+    panels.forEach(update);
+
+    const ro = new ResizeObserver((entries) => {
+      entries.forEach((entry) => update(entry.target as HTMLElement));
+    });
+
+    panels.forEach((p) => ro.observe(p));
+
+    return () => ro.disconnect();
+  }, [auraResponses.length]);
+
+  const auraSpacerHeight = useMemo(() => {
+    const baseHeight = transcriptScrollHeight || transcriptBoxRef.current?.scrollHeight || 0;
+    let required = 0;
+
+    for (const r of auraResponses) {
+      const h = auraPanelHeights[r.id] ?? 0;
+      required = Math.max(required, r.anchorTop + h + 16);
+    }
+
+    return Math.max(baseHeight, required);
+  }, [auraResponses, auraPanelHeights, transcriptScrollHeight]);
   
   const handleAskAuraFullTranscript = useCallback(() => {
     if (segments.length === 0) return;
     const prompt = `Provide key facts and highlights based on this transcript:\n${mergedTranscript}`;
     // Für Full-Transcript: Generiere temporäre ID
     const tempId = `full-${Date.now()}`;
-    queryAgent(prompt, tempId, "Full Transcript Analysis", 1, 0, "full");
+    queryAgent(prompt, tempId, "Full Transcript Analysis", 1, 0, "full", "", undefined, "Analyze full transcript");
   }, [segments.length, mergedTranscript, queryAgent]);
 
   // Clear highlights when clearing transcript
@@ -1098,6 +1343,8 @@ ${customPrompt}`;
                         <div key={response.id} className="inline-responses-chain">
                           <InlineAgentResponse
                             responseId={response.id}
+                            taskLabel={response.taskLabel}
+                            taskDetail={response.taskDetail}
                             result={response.result}
                             loading={response.loading}
                             error={response.error}
@@ -1110,6 +1357,8 @@ ${customPrompt}`;
                             <InlineAgentResponse
                               key={chainedResponse.id}
                               responseId={chainedResponse.id}
+                              taskLabel={chainedResponse.taskLabel}
+                              taskDetail={chainedResponse.taskDetail}
                               result={chainedResponse.result}
                               loading={chainedResponse.loading}
                               error={chainedResponse.error}
@@ -1125,22 +1374,24 @@ ${customPrompt}`;
                 );
               })}
               
-              {/* Highlight Context Menu - positioned within transcript box */}
-              <HighlightMenu
-                visible={menuState.visible}
-                x={menuState.x}
-                y={menuState.y}
-                width={menuState.width}
-                selectedText={menuState.selectedText}
-                highlightColor={menuState.highlightColor}
-                onClose={handleCloseMenu}
-                onCopy={handleCopy}
-                onDelete={handleDelete}
-                onExpand={handleHighlightAndExpand}
-                onFacts={handleHighlightAndFacts}
-                onCustomPrompt={handleCustomPrompt}
-                isLoading={anyAuraLoading}
-              />
+              {menuState.visible && highlightMenuContainer && createPortal(
+                <HighlightMenu
+                  visible={menuState.visible}
+                  x={menuState.x}
+                  y={menuState.y}
+                  width={menuState.width}
+                  highlightColor={menuState.highlightColor}
+                  onClose={handleCloseMenu}
+                  onCopy={handleCopy}
+                  onDelete={handleDelete}
+                  onExpand={handleHighlightAndExpand}
+                  onFacts={handleHighlightAndFacts}
+                  onCustomPrompt={handleCustomPrompt}
+                  isLoading={anyAuraLoading}
+                  disableDelete={disableDeleteInMenu}
+                />,
+                highlightMenuContainer
+              )}
             </div>
             
             {/* AURA Response Panels - rechts im Panel, mit Resizer */}
@@ -1153,21 +1404,44 @@ ${customPrompt}`;
                 />
                 <div 
                   className="aura-responses-container"
+                  ref={auraResponsesContainerRef}
                   style={{ width: agentPanelWidth }}
+                  onMouseUp={handleAuraPanelMouseUp}
+                  onClick={handleAuraPanelHighlightClick}
+                  onContextMenu={handleAuraPanelContextMenu}
                 >
-                  {auraResponses.map((response) => (
-                    <AuraResponsePanel
-                      key={response.id}
-                      id={response.id}
-                      sourceText={response.sourceText}
-                      color={response.color}
-                      result={response.result}
-                      loading={response.loading}
-                      error={response.error}
-                      statusNote={response.statusNote}
-                      onClose={handleRemoveAuraResponse}
-                    />
-                  ))}
+                  <div
+                    className="aura-responses-spacer"
+                    style={{
+                      height: auraSpacerHeight || undefined,
+                      transform: `translateY(-${transcriptScrollTop}px)`,
+                    }}
+                  >
+                    {auraResponses.map((response) => (
+                      <div
+                        key={response.id}
+                        className="aura-response-positioner"
+                        style={{ top: response.anchorTop }}
+                      >
+                        <AuraResponsePanel
+                          id={response.id}
+                          sourceText={response.sourceText}
+                          taskLabel={response.taskLabel}
+                          taskDetail={response.taskDetail}
+                          color={response.color}
+                          result={response.result}
+                          loading={response.loading}
+                          error={response.error}
+                          statusNote={response.statusNote}
+                          onClose={handleRemoveAuraResponse}
+                          onAskFollowUp={askFollowUp}
+                          highlights={highlights}
+                          sourceGroupId={`aura-source-${response.id}`}
+                          followUps={response.followUps}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             )}

@@ -1,12 +1,23 @@
 import { useState, useCallback, useRef } from "react";
 import type { HighlightColor } from "./useHighlights";
 
+export interface AuraFollowUp {
+  id: string;
+  question: string;
+  answer: string;
+  loading: boolean;
+  error: string | null;
+  timestamp: number;
+}
+
 export interface AuraResponse {
   id: string;              // Eindeutige ID für diese Antwort
   highlightId: string;     // Verknüpfung zum Highlight
   sourceText: string;      // Der markierte Text
   color: HighlightColor;   // Farbe (gleich wie Highlight)
   queryType: "expand" | "facts" | "full";
+  taskLabel: string;       // z.B. "Show more details"
+  taskDetail?: string;     // z.B. Custom instruction Text
   loading: boolean;
   result: string | null;
   error: string | null;
@@ -15,6 +26,7 @@ export interface AuraResponse {
   // NEU: Position im Transkript für Inline-Darstellung
   sourceGroupId: string;   // GroupId wo das Highlight liegt
   insertAfterResponseId?: string; // Falls in einer Response markiert wurde
+  followUps: AuraFollowUp[];
 }
 
 export function useAuraAgent() {
@@ -23,6 +35,33 @@ export function useAuraAgent() {
 
   // Generate unique ID
   const generateId = () => `aura-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const generateFollowUpId = () => `fu-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const compact = (text: string, maxChars: number) => {
+    const cleaned = (text || "").replace(/\s+/g, " ").trim();
+    if (cleaned.length <= maxChars) return cleaned;
+    return cleaned.slice(0, maxChars - 1) + "…";
+  };
+
+  const buildBackgroundInfo = (response: AuraResponse) => {
+    const lines: string[] = [];
+    lines.push("Background Information:");
+    lines.push("");
+    lines.push(`Marked Text: ${compact(response.sourceText, 1200)}`);
+    lines.push(`Task: ${compact([response.taskLabel, response.taskDetail].filter(Boolean).join(" — "), 800)}`);
+    lines.push(`First answer: ${compact(response.result || "", 2000)}`);
+
+    if (response.followUps.length > 0) {
+      lines.push("");
+      response.followUps.forEach((fu, idx) => {
+        lines.push(`User question ${idx + 1}: ${compact(fu.question, 1200)}`);
+        lines.push(`Answer ${idx + 1}: ${compact(fu.answer || "", 2000)}`);
+      });
+    }
+
+    lines.push("");
+    return lines.join("\n");
+  };
 
   // Start a new query - creates a new response entry
   const queryAgent = useCallback(async (
@@ -33,7 +72,9 @@ export function useAuraAgent() {
     anchorTop: number,
     queryType: "expand" | "facts" | "full" = "expand",
     sourceGroupId: string = "",           // GroupId wo das Highlight liegt
-    insertAfterResponseId?: string        // Falls in einer Response markiert wurde
+    insertAfterResponseId?: string,       // Falls in einer Response markiert wurde
+    taskLabel?: string,
+    taskDetail?: string
   ) => {
     if (!prompt) return;
 
@@ -50,6 +91,14 @@ export function useAuraAgent() {
       sourceText,
       color,
       queryType,
+      taskLabel:
+        taskLabel ||
+        (queryType === "facts"
+          ? "Find similar examples"
+          : queryType === "full"
+            ? "Analyze full transcript"
+            : "Show more details"),
+      taskDetail,
       loading: true,
       result: null,
       error: null,
@@ -57,6 +106,7 @@ export function useAuraAgent() {
       statusNote: undefined,
       sourceGroupId,
       insertAfterResponseId,
+      followUps: [],
     };
 
     setResponses(prev => [...prev, newResponse]);
@@ -189,6 +239,159 @@ export function useAuraAgent() {
     }
   }, []);
 
+  const askFollowUp = useCallback(async (responseId: string, question: string) => {
+    const trimmed = question.trim();
+    if (!trimmed) return;
+
+    const followUpId = generateFollowUpId();
+    const followUpKey = `followup:${responseId}:${followUpId}`;
+    const abortController = new AbortController();
+    abortControllersRef.current.set(followUpKey, abortController);
+
+    setResponses(prev =>
+      prev.map(r =>
+        r.id === responseId
+          ? {
+              ...r,
+              followUps: [
+                ...r.followUps,
+                {
+                  id: followUpId,
+                  question: trimmed,
+                  answer: "",
+                  loading: true,
+                  error: null,
+                  timestamp: Date.now(),
+                },
+              ],
+            }
+          : r
+      )
+    );
+
+    try {
+      const response = responses.find(r => r.id === responseId);
+      if (!response) throw new Error("Response not found");
+
+      const background = buildBackgroundInfo(response);
+      const prompt = `${background}Actual new question:\n${trimmed}`;
+
+      const resp = await fetch("http://localhost:8080/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, stream: true }),
+        signal: abortController.signal,
+      });
+
+      if (!resp.ok) {
+        const json = await resp.json().catch(() => null);
+        throw new Error(json?.error || `Agent request failed (${resp.status})`);
+      }
+
+      const contentType = resp.headers.get("content-type") || "";
+
+      if (contentType.includes("text/event-stream")) {
+        const reader = resp.body?.getReader();
+        if (!reader) throw new Error("No response body");
+
+        const decoder = new TextDecoder();
+        let fullText = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6);
+            try {
+              const event = JSON.parse(data);
+              if (event.done) {
+                fullText = event.output_text || fullText;
+              } else if (event.partial) {
+                fullText = event.partial;
+              }
+
+              setResponses(prev =>
+                prev.map(r =>
+                  r.id === responseId
+                    ? {
+                        ...r,
+                        followUps: r.followUps.map(fu =>
+                          fu.id === followUpId ? { ...fu, answer: fullText } : fu
+                        ),
+                      }
+                    : r
+                )
+              );
+            } catch {
+              // Ignore parse errors
+            }
+          }
+        }
+      } else {
+        const json = await resp.json();
+        const output = json.output_text || JSON.stringify(json);
+        setResponses(prev =>
+          prev.map(r =>
+            r.id === responseId
+              ? {
+                  ...r,
+                  followUps: r.followUps.map(fu =>
+                    fu.id === followUpId ? { ...fu, answer: output } : fu
+                  ),
+                }
+              : r
+          )
+        );
+      }
+
+      setResponses(prev =>
+        prev.map(r =>
+          r.id === responseId
+            ? {
+                ...r,
+                followUps: r.followUps.map(fu =>
+                  fu.id === followUpId ? { ...fu, loading: false } : fu
+                ),
+              }
+            : r
+        )
+      );
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setResponses(prev =>
+          prev.map(r =>
+            r.id === responseId
+              ? { ...r, followUps: r.followUps.filter(fu => fu.id !== followUpId) }
+              : r
+          )
+        );
+        return;
+      }
+
+      setResponses(prev =>
+        prev.map(r =>
+          r.id === responseId
+            ? {
+                ...r,
+                followUps: r.followUps.map(fu =>
+                  fu.id === followUpId
+                    ? { ...fu, loading: false, error: err instanceof Error ? err.message : String(err) }
+                    : fu
+                ),
+              }
+            : r
+        )
+      );
+    } finally {
+      abortControllersRef.current.delete(followUpKey);
+    }
+  }, [responses]);
+
   // Remove a single response
   const removeResponse = useCallback((responseId: string) => {
     // Cancel ongoing request if any
@@ -197,6 +400,14 @@ export function useAuraAgent() {
       controller.abort();
       abortControllersRef.current.delete(responseId);
     }
+
+    // Cancel follow-ups for this response
+    abortControllersRef.current.forEach((c, key) => {
+      if (key.startsWith(`followup:${responseId}:`)) {
+        c.abort();
+        abortControllersRef.current.delete(key);
+      }
+    });
     setResponses(prev => prev.filter(r => r.id !== responseId));
   }, []);
 
@@ -210,6 +421,12 @@ export function useAuraAgent() {
           controller.abort();
           abortControllersRef.current.delete(r.id);
         }
+        abortControllersRef.current.forEach((c, key) => {
+          if (key.startsWith(`followup:${r.id}:`)) {
+            c.abort();
+            abortControllersRef.current.delete(key);
+          }
+        });
       });
       return prev.filter(r => r.highlightId !== highlightId);
     });
@@ -226,6 +443,7 @@ export function useAuraAgent() {
   return {
     responses,
     queryAgent,
+    askFollowUp,
     removeResponse,
     removeResponseByHighlight,
     clearAllResponses,

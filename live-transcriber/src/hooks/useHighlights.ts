@@ -15,6 +15,7 @@ export interface Highlight {
     endGroupId: string;
     startOffset: number;
     endOffset: number;
+    groupIds?: string[];
   };
   timestamp: number;
 }
@@ -57,6 +58,91 @@ export function useHighlights() {
    * Erstellt ein Highlight direkt aus einem Range/Text.
    * Wird fA¬r das sofortige Auto-Highlighting beim MouseUp genutzt.
    */
+  const resolveSelection = useCallback((range: Range, container: HTMLElement) => {
+    const groupElements = Array.from(container.querySelectorAll("[data-group-id]")) as HTMLElement[];
+    if (groupElements.length === 0) return null;
+
+    // Robust: Start/End kann auf SPK/MIC-Label liegen, daher Intersection nutzen.
+    const intersecting = groupElements.filter((el) => {
+      try {
+        return range.intersectsNode(el);
+      } catch {
+        return false;
+      }
+    });
+
+    if (intersecting.length === 0) return null;
+
+    const startGroup = intersecting[0];
+    const endGroup = intersecting[intersecting.length - 1];
+
+    const startGroupId = startGroup.getAttribute("data-group-id");
+    const endGroupId = endGroup.getAttribute("data-group-id");
+    if (!startGroupId || !endGroupId) return null;
+
+    let startIndex = groupElements.indexOf(startGroup);
+    let endIndex = groupElements.indexOf(endGroup);
+    if (startIndex === -1 || endIndex === -1) return null;
+    if (startIndex > endIndex) [startIndex, endIndex] = [endIndex, startIndex];
+
+    const groupIds = groupElements
+      .slice(startIndex, endIndex + 1)
+      .map((el) => el.getAttribute("data-group-id"))
+      .filter((id): id is string => Boolean(id));
+
+    const startGroupText = startGroup.textContent || "";
+    const endGroupText = endGroup.textContent || "";
+
+    const computeOffsetWithinGroup = (groupEl: HTMLElement, boundaryNode: Node, boundaryOffset: number) => {
+      try {
+        const preRange = document.createRange();
+        preRange.setStart(groupEl, 0);
+        preRange.setEnd(boundaryNode, boundaryOffset);
+        return preRange.toString().length;
+      } catch {
+        return 0;
+      }
+    };
+
+    const startOffsetRaw = startGroup.contains(range.startContainer)
+      ? computeOffsetWithinGroup(startGroup, range.startContainer, range.startOffset)
+      : 0;
+
+    const endOffsetRaw = endGroup.contains(range.endContainer)
+      ? computeOffsetWithinGroup(endGroup, range.endContainer, range.endOffset)
+      : endGroupText.length;
+
+    const startOffset = Math.max(0, Math.min(startOffsetRaw, startGroupText.length));
+    const endOffset = Math.max(0, Math.min(endOffsetRaw, endGroupText.length));
+
+    let combined = "";
+    if (startGroupId === endGroupId) {
+      combined = startGroupText.slice(startOffset, endOffset);
+    } else {
+      const middleGroupElements = groupElements.slice(startIndex + 1, endIndex);
+      const parts = [
+        startGroupText.slice(startOffset),
+        ...middleGroupElements.map((el) => (el.textContent || "").trim()).filter(Boolean),
+        endGroupText.slice(0, endOffset),
+      ].filter(Boolean);
+      combined = parts.join(" ");
+    }
+
+    const normalizedText = combined.replace(/\\s+/g, " ").trim();
+    if (!normalizedText) return null;
+
+    return {
+      startGroup,
+      endGroup,
+      startGroupId,
+      endGroupId,
+      groupIds,
+      startOffset,
+      endOffset,
+      normalizedText,
+    };
+  }, []);
+
   const buildHighlightFromRange = useCallback((
     range: Range,
     text: string,
@@ -67,44 +153,25 @@ export function useHighlights() {
     if (!container.contains(range.commonAncestorContainer)) return null;
 
     // Hilfsfunktion: nächster data-group-id Vorfahre
-    const findGroup = (node: Node | null): HTMLElement | null => {
-      while (node) {
-        if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as HTMLElement;
-          if (el.hasAttribute('data-group-id')) {
-            return el;
-          }
-        }
-        node = node.parentNode;
-      }
-      return null;
-    };
-
-    const startGroup = findGroup(range.startContainer);
-    const endGroup = findGroup(range.endContainer);
-
-    if (!startGroup || !endGroup) {
-      console.warn("[buildHighlightFromRange] Could not find group element(s) with data-group-id!");
+    const info = resolveSelection(range, container);
+    if (!info) {
+      console.warn("[buildHighlightFromRange] Could not resolve selection to transcript group text!");
       return null;
     }
 
-    const startGroupId = startGroup.getAttribute('data-group-id')!;
-    const endGroupId = endGroup.getAttribute('data-group-id')!;
+    const { startGroupId, endGroupId, groupIds, startOffset, endOffset, normalizedText } = info;
 
     // Wenn gleiche Gruppe, wie bisher
     if (startGroupId === endGroupId) {
       const groupId = startGroupId;
       try {
-        const preRange = document.createRange();
-        preRange.setStart(startGroup, 0);
-        preRange.setEnd(range.startContainer, range.startOffset);
-        const localStartOffset = preRange.toString().length;
-        const localEndOffset = localStartOffset + text.length;
+        const localStartOffset = startOffset;
+        const localEndOffset = endOffset;
 
         const highlightColor = color || getNextColor();
         const highlight: Highlight = {
           id: generateId(),
-          text,
+          text: normalizedText,
           color: highlightColor,
           groupId,
           localStartOffset,
@@ -122,20 +189,10 @@ export function useHighlights() {
 
     // Multi-Group Highlight: speichere Spanne, damit wir beim Rendern splitten können
     try {
-      const preRangeStart = document.createRange();
-      preRangeStart.setStart(startGroup, 0);
-      preRangeStart.setEnd(range.startContainer, range.startOffset);
-      const startOffset = preRangeStart.toString().length;
-
-      const preRangeEnd = document.createRange();
-      preRangeEnd.setStart(endGroup, 0);
-      preRangeEnd.setEnd(range.endContainer, range.endOffset);
-      const endOffset = preRangeEnd.toString().length;
-
       const highlightColor = color || getNextColor();
       const highlight: Highlight = {
         id: generateId(),
-        text,
+        text: normalizedText,
         color: highlightColor,
         groupId: startGroupId,
         localStartOffset: startOffset,
@@ -145,6 +202,7 @@ export function useHighlights() {
           endGroupId,
           startOffset,
           endOffset,
+          groupIds,
         },
         timestamp: Date.now(),
       };
@@ -155,7 +213,7 @@ export function useHighlights() {
       console.warn("[buildHighlightFromRange] Could not calculate cross-group offsets:", e);
       return null;
     }
-  }, [getNextColor]);
+  }, [getNextColor, resolveSelection]);
 
   // Show context menu at selection position
   const showMenuAtSelection = useCallback((container: HTMLElement, opts?: {
@@ -171,7 +229,8 @@ export function useHighlights() {
     const range = opts?.range ?? (selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null);
     if (!range) return;
 
-    const text = opts?.selectedText ?? selection?.toString() ?? "";
+    const resolved = resolveSelection(range, container);
+    const text = opts?.selectedText ?? resolved?.normalizedText ?? selection?.toString() ?? "";
     if (!text) return;
 
     // Check if selection is within our container
@@ -196,7 +255,7 @@ export function useHighlights() {
     });
 
     containerRef.current = container;
-  }, []);
+  }, [resolveSelection]);
 
   // Hide menu
   const hideMenu = useCallback(() => {

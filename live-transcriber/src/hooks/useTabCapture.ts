@@ -32,9 +32,9 @@ export function useTabCapture(): TabCaptureResult {
       }
 
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          displaySurface: "browser",
-        } as MediaTrackConstraints,
+        // IMPORTANT: do not restrict to browser tabs only.
+        // Leaving `video` unconstrained lets the picker offer tabs, windows, and entire screen.
+        video: true,
         audio: {
           echoCancellation: false,
           noiseSuppression: false,
@@ -43,6 +43,7 @@ export function useTabCapture(): TabCaptureResult {
           suppressLocalAudioPlayback: false,
         },
         // @ts-ignore Chrome-specific
+        // Do NOT prefer the current tab; user should be able to choose any tab/window/screen.
         preferCurrentTab: false,
         // @ts-ignore Chrome-specific
         selfBrowserSurface: "include",

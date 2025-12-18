@@ -1,4 +1,7 @@
-import type { HighlightColor } from "../hooks/useHighlights";
+import { useMemo, useState } from "react";
+import { HighlightedText } from "./HighlightedText";
+import type { AuraFollowUp } from "../hooks/useAuraAgent";
+import type { Highlight, HighlightColor } from "../hooks/useHighlights";
 
 // Farben passend zu den Highlight-Klassen
 const colorMap: Record<HighlightColor, string> = {
@@ -216,29 +219,49 @@ function renderFormattedResult(result: string): React.ReactNode {
 interface AuraResponsePanelProps {
   id: string;
   sourceText: string;
+  taskLabel: string;
+  taskDetail?: string;
   color: HighlightColor;
   result: string | null;
   loading: boolean;
   error: string | null;
   statusNote?: string;
   onClose: (id: string) => void;
+  onAskFollowUp: (id: string, question: string) => void;
+  highlights: Highlight[];
+  sourceGroupId: string;
+  followUps: AuraFollowUp[];
 }
 
 export function AuraResponsePanel({
   id,
   sourceText,
+  taskLabel,
+  taskDetail,
   color,
   result,
   loading,
   error,
   statusNote,
   onClose,
+  onAskFollowUp,
+  highlights,
+  sourceGroupId,
+  followUps,
 }: AuraResponsePanelProps) {
   const borderColor = colorMap[color];
+  const [followUpText, setFollowUpText] = useState("");
+
+  const taskText = useMemo(() => {
+    return taskDetail ? `${taskLabel}: ${taskDetail}` : taskLabel;
+  }, [taskLabel, taskDetail]);
+
+  const anyFollowUpLoading = followUps.some((fu) => fu.loading);
 
   return (
     <div
       className="aura-response-panel"
+      data-response-id={id}
       style={{
         borderColor: borderColor,
         borderLeftColor: borderColor,
@@ -262,10 +285,21 @@ export function AuraResponsePanel({
       {/* Source Quote - kurz */}
       <div className="aura-source-quote">
         <span className="quote-mark" style={{ color: borderColor }}>"</span>
-        <span className="quote-text">
-          {sourceText.length > 60 ? sourceText.slice(0, 57) + "…" : sourceText}
+        <span className="quote-text" data-group-id={sourceGroupId}>
+          <HighlightedText text={sourceText} highlights={highlights} groupId={sourceGroupId} />
         </span>
         <span className="quote-mark" style={{ color: borderColor }}>"</span>
+      </div>
+
+      {/* Task */}
+      <div className="aura-task">
+        <div className="aura-task-head" style={{ color: borderColor }}>
+          <span className="aura-task-icon">⌁</span>
+          <span>Task</span>
+        </div>
+        <div className="aura-task-body" data-group-id={`aura-task-${id}`}>
+          <HighlightedText text={taskText} highlights={highlights} groupId={`aura-task-${id}`} />
+        </div>
       </div>
 
       {/* Content */}
@@ -295,6 +329,73 @@ export function AuraResponsePanel({
             Warte auf Antwort...
           </div>
         )}
+
+        {/* Follow-up Thread */}
+        {followUps.length > 0 && (
+          <div className="aura-followups">
+            {followUps.map((fu, idx) => (
+              <div key={fu.id} className="aura-followup">
+                <div className="aura-followup-q">
+                  <span className="aura-followup-badge">Q{idx + 1}</span>
+                  <span data-group-id={`aura-fu-q-${id}-${fu.id}`}>
+                    <HighlightedText
+                      text={fu.question}
+                      highlights={highlights}
+                      groupId={`aura-fu-q-${id}-${fu.id}`}
+                    />
+                  </span>
+                </div>
+                <div className="aura-followup-a">
+                  <span className="aura-followup-badge">A{idx + 1}</span>
+                  {fu.error ? (
+                    <span className="aura-followup-error">{fu.error}</span>
+                  ) : (
+                    <span data-group-id={`aura-fu-a-${id}-${fu.id}`}>
+                      <HighlightedText
+                        text={fu.answer || (fu.loading ? "Thinking..." : "")}
+                        highlights={highlights}
+                        groupId={`aura-fu-a-${id}-${fu.id}`}
+                      />
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Ask follow-up (right column only) */}
+        <div className="aura-followup-input">
+          <input
+            type="text"
+            value={followUpText}
+            placeholder="Ask a follow-up question about this context + Enter"
+            onChange={(e) => setFollowUpText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const q = followUpText.trim();
+                if (!q || anyFollowUpLoading) return;
+                onAskFollowUp(id, q);
+                setFollowUpText("");
+              }
+            }}
+            disabled={anyFollowUpLoading}
+          />
+          <button
+            className="aura-followup-btn"
+            onClick={() => {
+              const q = followUpText.trim();
+              if (!q || anyFollowUpLoading) return;
+              onAskFollowUp(id, q);
+              setFollowUpText("");
+            }}
+            disabled={anyFollowUpLoading || !followUpText.trim()}
+            title="Send follow-up"
+          >
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );

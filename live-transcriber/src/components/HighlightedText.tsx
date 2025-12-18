@@ -39,10 +39,10 @@ export const HighlightedText = memo(function HighlightedText({
       .filter(h => {
         if (h.groupId === groupId && h.span === undefined) return true;
         if (!h.span) return false;
-        return (
-          h.span.startGroupId === groupId ||
-          h.span.endGroupId === groupId
-        );
+        if (h.span.groupIds && h.span.groupIds.length > 0) {
+          return h.span.groupIds.includes(groupId);
+        }
+        return h.span.startGroupId === groupId || h.span.endGroupId === groupId;
       })
       .map(h => {
         // Auf diese Gruppe projizieren
@@ -71,7 +71,14 @@ export const HighlightedText = memo(function HighlightedText({
             localEndOffset: h.span.endOffset,
           };
         }
-        // Mittlere Gruppen (falls je später erweitert)
+        // Mittlere Gruppen: kompletter Text dieser Gruppe markieren
+        if (h.span.groupIds && h.span.groupIds.includes(groupId)) {
+          return {
+            ...h,
+            localStartOffset: 0,
+            localEndOffset: text.length,
+          };
+        }
         return null;
       })
       .filter((h): h is Highlight => h !== null)
