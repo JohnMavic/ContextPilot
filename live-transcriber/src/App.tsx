@@ -70,6 +70,7 @@ export default function App() {
   const [transcriptScrollTop, setTranscriptScrollTop] = useState(0);
   const [transcriptScrollHeight, setTranscriptScrollHeight] = useState(0);
   const [auraPanelHeights, setAuraPanelHeights] = useState<Record<string, number>>({});
+  const [dynamicAnchorTops, setDynamicAnchorTops] = useState<Record<string, number>>({});
   const [agentPanelWidth, setAgentPanelWidth] = useState(400); // Default doppelte Breite
   const [isResizing, setIsResizing] = useState(false);
   const [highlightMenuContainer, setHighlightMenuContainer] = useState<HTMLElement | null>(null);
@@ -1051,17 +1052,97 @@ ${customPrompt}`;
     return () => ro.disconnect();
   }, [auraResponses.length]);
 
+  // Dynamische anchorTop-Positionen (Highlight kann sich durch Re-Sortierung/Wrap/Resize verschieben).
+  // Wichtig: DOM-Messung NICHT in render() (useMemo) ausführen, sonst läuft es bei Streaming ständig.
+  const auraAnchorSignature = useMemo(() => {
+    return auraResponses.map((r) => `${r.id}:${r.highlightId}:${r.anchorTop}`).join("|");
+  }, [auraResponses]);
+
+  useLayoutEffect(() => {
+    const transcriptBox = transcriptBoxRef.current;
+    if (!transcriptBox) return;
+
+    let rafId: number | null = null;
+
+    const compute = () => {
+      rafId = null;
+      const containerRect = transcriptBox.getBoundingClientRect();
+      const next: Record<string, number> = {};
+
+      for (const response of auraResponses) {
+        const markEl = transcriptBox.querySelector(
+          `mark[data-highlight-id="${response.highlightId}"]`
+        ) as HTMLElement | null;
+
+        if (!markEl) {
+          next[response.id] = response.anchorTop;
+          continue;
+        }
+
+        const markRect = markEl.getBoundingClientRect();
+        next[response.id] = markRect.top - containerRect.top + transcriptBox.scrollTop;
+      }
+
+      setDynamicAnchorTops((prev) => {
+        const prevKeys = Object.keys(prev);
+        const nextKeys = Object.keys(next);
+        if (prevKeys.length !== nextKeys.length) return next;
+        for (const k of nextKeys) {
+          if (prev[k] !== next[k]) return next;
+        }
+        return prev;
+      });
+    };
+
+    const schedule = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(compute);
+    };
+
+    schedule();
+
+    const ro = new ResizeObserver(() => schedule());
+    ro.observe(transcriptBox);
+    window.addEventListener("resize", schedule);
+
+    return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      ro.disconnect();
+      window.removeEventListener("resize", schedule);
+    };
+  }, [auraAnchorSignature, groupedSegmentsWithOffsets.length, isTextFrozen, agentPanelWidth]);
+
+  // Berechne nicht-überlappende Positionen für AURA-Panels
+  // Sortiert nach anchorTop, dann werden überlappende Panels nach unten verschoben
+  const positionedAuraResponses = useMemo(() => {
+    if (auraResponses.length === 0) return [];
+    
+    // Verwende dynamische Positionen statt fester anchorTop
+    const withDynamicTops = auraResponses.map(r => ({
+      ...r,
+      currentAnchorTop: dynamicAnchorTops[r.id] ?? r.anchorTop
+    }));
+    
+    // Sortiere nach aktueller Position
+    const sorted = withDynamicTops.sort((a, b) => a.currentAnchorTop - b.currentAnchorTop);
+    
+    return sorted.map((response) => ({
+      ...response,
+      adjustedTop: response.currentAnchorTop,
+    }));
+  }, [auraResponses, dynamicAnchorTops]);
+
   const auraSpacerHeight = useMemo(() => {
     const baseHeight = transcriptScrollHeight || transcriptBoxRef.current?.scrollHeight || 0;
     let required = 0;
 
-    for (const r of auraResponses) {
+    for (const r of positionedAuraResponses) {
       const h = auraPanelHeights[r.id] ?? 0;
-      required = Math.max(required, r.anchorTop + h + 16);
+      required = Math.max(required, r.adjustedTop + h + 16);
     }
 
     return Math.max(baseHeight, required);
-  }, [auraResponses, auraPanelHeights, transcriptScrollHeight]);
+  }, [positionedAuraResponses, auraPanelHeights, transcriptScrollHeight]);
   
   const handleAskAuraFullTranscript = useCallback(() => {
     if (segments.length === 0) return;
@@ -1417,11 +1498,11 @@ ${customPrompt}`;
                       transform: `translateY(-${transcriptScrollTop}px)`,
                     }}
                   >
-                    {auraResponses.map((response) => (
+                    {positionedAuraResponses.map((response) => (
                       <div
                         key={response.id}
                         className="aura-response-positioner"
-                        style={{ top: response.anchorTop }}
+                        style={{ top: response.adjustedTop }}
                       >
                         <AuraResponsePanel
                           id={response.id}

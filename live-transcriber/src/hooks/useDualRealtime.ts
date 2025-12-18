@@ -844,40 +844,48 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
   // Update segments from edited text (nach Freeze-Mode Edit)
   const updateSegmentsFromEdit = useCallback((editedGroups: Map<string, string>) => {
     setSegments(prev => {
-      // Erstelle eine Map von groupId zu den zugehörigen Segment-Indizes
-      const groupToIndices = new Map<string, number[]>();
+      // WICHTIG: Sortiere Segmente nach Zeitstempel, genau wie groupedSegmentsWithOffsets in App.tsx
+      // Erstelle eine sortierte Kopie mit Original-Indizes
+      const sortedWithIndices = prev
+        .map((seg, originalIndex) => ({ seg, originalIndex }))
+        .sort((a, b) => a.seg.timestamp - b.seg.timestamp);
+      
+      // Erstelle eine Map von groupId zu den zugehörigen Original-Indizes
+      // Gruppierung basiert auf SORTIERTER Reihenfolge (wie in App.tsx)
+      const groupToOriginalIndices = new Map<string, number[]>();
       let groupIndex = 0;
-      let lastSource = '';
+      
       const PAUSE_THRESHOLD_MS = 3500;
       
-      for (let i = 0; i < prev.length; i++) {
-        const seg = prev[i];
-        const pauseSinceLast = i > 0 ? seg.timestamp - prev[i-1].timestamp : 0;
-        const sourceChanged = seg.source !== lastSource;
+      for (let i = 0; i < sortedWithIndices.length; i++) {
+        const { seg, originalIndex } = sortedWithIndices[i];
+        const lastItem = i > 0 ? sortedWithIndices[i - 1] : null;
+        const pauseSinceLast = lastItem ? seg.timestamp - lastItem.seg.timestamp : 0;
+        const sourceChanged = !lastItem || lastItem.seg.source !== seg.source;
         
-        if (sourceChanged || pauseSinceLast > PAUSE_THRESHOLD_MS || i === 0) {
+        // Gleiche Logik wie in groupedSegmentsWithOffsets (App.tsx)
+        if (sourceChanged || pauseSinceLast > PAUSE_THRESHOLD_MS) {
           groupIndex++;
-          lastSource = seg.source;
         }
         
         const groupId = `group-${groupIndex - 1}`;
-        if (!groupToIndices.has(groupId)) {
-          groupToIndices.set(groupId, []);
+        if (!groupToOriginalIndices.has(groupId)) {
+          groupToOriginalIndices.set(groupId, []);
         }
-        groupToIndices.get(groupId)!.push(i);
+        groupToOriginalIndices.get(groupId)!.push(originalIndex);
       }
       
-      // Wende die Edits an
+      // Wende die Edits an (auf Original-Indizes)
       const newSegments = [...prev];
       for (const [groupId, newText] of editedGroups) {
-        const indices = groupToIndices.get(groupId);
-        if (indices && indices.length > 0) {
+        const originalIndices = groupToOriginalIndices.get(groupId);
+        if (originalIndices && originalIndices.length > 0) {
           // Setze den neuen Text auf das erste Segment der Gruppe
           // und lösche den Text der anderen Segmente in der Gruppe
           const words = newText.trim().split(/\s+/);
-          const wordsPerSegment = Math.ceil(words.length / indices.length);
+          const wordsPerSegment = Math.ceil(words.length / originalIndices.length);
           
-          indices.forEach((segIndex, i) => {
+          originalIndices.forEach((segIndex, i) => {
             const startWord = i * wordsPerSegment;
             const segmentWords = words.slice(startWord, startWord + wordsPerSegment);
             newSegments[segIndex] = {

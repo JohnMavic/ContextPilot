@@ -31,7 +31,25 @@ export function DeviceSelector({
       
       // Jetzt Geräte mit Labels auflisten
       const list = await navigator.mediaDevices.enumerateDevices();
-      const audioInputs = list.filter((d) => d.kind === "audioinput");
+      let audioInputs = list.filter((d) => d.kind === "audioinput");
+      
+      // Entferne "Communications - X" Duplikate wenn "X" bereits existiert
+      // Windows erstellt für Bluetooth-Geräte oft beide Endpunkte
+      const nonCommDevices = audioInputs.filter(d => !d.label.startsWith("Communications - "));
+      const commDevices = audioInputs.filter(d => d.label.startsWith("Communications - "));
+      
+      // Behalte Communications-Gerät nur wenn kein äquivalentes Nicht-Comm-Gerät existiert
+      const filteredCommDevices = commDevices.filter(commDev => {
+        const baseName = commDev.label.replace("Communications - ", "");
+        // Prüfe ob es ein äquivalentes Gerät ohne "Communications" gibt
+        return !nonCommDevices.some(d => 
+          d.label === baseName || 
+          d.label.includes(baseName) || 
+          baseName.includes(d.label.split(" (")[0])
+        );
+      });
+      
+      audioInputs = [...nonCommDevices, ...filteredCommDevices];
       setDevices(audioInputs);
       
       // Finde das Default-Gerät (hat deviceId "default" oder ist das erste)
