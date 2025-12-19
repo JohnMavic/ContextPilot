@@ -7,7 +7,7 @@ import { HighlightMenu } from "./components/HighlightMenu";
 import { AuraResponsePanel } from "./components/AuraResponsePanel";
 import { InlineAgentResponse } from "./components/InlineAgentResponse";
 import type { SpeakerSource } from "./components/DeviceSelector";
-import { useDualRealtime, type TranscriptionProvider } from "./hooks/useDualRealtime";
+import { useDualRealtime, type TranscriptionProvider, type TranscriptSegment } from "./hooks/useDualRealtime";
 import { useTabCapture } from "./hooks/useTabCapture";
 import { useAuraAgent } from "./hooks/useAuraAgent";
 import { useHighlights, type HighlightColor } from "./hooks/useHighlights";
@@ -49,6 +49,71 @@ const TRANSCRIPTION_MODELS: TranscriptionModel[] = [
   },
 ];
 
+const GROUP_PAUSE_THRESHOLD_MS = 3500;
+const AURA_PANEL_GAP = 16;
+
+const normalizeGroupText = (value: string) => value.replace(/\s+/g, " ").trim();
+
+const buildGroupTextMap = (inputSegments: TranscriptSegment[]) => {
+  const sorted = [...inputSegments].sort((a, b) => a.timestamp - b.timestamp);
+  const groups: {
+    id: string;
+    source: string;
+    texts: string[];
+    lastTimestamp: number;
+  }[] = [];
+
+  let groupIndex = 0;
+
+  for (const seg of sorted) {
+    const lastGroup = groups[groups.length - 1];
+    const pauseSinceLast = lastGroup ? seg.timestamp - lastGroup.lastTimestamp : 0;
+    const sourceChanged = !lastGroup || lastGroup.source !== seg.source;
+
+    if (sourceChanged || pauseSinceLast > GROUP_PAUSE_THRESHOLD_MS) {
+      groups.push({
+        id: `group-${groupIndex++}`,
+        source: seg.source,
+        texts: [seg.text],
+        lastTimestamp: seg.timestamp,
+      });
+    } else {
+      lastGroup.texts.push(seg.text);
+      lastGroup.lastTimestamp = seg.timestamp;
+    }
+  }
+
+  const map = new Map<string, string>();
+  for (const group of groups) {
+    map.set(group.id, group.texts.join(" ").trim());
+  }
+  return map;
+};
+
+const mergeEditedWithBuffered = (
+  editedText: string,
+  frozenText: string,
+  currentText: string,
+) => {
+  const edited = normalizeGroupText(editedText);
+  const frozen = normalizeGroupText(frozenText);
+  const current = normalizeGroupText(currentText);
+
+  if (!current || current === frozen) {
+    return edited;
+  }
+
+  if (current.startsWith(frozen)) {
+    const tail = current.slice(frozen.length).trimStart();
+    if (!tail) return edited;
+    if (!edited) return tail;
+    if (edited.endsWith(tail)) return edited;
+    return `${edited} ${tail}`.trim();
+  }
+
+  return edited;
+};
+
 function statusLabel(status: string) {
   switch (status) {
     case "connecting":
@@ -81,6 +146,7 @@ export default function App() {
   const frozenSegmentsRef = useRef<typeof segments | null>(null);
   const frozenHtmlRef = useRef<string | null>(null); // HTML-Snapshot im Freeze-Modus (für Edit-Speicherung)
   const frozenHtmlSetRef = useRef(false); // Flag für Edit-Tracking
+  const frozenGroupTextRef = useRef<Map<string, string> | null>(null);
   
   // Agent selection state
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -272,6 +338,7 @@ export default function App() {
         frozenHtmlRef.current = transcriptBoxRef.current.innerHTML;
       }
       frozenSegmentsRef.current = [...segments];
+      frozenGroupTextRef.current = buildGroupTextMap(segments);
       setIsTextFrozen(true);
     }
   }, [isTextFrozen, segments]);
@@ -282,13 +349,24 @@ export default function App() {
       // Editierten Text aus dem DOM auslesen und in Segments speichern
       const editedGroups = new Map<string, string>();
       const groupElements = transcriptBoxRef.current.querySelectorAll('[data-group-id]');
+      const frozenGroupTexts = frozenGroupTextRef.current || new Map<string, string>();
+      const currentGroupTexts = buildGroupTextMap(segments);
       
       groupElements.forEach((el) => {
         const groupId = el.getAttribute('data-group-id');
-        if (groupId) {
-          // Nur den reinen Text (ohne Mark-Tags etc.)
-          const text = el.textContent || '';
-          editedGroups.set(groupId, text);
+        if (!groupId || !groupId.startsWith("group-")) return;
+
+        // Nur den reinen Text (ohne Mark-Tags etc.)
+        const text = normalizeGroupText(el.textContent || '');
+        const frozenText = frozenGroupTexts.get(groupId) || "";
+        const frozenNormalized = normalizeGroupText(frozenText);
+
+        if (text !== frozenNormalized) {
+          const currentText = currentGroupTexts.get(groupId) || "";
+          const mergedText = mergeEditedWithBuffered(text, frozenText, currentText);
+          if (mergedText !== frozenNormalized) {
+            editedGroups.set(groupId, mergedText);
+          }
         }
       });
       
@@ -299,10 +377,11 @@ export default function App() {
       
       frozenHtmlRef.current = null;
       frozenSegmentsRef.current = null;
+      frozenGroupTextRef.current = null;
       frozenHtmlSetRef.current = false; // Reset für nächsten Freeze
       setIsTextFrozen(false);
     }
-  }, [isTextFrozen, updateSegmentsFromEdit]);
+  }, [isTextFrozen, segments, updateSegmentsFromEdit]);
 
   // TEXT UNFREEZE OHNE EDIT-SPEICHERUNG: Für programmatische Aktionen (Delete, Copy, Agent-Query)
   // Diese Funktion überschreibt NICHT die segments - wichtig wenn deleteTextFromTranscript bereits aufgerufen wurde
@@ -310,6 +389,7 @@ export default function App() {
     if (isTextFrozen) {
       frozenHtmlRef.current = null;
       frozenSegmentsRef.current = null;
+      frozenGroupTextRef.current = null;
       frozenHtmlSetRef.current = false; // Reset für nächsten Freeze
       setIsTextFrozen(false);
     }
@@ -935,6 +1015,11 @@ ${customPrompt}`;
       speakerInput = speakerDeviceId;
     }
 
+    clearHighlights();
+    clearAuraResponses();
+    lastHighlightRef.current = null;
+    pendingHighlightIdRef.current = null;
+
     start(apiKeyFromEnv, micDeviceId, speakerInput);
   };
 
@@ -958,7 +1043,7 @@ ${customPrompt}`;
   );
 
   // Gruppiere ALLE Segmente (final + live): Neue Gruppe bei Speaker-Wechsel ODER lange Pause
-  const PAUSE_THRESHOLD_MS = 3500;
+  const PAUSE_THRESHOLD_MS = GROUP_PAUSE_THRESHOLD_MS;
   
   // Berechne gruppierte Segmente MIT eindeutiger ID für Highlight-Mapping
   const groupedSegmentsWithOffsets = useMemo(() => {
@@ -1126,11 +1211,20 @@ ${customPrompt}`;
     // Sortiere nach aktueller Position
     const sorted = withDynamicTops.sort((a, b) => a.currentAnchorTop - b.currentAnchorTop);
     
-    return sorted.map((response) => ({
-      ...response,
-      adjustedTop: response.currentAnchorTop,
-    }));
-  }, [auraResponses, dynamicAnchorTops]);
+    let lastBottom = -Infinity;
+    return sorted.map((response) => {
+      const panelHeight = auraPanelHeights[response.id] ?? 0;
+      const minTop = lastBottom === -Infinity
+        ? response.currentAnchorTop
+        : Math.max(response.currentAnchorTop, lastBottom + AURA_PANEL_GAP);
+      const adjustedTop = Math.max(0, minTop);
+      lastBottom = adjustedTop + panelHeight;
+      return {
+        ...response,
+        adjustedTop,
+      };
+    });
+  }, [auraResponses, dynamicAnchorTops, auraPanelHeights]);
 
   const auraSpacerHeight = useMemo(() => {
     const baseHeight = transcriptScrollHeight || transcriptBoxRef.current?.scrollHeight || 0;
@@ -1138,7 +1232,7 @@ ${customPrompt}`;
 
     for (const r of positionedAuraResponses) {
       const h = auraPanelHeights[r.id] ?? 0;
-      required = Math.max(required, r.adjustedTop + h + 16);
+      required = Math.max(required, r.adjustedTop + h + AURA_PANEL_GAP);
     }
 
     return Math.max(baseHeight, required);

@@ -13,33 +13,42 @@ const colorMap: Record<HighlightColor, string> = {
 };
 
 // Formatiert eine einzelne Zeile: Bold, Links, Quellenangaben, Sub-Tags
+const normalizeInlineTags = (value: string) =>
+  value
+    .replace(/&lt;(\/?)(small|sub)&gt;/gi, (_, slash, tag) => `<${slash}${String(tag).toLowerCase()}>`)
+    .replace(/<(\/?)(small|sub)>/gi, (_, slash, tag) => `<${slash}${String(tag).toLowerCase()}>`);
+
 function formatLine(text: string): React.ReactNode {
   const parts: React.ReactNode[] = [];
   let keyIndex = 0;
+  const normalizedText = normalizeInlineTags(text);
   
   // Regex für verschiedene Markdown-Elemente
   // Reihenfolge: Sub-Tags, Bold, Markdown-Links, Quellenangaben (【...】), Plain URLs
-  const combinedRegex = /(<sub>(.+?)<\/sub>)|(\*\*(.+?)\*\*)|(\[([^\]]+)\]\(([^)]+)\))|(【[^】]+】)|(https?:\/\/[^\s<>]+)/g;
+  const combinedRegex = /(<small>(.+?)<\/small>)|(<sub>(.+?)<\/sub>)|(\*\*(.+?)\*\*)|(\[([^\]]+)\]\(([^)]+)\))|(【[^】]+】)|(https?:\/\/[^\s<>]+)/g;
   
   let lastIndex = 0;
   let match;
   
-  while ((match = combinedRegex.exec(text)) !== null) {
+  while ((match = combinedRegex.exec(normalizedText)) !== null) {
     // Text vor dem Match
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      parts.push(normalizedText.slice(lastIndex, match.index));
     }
     
     if (match[1]) {
-      // <sub>...</sub> - match[2] ist der Text
-      parts.push(<sub key={keyIndex++} className="aura-sub">{match[2]}</sub>);
+      // <small>...</small> - match[2] ist der Text
+      parts.push(<small key={keyIndex++} className="aura-sub">{match[2]}</small>);
     } else if (match[3]) {
-      // **Bold** - match[4] ist der Text
-      parts.push(<strong key={keyIndex++}>{match[4]}</strong>);
+      // <sub>...</sub> - match[4] ist der Text
+      parts.push(<sub key={keyIndex++} className="aura-sub">{match[4]}</sub>);
     } else if (match[5]) {
-      // [text](url) - match[6] ist Text, match[7] ist URL
-      const linkText = match[6];
-      const linkUrl = match[7];
+      // **Bold** - match[6] ist der Text
+      parts.push(<strong key={keyIndex++}>{match[6]}</strong>);
+    } else if (match[7]) {
+      // [text](url) - match[8] ist Text, match[9] ist URL
+      const linkText = match[8];
+      const linkUrl = match[9];
       parts.push(
         <a 
           key={keyIndex++} 
@@ -56,16 +65,16 @@ function formatLine(text: string): React.ReactNode {
           {linkText}
         </a>
       );
-    } else if (match[8]) {
+    } else if (match[10]) {
       // 【Quellenangabe】 - als kleine Badge darstellen
       parts.push(
         <span key={keyIndex++} className="aura-source-badge">
-          {match[8]}
+          {match[10]}
         </span>
       );
-    } else if (match[9]) {
+    } else if (match[11]) {
       // Plain URL (https://...)
-      const plainUrl = match[9];
+      const plainUrl = match[11];
       parts.push(
         <a 
           key={keyIndex++} 
@@ -88,8 +97,8 @@ function formatLine(text: string): React.ReactNode {
   }
   
   // Rest anhängen
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+  if (lastIndex < normalizedText.length) {
+    parts.push(normalizedText.slice(lastIndex));
   }
   
   return parts.length > 0 ? parts : text;
@@ -136,7 +145,7 @@ function parseBulletLine(line: string): { bullet: string; text: string } {
 // Prüft ob eine Zeile eine eingerückte Sub-Zeile ist (gehört zum vorherigen Element)
 function isIndentedSubLine(line: string): boolean {
   // Zeile beginnt mit Leerzeichen und enthält <sub>
-  return /^\s+<sub>/.test(line);
+  return /^\s*<(sub|small)>/.test(line);
 }
 
 // Rendert den formatierten Result-Text

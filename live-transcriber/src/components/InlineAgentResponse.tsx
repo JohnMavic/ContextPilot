@@ -12,46 +12,38 @@ const colorMap: Record<HighlightColor, string> = {
 
 // Formatiert eine einzelne Zeile: Bold, Links, Quellenangaben, Sub-Tags
 // Rendert mit klickbaren Links und Markdown-Formatierung
+const normalizeInlineTags = (value: string) =>
+  value
+    .replace(/&lt;(\/?)(small|sub)&gt;/gi, (_, slash, tag) => `<${slash}${String(tag).toLowerCase()}>`)
+    .replace(/<(\/?)(small|sub)>/gi, (_, slash, tag) => `<${slash}${String(tag).toLowerCase()}>`);
+
 function formatLineWithLinks(text: string, keyPrefix: string = ""): React.ReactNode {
   const parts: React.ReactNode[] = [];
   let keyIndex = 0;
+  const normalizedText = normalizeInlineTags(text);
   
   // Regex für: <sub>, **bold**, [text](url), 【source】, plain URLs
-  const combinedRegex = /(<sub>(.+?)<\/sub>)|(\*\*(.+?)\*\*)|(\[([^\]]+)\]\(([^)]+)\))|(【[^】]+】)|(https?:\/\/[^\s<>]+)/g;
+  const combinedRegex = /(<small>(.+?)<\/small>)|(<sub>(.+?)<\/sub>)|(\*\*(.+?)\*\*)|(\[([^\]]+)\]\(([^)]+)\))|(【[^】]+】)|(https?:\/\/[^\s<>]+)/g;
   
   let lastIndex = 0;
   let match;
   
-  while ((match = combinedRegex.exec(text)) !== null) {
+  while ((match = combinedRegex.exec(normalizedText)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      parts.push(normalizedText.slice(lastIndex, match.index));
     }
     
     if (match[1]) {
-      // <sub>...</sub>
-      parts.push(<sub key={`${keyPrefix}-${keyIndex++}`} className="aura-sub">{match[2]}</sub>);
+      // <small>...</small>
+      parts.push(<small key={`${keyPrefix}-${keyIndex++}`} className="aura-sub">{match[2]}</small>);
     } else if (match[3]) {
-      // **Bold**
-      parts.push(<strong key={`${keyPrefix}-${keyIndex++}`}>{match[4]}</strong>);
+      // <sub>...</sub>
+      parts.push(<sub key={`${keyPrefix}-${keyIndex++}`} className="aura-sub">{match[4]}</sub>);
     } else if (match[5]) {
+      // **Bold**
+      parts.push(<strong key={`${keyPrefix}-${keyIndex++}`}>{match[6]}</strong>);
+    } else if (match[7]) {
       // [text](url) - Markdown Link
-      parts.push(
-        <a 
-          key={`${keyPrefix}-${keyIndex++}`} 
-          href={match[7]} 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          className="aura-link"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {match[6]}
-        </a>
-      );
-    } else if (match[8]) {
-      // 【Quellenangabe】
-      parts.push(<span key={`${keyPrefix}-${keyIndex++}`} className="aura-source-badge">{match[8]}</span>);
-    } else if (match[9]) {
-      // Plain URL (https://...)
       parts.push(
         <a 
           key={`${keyPrefix}-${keyIndex++}`} 
@@ -61,7 +53,24 @@ function formatLineWithLinks(text: string, keyPrefix: string = ""): React.ReactN
           className="aura-link"
           onClick={(e) => e.stopPropagation()}
         >
-          {match[9]}
+          {match[8]}
+        </a>
+      );
+    } else if (match[10]) {
+      // 【Quellenangabe】
+      parts.push(<span key={`${keyPrefix}-${keyIndex++}`} className="aura-source-badge">{match[10]}</span>);
+    } else if (match[11]) {
+      // Plain URL (https://...)
+      parts.push(
+        <a 
+          key={`${keyPrefix}-${keyIndex++}`} 
+          href={match[11]} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="aura-link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {match[11]}
         </a>
       );
     }
@@ -69,8 +78,8 @@ function formatLineWithLinks(text: string, keyPrefix: string = ""): React.ReactN
     lastIndex = match.index + match[0].length;
   }
   
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+  if (lastIndex < normalizedText.length) {
+    parts.push(normalizedText.slice(lastIndex));
   }
   
   return parts.length > 0 ? parts : text;
@@ -97,7 +106,7 @@ function parseBulletLine(line: string): { bullet: string; text: string } {
 }
 
 function isIndentedSubLine(line: string): boolean {
-  return /^\s+<sub>/.test(line) || /^\s+Source:/.test(line);
+  return /^\s*<(sub|small)>/.test(line) || /^\s+Source:/.test(line);
 }
 
 interface InlineAgentResponseProps {
