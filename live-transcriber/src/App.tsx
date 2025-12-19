@@ -395,6 +395,14 @@ export default function App() {
     }
   }, [isTextFrozen]);
 
+  const releaseFocus = useCallback(() => {
+    window.getSelection()?.removeAllRanges();
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body) {
+      active.blur?.();
+    }
+  }, []);
+
   // Globaler Click-Handler: Klick außerhalb des Textfeldes beendet Freeze-Modus
   useEffect(() => {
     if (!isTextFrozen) return;
@@ -939,29 +947,39 @@ ${customPrompt}`, useWebSearch);
     let text = menuState.selectedText;
     const highlightId = menuState.highlightId || lastHighlightRef.current?.id;
     
-    // Fallback 1: Text aus dem Highlight-Objekt holen
-    if (highlightId) {
+    
+    // Fallback 1: highlight object only when selection is missing
+    if (!text && highlightId) {
       const highlight = highlights.find(h => h.id === highlightId);
       if (highlight) {
         text = highlight.text;
       }
     }
-    
-    // Fallback 2: Text aus dem DOM-Mark-Element holen (aktuellster Stand)
-    if (highlightId) {
-      const markEl = document.querySelector(`mark[data-highlight-id="${highlightId}"]`);
-      if (markEl && markEl.textContent) {
-        // Nutze den DOM-Text als primäre Quelle wenn vorhanden
-        const markEls = document.querySelectorAll(`mark[data-highlight-id="${highlightId}"]`);
-        const joined = Array.from(markEls)
+
+    // Fallback 2: DOM markers (including overlaps) when still missing
+    if (!text && highlightId) {
+      const markEls = Array.from(
+        document.querySelectorAll("mark[data-highlight-id], mark[data-highlight-ids]")
+      ) as HTMLElement[];
+      const matched = markEls.filter((el) => {
+        const primaryId = el.getAttribute("data-highlight-id");
+        if (primaryId === highlightId) return true;
+        const ids = el.getAttribute("data-highlight-ids");
+        return ids ? ids.split(",").includes(highlightId) : false;
+      });
+
+      if (matched.length > 0) {
+        const joined = matched
           .map((el) => el.textContent || "")
           .join(" ")
-          .replace(/\\s+/g, " ")
+          .replace(/\s+/g, " ")
           .trim();
-        text = joined || markEl.textContent;
+        if (joined) {
+          text = joined;
+        }
       }
     }
-    
+
     if (!text) {
       console.warn("[Delete] No text to delete");
       return;
@@ -983,8 +1001,9 @@ ${customPrompt}`, useWebSearch);
 
     // Menü schließen und Highlight entfernen (kein Agent getriggert)
     handleCloseMenu();
-    unfreezeText(); // Text gelöscht - Freeze beenden
-  }, [menuState.selectedText, menuState.highlightId, highlights, deleteTextFromTranscript, removeResponseByHighlight, removeHighlight, handleCloseMenu, unfreezeText]);
+    unfreezeText(); // Text gel?scht - Freeze beenden
+    window.requestAnimationFrame(releaseFocus);
+  }, [menuState.selectedText, menuState.highlightId, highlights, deleteTextFromTranscript, removeResponseByHighlight, removeHighlight, handleCloseMenu, unfreezeText, releaseFocus]);
 
   // Handler für das Löschen einer Agent-Antwort - entfernt auch das zugehörige Highlight
   const handleRemoveAuraResponse = useCallback((responseId: string) => {
@@ -1005,6 +1024,8 @@ ${customPrompt}`, useWebSearch);
 
   // Start Handler - holt Tab Capture Stream wenn nötig
   const handleStart = async () => {
+    unfreezeText();
+    releaseFocus();
     let speakerInput: string | MediaStream | undefined;
 
     if (speakerSource === "tab") {
@@ -1159,18 +1180,36 @@ ${customPrompt}`, useWebSearch);
       const containerRect = transcriptBox.getBoundingClientRect();
       const next: Record<string, number> = {};
 
-      for (const response of auraResponses) {
-        const markEl = transcriptBox.querySelector(
-          `mark[data-highlight-id="${response.highlightId}"]`
-        ) as HTMLElement | null;
+      const highlightPositions = new Map<string, number>();
+      const markEls = Array.from(
+        transcriptBox.querySelectorAll("mark[data-highlight-id], mark[data-highlight-ids]")
+      ) as HTMLElement[];
 
-        if (!markEl) {
-          next[response.id] = response.anchorTop;
-          continue;
+      for (const markEl of markEls) {
+        const primaryId = markEl.getAttribute("data-highlight-id");
+        const idsAttr = markEl.getAttribute("data-highlight-ids");
+        const ids = new Set<string>();
+        if (primaryId) ids.add(primaryId);
+        if (idsAttr) {
+          idsAttr.split(",").forEach((id) => {
+            const trimmed = id.trim();
+            if (trimmed) ids.add(trimmed);
+          });
         }
+        if (ids.size === 0) continue;
 
-        const markRect = markEl.getBoundingClientRect();
-        next[response.id] = markRect.top - containerRect.top + transcriptBox.scrollTop;
+        const top = markEl.getBoundingClientRect().top - containerRect.top + transcriptBox.scrollTop;
+        for (const id of ids) {
+          const existing = highlightPositions.get(id);
+          if (existing === undefined || top < existing) {
+            highlightPositions.set(id, top);
+          }
+        }
+      }
+
+      for (const response of auraResponses) {
+        const highlightTop = highlightPositions.get(response.highlightId);
+        next[response.id] = highlightTop ?? response.anchorTop;
       }
 
       setDynamicAnchorTops((prev) => {
@@ -1193,11 +1232,18 @@ ${customPrompt}`, useWebSearch);
 
     const ro = new ResizeObserver(() => schedule());
     ro.observe(transcriptBox);
+    const mo = new MutationObserver(() => schedule());
+    mo.observe(transcriptBox, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
     window.addEventListener("resize", schedule);
 
     return () => {
       if (rafId !== null) window.cancelAnimationFrame(rafId);
       ro.disconnect();
+      mo.disconnect();
       window.removeEventListener("resize", schedule);
     };
   }, [auraAnchorSignature, groupedSegmentsWithOffsets.length, isTextFrozen, agentPanelWidth]);

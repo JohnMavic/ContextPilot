@@ -269,6 +269,7 @@ export function AuraResponsePanel({
   const borderColor = colorMap[color];
   const [followUpText, setFollowUpText] = useState("");
   const [followUpWebSearch, setFollowUpWebSearch] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const taskText = useMemo(() => {
     return taskDetail ? `${taskLabel}: ${taskDetail}` : taskLabel;
@@ -289,16 +290,28 @@ export function AuraResponsePanel({
           <span className="aura-icon">✨</span>
           <span>CONTEXT PILOT</span>
         </div>
-        <button 
-          className="aura-panel-btn aura-panel-close" 
-          onClick={() => onClose(id)}
-          title="Löschen"
-        >
-          ×
-        </button>
+        <div className="aura-panel-actions">
+          <button
+            className="aura-panel-btn aura-panel-collapse"
+            onClick={() => setIsCollapsed((prev) => !prev)}
+            title={isCollapsed ? "Expand" : "Collapse"}
+            aria-expanded={!isCollapsed}
+          >
+            {isCollapsed ? "+" : "–"}
+          </button>
+          <button 
+            className="aura-panel-btn aura-panel-close" 
+            onClick={() => onClose(id)}
+            title="Löschen"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
-      {/* Source Quote - kurz */}
+      {!isCollapsed && (
+        <div className="aura-panel-body">
+          {/* Source Quote - kurz */}
       <div className="aura-source-quote">
         <span className="quote-mark" style={{ color: borderColor }}>"</span>
         <span className="quote-text" data-group-id={sourceGroupId}>
@@ -393,13 +406,13 @@ export function AuraResponsePanel({
 
         {/* Ask follow-up (right column only) */}
         <div className="aura-followup-input">
-          <input
-            type="text"
+          <textarea
             value={followUpText}
-            placeholder="Ask a follow-up question about this context + Enter"
+            rows={2}
+            placeholder="Ask a follow-up question about this context + Ctrl+Enter"
             onChange={(e) => setFollowUpText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
                 const q = followUpText.trim();
                 if (!q) return;
@@ -431,6 +444,8 @@ export function AuraResponsePanel({
           </button>
         </div>
       </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1118,13 +1118,16 @@ pre {
   color: #fecaca;
 }
 
-.highlight-action-bar .action-custom input {
+.highlight-action-bar .action-custom input,
+.highlight-action-bar .action-custom textarea {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 6px;
   padding: 6px 10px;
   color: #e2e8f0;
   min-width: 200px;
+  line-height: 1.4;
+  font-family: inherit;
 }
 
 .websearch-toggle {
@@ -1142,9 +1145,15 @@ pre {
   accent-color: #60a5fa;
 }
 
-.highlight-action-bar .action-custom input:focus {
+.highlight-action-bar .action-custom input:focus,
+.highlight-action-bar .action-custom textarea:focus {
   outline: 2px solid rgba(255, 255, 255, 0.35);
   outline-offset: 1px;
+}
+
+.highlight-action-bar .action-custom textarea {
+  resize: vertical;
+  min-height: 32px;
 }
 
 /* Floating action button for highlights */
@@ -1324,6 +1333,12 @@ pre {
   font-weight: 600;
 }
 
+.aura-panel-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
 .aura-icon {
   font-size: 12px;
 }
@@ -1342,6 +1357,10 @@ pre {
   border-radius: 4px;
   transition: all 0.15s;
   margin-left: auto;
+}
+
+.aura-panel-actions .aura-panel-btn {
+  margin-left: 0;
 }
 
 .aura-panel-btn:hover {
@@ -1426,11 +1445,15 @@ pre {
   gap: 8px;
   font-size: 11px;
   line-height: 1.35;
+  align-items: flex-start;
 }
 
 .aura-followup-answer {
   flex: 1;
   min-width: 0;
+  font-size: 16.5px;
+  line-height: 1.5;
+  color: #e2e8f0;
 }
 
 .aura-followup-badge {
@@ -1459,7 +1482,8 @@ pre {
   align-items: center;
 }
 
-.aura-followup-input input {
+.aura-followup-input input,
+.aura-followup-input textarea {
   flex: 1;
   min-width: 0;
   padding: 8px 10px;
@@ -1468,12 +1492,20 @@ pre {
   background: rgba(2, 6, 23, 0.35);
   color: #e2e8f0;
   font-size: 12px;
+  line-height: 1.4;
+  font-family: inherit;
 }
 
-.aura-followup-input input:focus {
+.aura-followup-input input:focus,
+.aura-followup-input textarea:focus {
   outline: 2px solid rgba(59, 130, 246, 0.6);
   outline-offset: 1px;
   border-color: rgba(59, 130, 246, 0.6);
+}
+
+.aura-followup-input textarea {
+  resize: vertical;
+  min-height: 38px;
 }
 
 .aura-followup-btn {

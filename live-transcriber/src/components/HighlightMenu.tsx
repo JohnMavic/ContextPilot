@@ -165,13 +165,13 @@ export function HighlightMenu({
         </div>
         <div className="action-row action-row-custom">
           <div className="action-custom">
-            <input
-              type="text"
+            <textarea
               value={customPrompt}
-              placeholder="Custom instruction + Enter"
+              rows={2}
+              placeholder="Custom instruction + Ctrl+Enter"
               onChange={(e) => setCustomPrompt(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                   e.preventDefault();
                   handleCustomSubmit();
                 }
