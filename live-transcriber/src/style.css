@@ -1073,6 +1073,16 @@ pre {
   flex-wrap: wrap;
 }
 
+.highlight-action-bar .action-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.highlight-action-bar .action-row.action-row-custom {
+  flex-wrap: wrap;
+}
+
 .highlight-action-bar .action-btn {
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1115,6 +1125,21 @@ pre {
   padding: 6px 10px;
   color: #e2e8f0;
   min-width: 200px;
+}
+
+.websearch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.websearch-toggle input {
+  width: 12px;
+  height: 12px;
+  accent-color: #60a5fa;
 }
 
 .highlight-action-bar .action-custom input:focus {
@@ -1403,6 +1428,11 @@ pre {
   line-height: 1.35;
 }
 
+.aura-followup-answer {
+  flex: 1;
+  min-width: 0;
+}
+
 .aura-followup-badge {
   flex: 0 0 auto;
   font-size: 9px;
@@ -1426,6 +1456,7 @@ pre {
   margin-top: 10px;
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 .aura-followup-input input {
@@ -1619,6 +1650,34 @@ h5.aura-heading {
   color: #64748b;
   font-size: 11px;
   font-style: italic;
+}
+
+.aura-prompt {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.aura-prompt summary {
+  font-size: 10px;
+  color: #94a3b8;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+
+.aura-prompt pre {
+  margin: 6px 0 0 0;
+  font-size: 10px;
+  color: #cbd5f5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.aura-prompt-followup {
+  margin-left: 22px;
 }
 
 /* Responsive: Kleinere Panels bei weniger Platz */

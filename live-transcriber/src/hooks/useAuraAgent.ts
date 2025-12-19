@@ -8,6 +8,7 @@ export interface AuraFollowUp {
   loading: boolean;
   error: string | null;
   timestamp: number;
+  prompt: string;
 }
 
 export interface AuraResponse {
@@ -23,6 +24,7 @@ export interface AuraResponse {
   error: string | null;
   anchorTop: number;       // Y-Position des zugehörigen Highlights
   statusNote?: string;     // z.B. Rate-Limit Hinweis
+  prompt: string;
   // NEU: Position im Transkript für Inline-Darstellung
   sourceGroupId: string;   // GroupId wo das Highlight liegt
   insertAfterResponseId?: string; // Falls in einer Response markiert wurde
@@ -104,6 +106,7 @@ export function useAuraAgent() {
       error: null,
       anchorTop,
       statusNote: undefined,
+      prompt,
       sourceGroupId,
       insertAfterResponseId,
       followUps: [],
@@ -239,7 +242,11 @@ export function useAuraAgent() {
     }
   }, []);
 
-  const askFollowUp = useCallback(async (responseId: string, question: string) => {
+  const askFollowUp = useCallback(async (
+    responseId: string,
+    question: string,
+    options?: { webSearch?: boolean },
+  ) => {
     const trimmed = question.trim();
     if (!trimmed) return;
 
@@ -248,33 +255,35 @@ export function useAuraAgent() {
     const abortController = new AbortController();
     abortControllersRef.current.set(followUpKey, abortController);
 
-    setResponses(prev =>
-      prev.map(r =>
-        r.id === responseId
-          ? {
-              ...r,
-              followUps: [
-                ...r.followUps,
-                {
-                  id: followUpId,
-                  question: trimmed,
-                  answer: "",
-                  loading: true,
-                  error: null,
-                  timestamp: Date.now(),
-                },
-              ],
-            }
-          : r
-      )
-    );
-
     try {
       const response = responses.find(r => r.id === responseId);
       if (!response) throw new Error("Response not found");
 
       const background = buildBackgroundInfo(response);
-      const prompt = `${background}Actual new question:\n${trimmed}`;
+      const basePrompt = `${background}Actual new question:\n${trimmed}`;
+      const prompt = options?.webSearch ? `${basePrompt}\n\nPerform a web search.` : basePrompt;
+
+      setResponses(prev =>
+        prev.map(r =>
+          r.id === responseId
+            ? {
+                ...r,
+                followUps: [
+                  ...r.followUps,
+                  {
+                    id: followUpId,
+                    question: trimmed,
+                    answer: "",
+                    loading: true,
+                    error: null,
+                    timestamp: Date.now(),
+                    prompt,
+                  },
+                ],
+              }
+            : r
+        )
+      );
 
       const resp = await fetch("http://localhost:8080/agent", {
         method: "POST",

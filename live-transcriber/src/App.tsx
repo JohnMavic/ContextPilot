@@ -689,17 +689,22 @@ export default function App() {
     return snapshot;
   }, [createHighlight, menuState.y, highlightMenuContainer]);
 
+  const withWebSearchInstruction = useCallback((prompt: string, useWebSearch: boolean) => {
+    if (!useWebSearch) return prompt;
+    return `${prompt}\n\nPerform a web search.`;
+  }, []);
+
   // Kombinierter Handler: Highlight erstellen UND Expand-Query starten
-  const handleHighlightAndExpand = useCallback(() => {
+  const handleHighlightAndExpand = useCallback((useWebSearch: boolean) => {
     const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
     
     // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
     pendingHighlightIdRef.current = null;
     
-    const prompt = `Context: "${highlight.text}"
+    const prompt = withWebSearchInstruction(`Context: "${highlight.text}"
 
-Give me 3-5 bullet points with key facts I can use in conversation. Short, precise, no fluff.`;
+Give me 3-5 bullet points with key facts I can use in conversation. Short, precise, no fluff.`, useWebSearch);
     
     queryAgent(
       prompt, 
@@ -714,19 +719,19 @@ Give me 3-5 bullet points with key facts I can use in conversation. Short, preci
     );
     hideMenu();
     unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
-  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu, unfreezeText]);
+  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText]);
 
   // Kombinierter Handler: Highlight erstellen UND Facts-Query starten
-  const handleHighlightAndFacts = useCallback(() => {
+  const handleHighlightAndFacts = useCallback((useWebSearch: boolean) => {
     const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
     
     // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
     pendingHighlightIdRef.current = null;
     
-    const prompt = `Context: "${highlight.text}"
+    const prompt = withWebSearchInstruction(`Context: "${highlight.text}"
 
-Find 2-3 similar deal examples from Microsoft Switzerland in your index. One line each, max. Focus on facts such as contract scope, number of users, etc.`;
+Find 2-3 similar deal examples from Microsoft Switzerland in your index. One line each, max. Focus on facts such as contract scope, number of users, etc.`, useWebSearch);
     
     queryAgent(
       prompt, 
@@ -741,19 +746,19 @@ Find 2-3 similar deal examples from Microsoft Switzerland in your index. One lin
     );
     hideMenu();
     unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
-  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu, unfreezeText]);
+  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText]);
 
   // Custom Prompt Handler (Enter im Textfeld)
-  const handleCustomPrompt = useCallback((customPrompt: string) => {
+  const handleCustomPrompt = useCallback((customPrompt: string, useWebSearch: boolean) => {
     const highlight = getCurrentHighlightSnapshot();
     if (!highlight) return;
 
     // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
     pendingHighlightIdRef.current = null;
 
-    const prompt = `Context: "${highlight.text}"
+    const prompt = withWebSearchInstruction(`Context: "${highlight.text}"
 
-${customPrompt}`;
+${customPrompt}`, useWebSearch);
 
     queryAgent(
       prompt, 
@@ -769,7 +774,7 @@ ${customPrompt}`;
     );
     hideMenu();
     unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
-  }, [getCurrentHighlightSnapshot, queryAgent, hideMenu, unfreezeText]);
+  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText]);
 
   // Handler für das Schließen des Menüs - entfernt auch das pending Highlight
   const handleCloseMenu = useCallback(() => {
@@ -1520,6 +1525,7 @@ ${customPrompt}`;
                             responseId={response.id}
                             taskLabel={response.taskLabel}
                             taskDetail={response.taskDetail}
+                            prompt={response.prompt}
                             result={response.result}
                             loading={response.loading}
                             error={response.error}
@@ -1534,6 +1540,7 @@ ${customPrompt}`;
                               responseId={chainedResponse.id}
                               taskLabel={chainedResponse.taskLabel}
                               taskDetail={chainedResponse.taskDetail}
+                              prompt={chainedResponse.prompt}
                               result={chainedResponse.result}
                               loading={chainedResponse.loading}
                               error={chainedResponse.error}
@@ -1562,7 +1569,6 @@ ${customPrompt}`;
                   onExpand={handleHighlightAndExpand}
                   onFacts={handleHighlightAndFacts}
                   onCustomPrompt={handleCustomPrompt}
-                  isLoading={anyAuraLoading}
                   disableDelete={disableDeleteInMenu}
                 />,
                 highlightMenuContainer
@@ -1608,6 +1614,7 @@ ${customPrompt}`;
                           loading={response.loading}
                           error={response.error}
                           statusNote={response.statusNote}
+                          prompt={response.prompt}
                           onClose={handleRemoveAuraResponse}
                           onAskFollowUp={askFollowUp}
                           highlights={highlights}
@@ -1644,7 +1651,7 @@ ${customPrompt}`;
             <button
               className="btn-ghost"
               onClick={handleAskAuraFullTranscript}
-              disabled={segments.length === 0 || anyAuraLoading}
+              disabled={segments.length === 0}
               style={{ marginTop: 8 }}
             >
               {anyAuraLoading ? "Asking AURA..." : "Ask AURA: Analyze full transcript"}

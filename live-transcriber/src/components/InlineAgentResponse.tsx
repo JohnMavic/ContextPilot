@@ -35,10 +35,10 @@ function formatLineWithLinks(text: string, keyPrefix: string = ""): React.ReactN
     
     if (match[1]) {
       // <small>...</small>
-      parts.push(<small key={`${keyPrefix}-${keyIndex++}`} className="aura-sub">{match[2]}</small>);
+      parts.push(<small key={`${keyPrefix}-${keyIndex++}`} className="aura-sub">{formatLineWithLinks(match[2], `${keyPrefix}-s-${keyIndex}`)}</small>);
     } else if (match[3]) {
       // <sub>...</sub>
-      parts.push(<sub key={`${keyPrefix}-${keyIndex++}`} className="aura-sub">{match[4]}</sub>);
+      parts.push(<sub key={`${keyPrefix}-${keyIndex++}`} className="aura-sub">{formatLineWithLinks(match[4], `${keyPrefix}-u-${keyIndex}`)}</sub>);
     } else if (match[5]) {
       // **Bold**
       parts.push(<strong key={`${keyPrefix}-${keyIndex++}`}>{match[6]}</strong>);
@@ -113,6 +113,7 @@ interface InlineAgentResponseProps {
   responseId: string;
   taskLabel: string;
   taskDetail?: string;
+  prompt: string;
   result: string | null;
   loading: boolean;
   error: string | null;
@@ -125,6 +126,7 @@ export function InlineAgentResponse({
   responseId,
   taskLabel,
   taskDetail,
+  prompt,
   result,
   loading,
   error,
@@ -277,6 +279,12 @@ export function InlineAgentResponse({
           <div className="inline-response-result">
             {renderFormattedResult(result)}
           </div>
+        )}
+        {prompt && (
+          <details className="aura-prompt">
+            <summary>Prompt</summary>
+            <pre>{prompt}</pre>
+          </details>
         )}
       </div>
     </div>

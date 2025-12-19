@@ -10,9 +10,9 @@ interface HighlightMenuProps {
   onClose: () => void;
   onCopy: () => void;
   onDelete: () => void;
-  onExpand: () => void;
-  onFacts: () => void;
-  onCustomPrompt: (prompt: string) => void;
+  onExpand: (useWebSearch: boolean) => void;
+  onFacts: (useWebSearch: boolean) => void;
+  onCustomPrompt: (prompt: string, useWebSearch: boolean) => void;
   isLoading?: boolean;
   disableDelete?: boolean;
 }
@@ -46,11 +46,14 @@ export function HighlightMenu({
   onExpand,
   onFacts,
   onCustomPrompt,
-  isLoading,
+  isLoading: _isLoading,
   disableDelete,
 }: HighlightMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [customPrompt, setCustomPrompt] = useState("");
+  const [webSearchExpand, setWebSearchExpand] = useState(true);
+  const [webSearchFacts, setWebSearchFacts] = useState(true);
+  const [webSearchCustom, setWebSearchCustom] = useState(true);
 
   const barColor = highlightColor ? colorHexMap[highlightColor] : "#60a5fa";
   const barBackground = useMemo(() => hexToRgba(barColor, 0.4), [barColor]);
@@ -87,14 +90,17 @@ export function HighlightMenu({
   useEffect(() => {
     if (visible) {
       setCustomPrompt("");
+      setWebSearchExpand(true);
+      setWebSearchFacts(true);
+      setWebSearchCustom(true);
     }
   }, [visible]);
 
   if (!visible) return null;
 
   const handleCustomSubmit = () => {
-    if (!customPrompt.trim() || isLoading) return;
-    onCustomPrompt(customPrompt.trim());
+    if (!customPrompt.trim()) return;
+    onCustomPrompt(customPrompt.trim(), webSearchCustom);
   };
 
   return (
@@ -125,34 +131,61 @@ export function HighlightMenu({
         >
           🗑️ Delete
         </button>
-        <button
-          className="action-btn"
-          onClick={onExpand}
-          disabled={isLoading}
-        >
-          Show more details
-        </button>
-        <button
-          className="action-btn"
-          onClick={onFacts}
-          disabled={isLoading}
-        >
-          Find similar examples
-        </button>
-        <div className="action-custom">
-          <input
-            type="text"
-            value={customPrompt}
-            placeholder="Custom instruction + Enter"
-            onChange={(e) => setCustomPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleCustomSubmit();
-              }
-            }}
-            disabled={isLoading}
-          />
+        <div className="action-row">
+          <button
+            className="action-btn"
+            onClick={() => onExpand(webSearchExpand)}
+          >
+            Show more details
+          </button>
+          <label className="websearch-toggle">
+            <input
+              type="checkbox"
+              checked={webSearchExpand}
+              onChange={(e) => setWebSearchExpand(e.target.checked)}
+            />
+            <span>Web Search</span>
+          </label>
+        </div>
+        <div className="action-row">
+          <button
+            className="action-btn"
+            onClick={() => onFacts(webSearchFacts)}
+          >
+            Find similar examples
+          </button>
+          <label className="websearch-toggle">
+            <input
+              type="checkbox"
+              checked={webSearchFacts}
+              onChange={(e) => setWebSearchFacts(e.target.checked)}
+            />
+            <span>Web Search</span>
+          </label>
+        </div>
+        <div className="action-row action-row-custom">
+          <div className="action-custom">
+            <input
+              type="text"
+              value={customPrompt}
+              placeholder="Custom instruction + Enter"
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleCustomSubmit();
+                }
+              }}
+            />
+          </div>
+          <label className="websearch-toggle">
+            <input
+              type="checkbox"
+              checked={webSearchCustom}
+              onChange={(e) => setWebSearchCustom(e.target.checked)}
+            />
+            <span>Web Search</span>
+          </label>
         </div>
       </div>
     </div>

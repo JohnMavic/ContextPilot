@@ -38,10 +38,10 @@ function formatLine(text: string): React.ReactNode {
     
     if (match[1]) {
       // <small>...</small> - match[2] ist der Text
-      parts.push(<small key={keyIndex++} className="aura-sub">{match[2]}</small>);
+      parts.push(<small key={keyIndex++} className="aura-sub">{formatLine(match[2])}</small>);
     } else if (match[3]) {
       // <sub>...</sub> - match[4] ist der Text
-      parts.push(<sub key={keyIndex++} className="aura-sub">{match[4]}</sub>);
+      parts.push(<sub key={keyIndex++} className="aura-sub">{formatLine(match[4])}</sub>);
     } else if (match[5]) {
       // **Bold** - match[6] ist der Text
       parts.push(<strong key={keyIndex++}>{match[6]}</strong>);
@@ -149,7 +149,7 @@ function isIndentedSubLine(line: string): boolean {
 }
 
 // Rendert den formatierten Result-Text
-function renderFormattedResult(result: string): React.ReactNode {
+function renderFormattedResult(result: string, groupId: string): React.ReactNode {
   const lines = result.split("\n");
   const elements: React.ReactNode[] = [];
   
@@ -197,7 +197,9 @@ function renderFormattedResult(result: string): React.ReactNode {
       const HeadingTag = `h${(block.headingLevel || 1) + 2}` as keyof JSX.IntrinsicElements;
       elements.push(
         <HeadingTag key={i} className="aura-heading">
-          {formatLine(block.lines[0])}
+          <span data-group-id={groupId}>
+            {formatLine(block.lines[0])}
+          </span>
         </HeadingTag>
       );
     } else if (block.type === "bullet") {
@@ -205,18 +207,22 @@ function renderFormattedResult(result: string): React.ReactNode {
         <div key={i} className="aura-bullet-item">
           <span className="bullet-marker">{block.bullet}</span>
           <span className="bullet-text">
-            {block.lines.map((l, j) => (
-              <span key={j}>{formatLine(l)}</span>
-            ))}
+            <span data-group-id={groupId}>
+              {block.lines.map((l, j) => (
+                <span key={j}>{formatLine(l)}</span>
+              ))}
+            </span>
           </span>
         </div>
       );
     } else {
       elements.push(
         <p key={i} className="aura-paragraph">
-          {block.lines.map((l, j) => (
-            <span key={j}>{formatLine(l)}</span>
-          ))}
+          <span data-group-id={groupId}>
+            {block.lines.map((l, j) => (
+              <span key={j}>{formatLine(l)}</span>
+            ))}
+          </span>
         </p>
       );
     }
@@ -235,8 +241,9 @@ interface AuraResponsePanelProps {
   loading: boolean;
   error: string | null;
   statusNote?: string;
+  prompt: string;
   onClose: (id: string) => void;
-  onAskFollowUp: (id: string, question: string) => void;
+  onAskFollowUp: (id: string, question: string, options?: { webSearch?: boolean }) => void;
   highlights: Highlight[];
   sourceGroupId: string;
   followUps: AuraFollowUp[];
@@ -252,6 +259,7 @@ export function AuraResponsePanel({
   loading,
   error,
   statusNote,
+  prompt,
   onClose,
   onAskFollowUp,
   highlights,
@@ -260,12 +268,11 @@ export function AuraResponsePanel({
 }: AuraResponsePanelProps) {
   const borderColor = colorMap[color];
   const [followUpText, setFollowUpText] = useState("");
+  const [followUpWebSearch, setFollowUpWebSearch] = useState(true);
 
   const taskText = useMemo(() => {
     return taskDetail ? `${taskLabel}: ${taskDetail}` : taskLabel;
   }, [taskLabel, taskDetail]);
-
-  const anyFollowUpLoading = followUps.some((fu) => fu.loading);
 
   return (
     <div
@@ -313,6 +320,12 @@ export function AuraResponsePanel({
 
       {/* Content */}
       <div className="aura-panel-content">
+        {prompt && (
+          <details className="aura-prompt">
+            <summary>Prompt</summary>
+            <pre>{prompt}</pre>
+          </details>
+        )}
         {loading && (
           <div className="aura-loading">
             <span className="aura-spinner" style={{ color: borderColor }}>◌</span>
@@ -329,7 +342,7 @@ export function AuraResponsePanel({
         
         {!loading && !error && result && (
           <div className="aura-result">
-            {renderFormattedResult(result)}
+            {renderFormattedResult(result, `aura-result-${id}`)}
           </div>
         )}
         
@@ -359,15 +372,20 @@ export function AuraResponsePanel({
                   {fu.error ? (
                     <span className="aura-followup-error">{fu.error}</span>
                   ) : (
-                    <span data-group-id={`aura-fu-a-${id}-${fu.id}`}>
-                      <HighlightedText
-                        text={fu.answer || (fu.loading ? "Thinking..." : "")}
-                        highlights={highlights}
-                        groupId={`aura-fu-a-${id}-${fu.id}`}
-                      />
-                    </span>
+                    <div className="aura-followup-answer">
+                      {renderFormattedResult(
+                        fu.answer || (fu.loading ? "Thinking..." : ""),
+                        `aura-fu-a-${id}-${fu.id}`,
+                      )}
+                    </div>
                   )}
                 </div>
+                {fu.prompt && (
+                  <details className="aura-prompt aura-prompt-followup">
+                    <summary>Prompt</summary>
+                    <pre>{fu.prompt}</pre>
+                  </details>
+                )}
               </div>
             ))}
           </div>
@@ -384,22 +402,29 @@ export function AuraResponsePanel({
               if (e.key === "Enter") {
                 e.preventDefault();
                 const q = followUpText.trim();
-                if (!q || anyFollowUpLoading) return;
-                onAskFollowUp(id, q);
+                if (!q) return;
+                onAskFollowUp(id, q, { webSearch: followUpWebSearch });
                 setFollowUpText("");
               }
             }}
-            disabled={anyFollowUpLoading}
           />
+          <label className="websearch-toggle">
+            <input
+              type="checkbox"
+              checked={followUpWebSearch}
+              onChange={(e) => setFollowUpWebSearch(e.target.checked)}
+            />
+            <span>Web Search</span>
+          </label>
           <button
             className="aura-followup-btn"
             onClick={() => {
               const q = followUpText.trim();
-              if (!q || anyFollowUpLoading) return;
-              onAskFollowUp(id, q);
+              if (!q) return;
+              onAskFollowUp(id, q, { webSearch: followUpWebSearch });
               setFollowUpText("");
             }}
-            disabled={anyFollowUpLoading || !followUpText.trim()}
+            disabled={!followUpText.trim()}
             title="Send follow-up"
           >
             Send
