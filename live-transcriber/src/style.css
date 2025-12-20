@@ -21,20 +21,22 @@ body {
     radial-gradient(circle at 80% 0%, #1b2c5a, transparent 30%),
     #0b1021;
   color: #e2e8f0;
+  overflow: hidden;
 }
 
 #app {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .layout {
   width: 100%;
-  min-height: 100vh;
+  height: 100vh;
   margin: 0;
   padding: 32px 24px 48px;
   display: grid;
   grid-template-columns: 280px 1fr;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -47,6 +49,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .layout > .sidebar {
@@ -56,6 +60,55 @@ body {
   flex-direction: column;
   gap: 12px;
   width: 280px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* =========================================
+   Themed scrollbars (Sidebar + Main)
+   ========================================= */
+
+.layout > .sidebar,
+.layout > .main-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(125, 211, 252, 0.55) rgba(15, 23, 42, 0.35);
+}
+
+.layout > .sidebar::-webkit-scrollbar,
+.layout > .main-content::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.layout > .sidebar::-webkit-scrollbar-track,
+.layout > .main-content::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.35);
+  border-radius: 999px;
+}
+
+.layout > .sidebar::-webkit-scrollbar-thumb,
+.layout > .main-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(125, 211, 252, 0.55),
+    rgba(96, 165, 250, 0.45)
+  );
+  border-radius: 999px;
+  border: 3px solid rgba(15, 23, 42, 0.35);
+}
+
+.layout > .sidebar::-webkit-scrollbar-thumb:hover,
+.layout > .main-content::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(125, 211, 252, 0.75),
+    rgba(96, 165, 250, 0.65)
+  );
+}
+
+.layout > .sidebar::-webkit-scrollbar-corner,
+.layout > .main-content::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 header {
@@ -1273,6 +1326,23 @@ pre {
   padding-left: 8px;
   position: relative;
   overflow: hidden;
+}
+
+.aura-responses-toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.aura-clear-all-btn {
+  pointer-events: auto;
+  font-size: 11px;
+  padding: 4px 8px;
+  line-height: 1.1;
 }
 
 /* Verstecken wenn keine Responses */

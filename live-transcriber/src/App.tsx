@@ -163,6 +163,7 @@ export default function App() {
   const frozenHtmlSetRef = useRef(false); // Flag für Edit-Tracking
   const frozenGroupTextRef = useRef<Map<string, string> | null>(null);
   const groupedSegmentsRef = useRef<TranscriptGroup[]>([]);
+  const skipNextFreezeSaveRef = useRef(false);
   
   // Agent selection state
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -424,6 +425,10 @@ export default function App() {
     if (!isTextFrozen) return;
 
     const handleGlobalClick = (e: MouseEvent) => {
+      if (skipNextFreezeSaveRef.current) {
+        skipNextFreezeSaveRef.current = false;
+        return;
+      }
       const target = e.target as HTMLElement;
       const transcriptBox = transcriptBoxRef.current;
       
@@ -1336,13 +1341,32 @@ ${customPrompt}`, useWebSearch);
 
   // Clear highlights when clearing transcript
   const handleClear = useCallback(() => {
+    skipNextFreezeSaveRef.current = isTextFrozen;
+    hideMenu();
+    unfreezeText();
     resetTranscript();
     clearErrors();
     clearHighlights();
     clearAuraResponses();
     setGroupCloseTimestamps({});
     lastHighlightRef.current = null;
-  }, [resetTranscript, clearErrors, clearHighlights, clearAuraResponses, setGroupCloseTimestamps]);
+    pendingHighlightIdRef.current = null;
+  }, [resetTranscript, clearErrors, clearHighlights, clearAuraResponses, setGroupCloseTimestamps, hideMenu, unfreezeText, isTextFrozen]);
+
+  const handleClearAuraResponses = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    hideMenu();
+    clearAuraResponses();
+  }, [clearAuraResponses, hideMenu]);
+
+  const handleClearHighlightsAndResponses = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    hideMenu();
+    clearHighlights();
+    clearAuraResponses();
+    lastHighlightRef.current = null;
+    pendingHighlightIdRef.current = null;
+  }, [clearHighlights, clearAuraResponses, hideMenu]);
 
   return (
     <div className="layout">
@@ -1675,6 +1699,15 @@ ${customPrompt}`, useWebSearch);
                   onClick={handleAuraPanelHighlightClick}
                   onContextMenu={handleAuraPanelContextMenu}
                 >
+                  <div className="aura-responses-toolbar">
+                    <button
+                      className="btn-ghost aura-clear-all-btn"
+                      onClick={handleClearAuraResponses}
+                      title="Clear all Context Pilot windows"
+                    >
+                      Clear all
+                    </button>
+                  </div>
                   <div
                     className="aura-responses-spacer"
                     style={{
@@ -1717,7 +1750,7 @@ ${customPrompt}`, useWebSearch);
           {highlights.length > 0 && (
             <div className="highlights-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0" }}>
               <span className="muted">{highlights.length} highlight{highlights.length !== 1 ? 's' : ''}</span>
-              <button className="btn-ghost" onClick={clearHighlights} style={{ padding: "4px 8px", fontSize: 12 }}>
+              <button className="btn-ghost" onClick={handleClearHighlightsAndResponses} style={{ padding: "4px 8px", fontSize: 12 }}>
                 Clear all
               </button>
             </div>
