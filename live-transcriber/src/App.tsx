@@ -52,9 +52,21 @@ const TRANSCRIPTION_MODELS: TranscriptionModel[] = [
 const GROUP_PAUSE_THRESHOLD_MS = 3500;
 const AURA_PANEL_GAP = 16;
 
+type TranscriptGroup = {
+  id: string;
+  source: string;
+  texts: string[];
+  lastTimestamp: number;
+  isSourceChange: boolean;
+  hasLive: boolean;
+};
+
 const normalizeGroupText = (value: string) => value.replace(/\s+/g, " ").trim();
 
-const buildGroupTextMap = (inputSegments: TranscriptSegment[]) => {
+const buildGroupTextMap = (
+  inputSegments: TranscriptSegment[],
+  groupCloseTimestamps: Record<string, number> = {},
+) => {
   const sorted = [...inputSegments].sort((a, b) => a.timestamp - b.timestamp);
   const groups: {
     id: string;
@@ -69,8 +81,10 @@ const buildGroupTextMap = (inputSegments: TranscriptSegment[]) => {
     const lastGroup = groups[groups.length - 1];
     const pauseSinceLast = lastGroup ? seg.timestamp - lastGroup.lastTimestamp : 0;
     const sourceChanged = !lastGroup || lastGroup.source !== seg.source;
+    const closedAt = lastGroup ? groupCloseTimestamps[lastGroup.id] : undefined;
+    const groupClosed = closedAt !== undefined && seg.timestamp > closedAt;
 
-    if (sourceChanged || pauseSinceLast > GROUP_PAUSE_THRESHOLD_MS) {
+    if (sourceChanged || pauseSinceLast > GROUP_PAUSE_THRESHOLD_MS || groupClosed) {
       groups.push({
         id: `group-${groupIndex++}`,
         source: seg.source,
@@ -140,6 +154,7 @@ export default function App() {
   const [isResizing, setIsResizing] = useState(false);
   const [highlightMenuContainer, setHighlightMenuContainer] = useState<HTMLElement | null>(null);
   const [disableDeleteInMenu, setDisableDeleteInMenu] = useState(false);
+  const [groupCloseTimestamps, setGroupCloseTimestamps] = useState<Record<string, number>>({});
   
   // TEXT FREEZE: Wenn User klickt/selektiert, wird neuer Text gepuffert statt angezeigt
   const [isTextFrozen, setIsTextFrozen] = useState(false);
@@ -147,6 +162,7 @@ export default function App() {
   const frozenHtmlRef = useRef<string | null>(null); // HTML-Snapshot im Freeze-Modus (für Edit-Speicherung)
   const frozenHtmlSetRef = useRef(false); // Flag für Edit-Tracking
   const frozenGroupTextRef = useRef<Map<string, string> | null>(null);
+  const groupedSegmentsRef = useRef<TranscriptGroup[]>([]);
   
   // Agent selection state
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -338,10 +354,10 @@ export default function App() {
         frozenHtmlRef.current = transcriptBoxRef.current.innerHTML;
       }
       frozenSegmentsRef.current = [...segments];
-      frozenGroupTextRef.current = buildGroupTextMap(segments);
+      frozenGroupTextRef.current = buildGroupTextMap(segments, groupCloseTimestamps);
       setIsTextFrozen(true);
     }
-  }, [isTextFrozen, segments]);
+  }, [isTextFrozen, segments, groupCloseTimestamps]);
 
   // TEXT UNFREEZE MIT EDIT-SPEICHERUNG: Für User-Edits (Klick außerhalb, Enter, Escape)
   const unfreezeTextWithSave = useCallback(() => {
@@ -350,7 +366,7 @@ export default function App() {
       const editedGroups = new Map<string, string>();
       const groupElements = transcriptBoxRef.current.querySelectorAll('[data-group-id]');
       const frozenGroupTexts = frozenGroupTextRef.current || new Map<string, string>();
-      const currentGroupTexts = buildGroupTextMap(segments);
+      const currentGroupTexts = buildGroupTextMap(segments, groupCloseTimestamps);
       
       groupElements.forEach((el) => {
         const groupId = el.getAttribute('data-group-id');
@@ -381,7 +397,7 @@ export default function App() {
       frozenHtmlSetRef.current = false; // Reset für nächsten Freeze
       setIsTextFrozen(false);
     }
-  }, [isTextFrozen, segments, updateSegmentsFromEdit]);
+  }, [isTextFrozen, segments, groupCloseTimestamps, updateSegmentsFromEdit]);
 
   // TEXT UNFREEZE OHNE EDIT-SPEICHERUNG: Für programmatische Aktionen (Delete, Copy, Agent-Query)
   // Diese Funktion überschreibt NICHT die segments - wichtig wenn deleteTextFromTranscript bereits aufgerufen wurde
@@ -679,6 +695,17 @@ export default function App() {
   // Track "pending" highlight that hasn't been confirmed with an agent query
   // Will be removed when clicking elsewhere or selecting new text
   const pendingHighlightIdRef = useRef<string | null>(null);
+  const registerGroupClosure = useCallback((groupId: string) => {
+    if (!groupId.startsWith("group-")) return;
+    const group = groupedSegmentsRef.current.find((g) => g.id === groupId);
+    if (!group) return;
+    const closeAt = group.lastTimestamp;
+    setGroupCloseTimestamps((prev) => {
+      const current = prev[groupId];
+      if (current !== undefined && current >= closeAt) return prev;
+      return { ...prev, [groupId]: closeAt };
+    });
+  }, [setGroupCloseTimestamps]);
 
   // Hilfs-Snapshot für Agent-Queries (nutzt Auto-Highlight wenn vorhanden)
   const getCurrentHighlightSnapshot = useCallback(() => {
@@ -709,6 +736,7 @@ export default function App() {
     
     // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
     pendingHighlightIdRef.current = null;
+    registerGroupClosure(highlight.groupId);
     
     const prompt = withWebSearchInstruction(`Context: "${highlight.text}"
 
@@ -727,7 +755,7 @@ Give me 3-5 bullet points with key facts I can use in conversation. Short, preci
     );
     hideMenu();
     unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
-  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText]);
+  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText, registerGroupClosure]);
 
   // Kombinierter Handler: Highlight erstellen UND Facts-Query starten
   const handleHighlightAndFacts = useCallback((useWebSearch: boolean) => {
@@ -737,6 +765,7 @@ Give me 3-5 bullet points with key facts I can use in conversation. Short, preci
     // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
     pendingHighlightIdRef.current = null;
     
+    registerGroupClosure(highlight.groupId);
     const prompt = withWebSearchInstruction(`Context: "${highlight.text}"
 
 Find 2-3 similar deal examples from Microsoft Switzerland in your index. One line each, max. Focus on facts such as contract scope, number of users, etc.`, useWebSearch);
@@ -754,7 +783,7 @@ Find 2-3 similar deal examples from Microsoft Switzerland in your index. One lin
     );
     hideMenu();
     unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
-  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText]);
+  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText, registerGroupClosure]);
 
   // Custom Prompt Handler (Enter im Textfeld)
   const handleCustomPrompt = useCallback((customPrompt: string, useWebSearch: boolean) => {
@@ -764,6 +793,7 @@ Find 2-3 similar deal examples from Microsoft Switzerland in your index. One lin
     // Highlight ist jetzt bestätigt (Agent-Query gestartet) - nicht mehr als pending markieren
     pendingHighlightIdRef.current = null;
 
+    registerGroupClosure(highlight.groupId);
     const prompt = withWebSearchInstruction(`Context: "${highlight.text}"
 
 ${customPrompt}`, useWebSearch);
@@ -782,7 +812,7 @@ ${customPrompt}`, useWebSearch);
     );
     hideMenu();
     unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
-  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText]);
+  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText, registerGroupClosure]);
 
   // Handler für das Schließen des Menüs - entfernt auch das pending Highlight
   const handleCloseMenu = useCallback(() => {
@@ -1043,6 +1073,7 @@ ${customPrompt}`, useWebSearch);
 
     clearHighlights();
     clearAuraResponses();
+    setGroupCloseTimestamps({});
     lastHighlightRef.current = null;
     pendingHighlightIdRef.current = null;
 
@@ -1088,8 +1119,10 @@ ${customPrompt}`, useWebSearch);
       const lastGroup = groups[groups.length - 1];
       const pauseSinceLast = lastGroup ? seg.timestamp - lastGroup.lastTimestamp : 0;
       const sourceChanged = !lastGroup || lastGroup.source !== seg.source;
+      const closedAt = lastGroup ? groupCloseTimestamps[lastGroup.id] : undefined;
+      const groupClosed = closedAt !== undefined && seg.timestamp > closedAt;
       
-      if (sourceChanged || pauseSinceLast > PAUSE_THRESHOLD_MS) {
+      if (sourceChanged || pauseSinceLast > PAUSE_THRESHOLD_MS || groupClosed) {
         // Neue Gruppe starten mit eindeutiger ID
         groups.push({
           id: `group-${groupIndex++}`,
@@ -1108,7 +1141,11 @@ ${customPrompt}`, useWebSearch);
     }
     
     return groups;
-  }, [sortedSegments]);
+  }, [sortedSegments, groupCloseTimestamps]);
+
+  useEffect(() => {
+    groupedSegmentsRef.current = groupedSegmentsWithOffsets;
+  }, [groupedSegmentsWithOffsets]);
 
   useLayoutEffect(() => {
     if (!transcriptBoxRef.current) return;
@@ -1303,8 +1340,9 @@ ${customPrompt}`, useWebSearch);
     clearErrors();
     clearHighlights();
     clearAuraResponses();
+    setGroupCloseTimestamps({});
     lastHighlightRef.current = null;
-  }, [resetTranscript, clearErrors, clearHighlights, clearAuraResponses]);
+  }, [resetTranscript, clearErrors, clearHighlights, clearAuraResponses, setGroupCloseTimestamps]);
 
   return (
     <div className="layout">
