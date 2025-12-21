@@ -28,7 +28,7 @@ try {
 }
 
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
-const PORT = 8080;
+const PORT = parseInt(process.env.PORT || "8080", 10);
 
 // Azure OpenAI Transcription Configuration (for gpt-4o-transcribe-diarize)
 const AZURE_TRANSCRIBE_ENDPOINT = process.env.AZURE_TRANSCRIBE_ENDPOINT;
