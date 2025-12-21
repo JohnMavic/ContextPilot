@@ -62,5 +62,5 @@ jobs:
         with:
           app-name: 'contextpilot-proxy-2025'
           slot-name: 'Production'
-          package: .
+          package: live-transcriber
           
