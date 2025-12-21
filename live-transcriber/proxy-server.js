@@ -675,6 +675,27 @@ const server = createServer((req, res) => {
     res.end();
     return;
   }
+
+  // Basic health/info endpoint so the root URL doesn't look broken in browsers
+  if (method === "GET" && (url === "/" || url === "")) {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        ok: true,
+        service: "contextpilot-proxy",
+        endpoints: ["/agents", "/agents/switch", "/agent", "/ws"],
+        apiVersion: AURA_API_VERSION,
+      })
+    );
+    return;
+  }
+
+  // Avoid noisy 404s from browsers
+  if (method === "GET" && url === "/favicon.ico") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
   
   // API: List available agents
   if (method === "GET" && url && url.startsWith("/agents")) {
