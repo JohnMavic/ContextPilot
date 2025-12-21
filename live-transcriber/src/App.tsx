@@ -11,8 +11,7 @@ import { useDualRealtime, type TranscriptionProvider, type TranscriptSegment } f
 import { useTabCapture } from "./hooks/useTabCapture";
 import { useAuraAgent } from "./hooks/useAuraAgent";
 import { useHighlights, type HighlightColor } from "./hooks/useHighlights";
-
-const apiKeyFromEnv = (import.meta.env.VITE_OPENAI_API_KEY as string | undefined) || "";
+import { proxyBaseUrl } from "./proxyConfig";
 
 // Agent/Workflow type from proxy server
 interface AgentInfo {
@@ -180,7 +179,7 @@ export default function App() {
   
   // Load available agents and workflows from proxy server
   useEffect(() => {
-    fetch("http://localhost:8080/agents")
+    fetch(`${proxyBaseUrl}/agents`)
       .then(res => res.json())
       .then(data => {
         if (data.agents) {
@@ -204,7 +203,7 @@ export default function App() {
     
     setAgentSwitching(true);
     try {
-      const res = await fetch("http://localhost:8080/agents/switch", {
+      const res = await fetch(`${proxyBaseUrl}/agents/switch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agentId })
@@ -1082,7 +1081,7 @@ ${customPrompt}`, useWebSearch);
     lastHighlightRef.current = null;
     pendingHighlightIdRef.current = null;
 
-    start(apiKeyFromEnv, micDeviceId, speakerInput);
+    start(micDeviceId, speakerInput);
   };
 
   // Stop Handler - stoppt auch Tab Capture
@@ -1460,7 +1459,7 @@ ${customPrompt}`, useWebSearch);
               <button
                 className={status !== "running" && status !== "connecting" ? "btn-start" : ""}
                 onClick={handleStart}
-                disabled={!apiKeyFromEnv || !canStart}
+                disabled={!canStart}
               >
                 Start
               </button>

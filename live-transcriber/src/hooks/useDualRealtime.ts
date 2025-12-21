@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { proxyWsBaseUrl } from "../proxyConfig";
 
 type Status = "idle" | "connecting" | "running" | "error";
 type Source = "mic" | "speaker";
@@ -236,7 +237,7 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
     const transcriptionPrompt =
       "Auto-detect language. Produce verbatim transcripts (no summaries), keep names and numbers exactly as spoken. Merge adjacent fragments into complete, coherent sentences when they clearly belong together; lightly fix punctuation and obvious word breaks; do not add, omit, or change facts.";
     // Provider via Query-Parameter an Proxy übergeben (default: openai)
-    const url = `ws://localhost:8080?provider=${provider}`;
+    const url = `${proxyWsBaseUrl}?provider=${provider}`;
     console.log(`[WS ${source.toUpperCase()}] Verbinde zu Proxy (${provider}):`, url);
     const ws = new WebSocket(url);
 
@@ -649,14 +650,9 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
   // Beide Sessions starten
   // speakerSource kann deviceId (string) ODER MediaStream (Tab Capture) sein
   const start = async (
-    apiKey: string,
     micDeviceId?: string,
     speakerSource?: string | MediaStream
   ) => {
-    if (!apiKey) {
-      setError("API key missing.");
-      return;
-    }
     if (status === "running" || status === "connecting") return;
 
     stopRequestedRef.current = false;

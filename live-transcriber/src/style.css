@@ -453,7 +453,62 @@ h2 {
   gap: 12px;
 }
 
-/* Agent Selector in Sidebar */\n.agent-selector {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n}\n\n.agent-dropdown {\n  width: 100%;\n  padding: 10px 12px;\n  border-radius: 10px;\n  border: 1px solid #3b82f6;\n  background: #ffffff;\n  color: #1e293b;\n  font-size: 13px;\n  font-weight: 500;\n  cursor: pointer;\n  transition: border-color 150ms, box-shadow 150ms;\n}\n\n.agent-dropdown:hover {\n  border-color: #2563eb;\n  box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);\n}\n\n.agent-dropdown:focus {\n  outline: 2px solid #3b82f6;\n  outline-offset: 1px;\n}\n\n.agent-dropdown:disabled {\n  opacity: 0.6;\n  cursor: wait;\n}\n\n.agent-dropdown option {\n  background: #ffffff;\n  color: #1e293b;\n  padding: 8px;\n}\n\n.agent-switching {\n  font-size: 11px;\n  color: #60a5fa;\n  animation: pulse 1s ease-in-out infinite;\n}\n\n@keyframes pulse {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.5; }\n}
+/* Agent Selector in Sidebar */
+.agent-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-dropdown {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #3b82f6;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+
+.agent-dropdown:hover {
+  border-color: #2563eb;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+}
+
+.agent-dropdown:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+}
+
+.agent-dropdown:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.agent-dropdown option {
+  background: #ffffff;
+  color: #1e293b;
+  padding: 8px;
+}
+
+.agent-switching {
+  font-size: 11px;
+  color: #60a5fa;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
 
 .field {
   display: grid;

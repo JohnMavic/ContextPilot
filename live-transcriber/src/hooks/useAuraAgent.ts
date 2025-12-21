@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import type { HighlightColor } from "./useHighlights";
+import { proxyBaseUrl } from "../proxyConfig";
 
 export interface AuraFollowUp {
   id: string;
@@ -121,7 +122,7 @@ export function useAuraAgent() {
 
       do {
         shouldRetry = false;
-        const resp = await fetch("http://localhost:8080/agent", {
+        const resp = await fetch(`${proxyBaseUrl}/agent`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt, stream: true }),
@@ -285,7 +286,7 @@ export function useAuraAgent() {
         )
       );
 
-      const resp = await fetch("http://localhost:8080/agent", {
+      const resp = await fetch(`${proxyBaseUrl}/agent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, stream: true }),

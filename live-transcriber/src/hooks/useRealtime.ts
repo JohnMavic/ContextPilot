@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { proxyWsBaseUrl } from "../proxyConfig";
 
 type Status = "idle" | "connecting" | "running" | "error";
 
@@ -117,7 +118,7 @@ export function useRealtime() {
   };
 
   const connectWs = (_apiKey: string) => {
-    const url = `ws://localhost:8080`;
+    const url = proxyWsBaseUrl;
     console.log("[WS] Verbinde zu Proxy:", url);
     const ws = new WebSocket(url);
     wsRef.current = ws;
