@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { proxyWsBaseUrl } from "../proxyConfig";
+import { makeTranscriptGroupId } from "../utils/transcriptGrouping";
 
 type Status = "idle" | "connecting" | "running" | "error";
 type Source = "mic" | "speaker";
@@ -838,7 +839,7 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
   }, []);
 
   // Update segments from edited text (nach Freeze-Mode Edit)
-  const updateSegmentsFromEdit = useCallback((editedGroups: Map<string, string>) => {
+  const updateSegmentsFromEdit = useCallback((editedGroups: Map<string, string>, groupCloseTimestamps: Record<string, number> = {}) => {
     setSegments(prev => {
       // WICHTIG: Sortiere Segmente nach Zeitstempel, genau wie groupedSegmentsWithOffsets in App.tsx
       // Erstelle eine sortierte Kopie mit Original-Indizes
@@ -849,26 +850,29 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
       // Erstelle eine Map von groupId zu den zugehörigen Original-Indizes
       // Gruppierung basiert auf SORTIERTER Reihenfolge (wie in App.tsx)
       const groupToOriginalIndices = new Map<string, number[]>();
-      let groupIndex = 0;
       
       const PAUSE_THRESHOLD_MS = 3500;
-      
+
+      let currentGroupId: string | null = null;
+      let lastSeg: TranscriptSegment | null = null;
+
       for (let i = 0; i < sortedWithIndices.length; i++) {
         const { seg, originalIndex } = sortedWithIndices[i];
-        const lastItem = i > 0 ? sortedWithIndices[i - 1] : null;
-        const pauseSinceLast = lastItem ? seg.timestamp - lastItem.seg.timestamp : 0;
-        const sourceChanged = !lastItem || lastItem.seg.source !== seg.source;
+        const pauseSinceLast = lastSeg ? seg.timestamp - lastSeg.timestamp : 0;
+        const sourceChanged = !lastSeg || lastSeg.source !== seg.source;
+        const closedAt = currentGroupId ? groupCloseTimestamps[currentGroupId] : undefined;
+        const groupClosed = closedAt !== undefined && seg.timestamp > closedAt;
         
         // Gleiche Logik wie in groupedSegmentsWithOffsets (App.tsx)
-        if (sourceChanged || pauseSinceLast > PAUSE_THRESHOLD_MS) {
-          groupIndex++;
+        if (!currentGroupId || sourceChanged || pauseSinceLast > PAUSE_THRESHOLD_MS || groupClosed) {
+          currentGroupId = makeTranscriptGroupId(seg);
         }
         
-        const groupId = `group-${groupIndex - 1}`;
-        if (!groupToOriginalIndices.has(groupId)) {
-          groupToOriginalIndices.set(groupId, []);
+        if (!groupToOriginalIndices.has(currentGroupId)) {
+          groupToOriginalIndices.set(currentGroupId, []);
         }
-        groupToOriginalIndices.get(groupId)!.push(originalIndex);
+        groupToOriginalIndices.get(currentGroupId)!.push(originalIndex);
+        lastSeg = seg;
       }
       
       // Wende die Edits an (auf Original-Indizes)

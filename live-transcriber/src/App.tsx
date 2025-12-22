@@ -11,6 +11,7 @@ import { useDualRealtime, type TranscriptionProvider, type TranscriptSegment } f
 import { useTabCapture } from "./hooks/useTabCapture";
 import { useAuraAgent } from "./hooks/useAuraAgent";
 import { useHighlights, type HighlightColor } from "./hooks/useHighlights";
+import { makeTranscriptGroupId } from "./utils/transcriptGrouping";
 import { proxyBaseUrl } from "./proxyConfig";
 
 // Agent/Workflow type from proxy server
@@ -74,8 +75,6 @@ const buildGroupTextMap = (
     lastTimestamp: number;
   }[] = [];
 
-  let groupIndex = 0;
-
   for (const seg of sorted) {
     const lastGroup = groups[groups.length - 1];
     const pauseSinceLast = lastGroup ? seg.timestamp - lastGroup.lastTimestamp : 0;
@@ -85,7 +84,7 @@ const buildGroupTextMap = (
 
     if (sourceChanged || pauseSinceLast > GROUP_PAUSE_THRESHOLD_MS || groupClosed) {
       groups.push({
-        id: `group-${groupIndex++}`,
+        id: makeTranscriptGroupId(seg),
         source: seg.source,
         texts: [seg.text],
         lastTimestamp: seg.timestamp,
@@ -388,7 +387,7 @@ export default function App() {
       
       // Segments mit editiertem Text aktualisieren
       if (editedGroups.size > 0) {
-        updateSegmentsFromEdit(editedGroups);
+        updateSegmentsFromEdit(editedGroups, groupCloseTimestamps);
       }
       
       frozenHtmlRef.current = null;
@@ -1117,8 +1116,6 @@ ${customPrompt}`, useWebSearch);
       hasLive: boolean;
     }[] = [];
     
-    let groupIndex = 0;
-    
     for (const seg of sortedSegments) {
       const lastGroup = groups[groups.length - 1];
       const pauseSinceLast = lastGroup ? seg.timestamp - lastGroup.lastTimestamp : 0;
@@ -1129,7 +1126,7 @@ ${customPrompt}`, useWebSearch);
       if (sourceChanged || pauseSinceLast > PAUSE_THRESHOLD_MS || groupClosed) {
         // Neue Gruppe starten mit eindeutiger ID
         groups.push({
-          id: `group-${groupIndex++}`,
+          id: makeTranscriptGroupId(seg),
           source: seg.source,
           texts: [seg.text],
           lastTimestamp: seg.timestamp,
