@@ -844,6 +844,20 @@ wss.on("connection", (clientWs, req) => {
   backendWs.on("open", () => {
     console.log(`[PROXY] Mit ${providerLabel} verbunden`);
     backendReady = true;
+
+    // Azure: report the actual configured deployment name to the client for UI transparency.
+    // This does NOT change the Azure behavior; it's informational only.
+    if (provider === "azure" && clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(
+        JSON.stringify({
+          type: "proxy.transcription.model",
+          provider: "azure",
+          model: AZURE_TRANSCRIBE_DEPLOYMENT,
+          reason: "deployment",
+          timestamp: Date.now(),
+        })
+      );
+    }
     
     // Gepufferte Messages senden
     if (messageBuffer.length > 0) {

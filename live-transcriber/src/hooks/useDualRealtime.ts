@@ -97,6 +97,13 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
 
   useEffect(() => () => stopAll(), []);
 
+  // If the user switches provider (OpenAI <-> Azure), reset server-reported model
+  // so the UI can't accidentally show a stale model from the previous provider.
+  useEffect(() => {
+    setActiveServerModel(null);
+    setActiveServerModelReason(null);
+  }, [provider]);
+
   const statusRef = useRef<Status>(status);
   useEffect(() => {
     statusRef.current = status;
@@ -163,6 +170,12 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
 
       // Proxy sends this to indicate which model is actually being used.
       if (msg?.type === "proxy.transcription.model" && typeof msg.model === "string") {
+        // Ignore events for other providers to prevent misleading UI.
+        // (The proxy includes `provider` for OpenAI events; Azure may omit this event entirely.)
+        if (typeof msg.provider === "string" && msg.provider !== provider) {
+          return;
+        }
+
         setActiveServerModel(msg.model);
         setActiveServerModelReason(typeof msg.reason === "string" ? msg.reason : null);
         return;
