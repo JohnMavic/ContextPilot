@@ -66,6 +66,15 @@ if ($env.Contains('VITE_OPENAI_API_KEY') -and (-not $env.Contains('OPENAI_API_KE
   $env['OPENAI_API_KEY'] = $env['VITE_OPENAI_API_KEY']
 }
 
+# Defaults for OpenAI realtime transcription model override (OpenAI provider only)
+# These are safe defaults; the proxy also has the same defaults in code.
+if (-not $env.Contains('OPENAI_TRANSCRIBE_MODEL')) {
+  $env['OPENAI_TRANSCRIBE_MODEL'] = 'gpt-4o-mini-transcribe-2025-12-15'
+}
+if (-not $env.Contains('OPENAI_TRANSCRIBE_MODEL_FALLBACKS')) {
+  $env['OPENAI_TRANSCRIBE_MODEL_FALLBACKS'] = 'gpt-4o-mini-transcribe,gpt-4o-transcribe'
+}
+
 # Ensure the proxy starts even if App Service ignores package.json scripts
 # (package.json already has "start": "node proxy-server.js")
 $settings = @()

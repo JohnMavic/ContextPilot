@@ -30,6 +30,23 @@ try {
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 const PORT = parseInt(process.env.PORT || "8080", 10);
 
+// OpenAI Realtime Transcription model override (OpenAI provider only)
+// IMPORTANT: Do not affect Azure OpenAI transcription flows.
+// Note: Dated snapshots like "gpt-4o-mini-transcribe-2025-12-15" are documented for /v1/audio/transcriptions.
+// Realtime intent=transcription may not support all snapshots; we therefore keep a fallback chain.
+const OPENAI_TRANSCRIBE_MODEL =
+  process.env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe-2025-12-15";
+const OPENAI_TRANSCRIBE_MODEL_FALLBACKS = (
+  process.env.OPENAI_TRANSCRIBE_MODEL_FALLBACKS || "gpt-4o-mini-transcribe,gpt-4o-transcribe"
+)
+  .split(",")
+  .map((v) => v.trim())
+  .filter(Boolean);
+
+const OPENAI_TRANSCRIBE_MODEL_CANDIDATES = Array.from(
+  new Set([OPENAI_TRANSCRIBE_MODEL, ...OPENAI_TRANSCRIBE_MODEL_FALLBACKS])
+);
+
 // Azure OpenAI Transcription Configuration (for gpt-4o-transcribe-diarize)
 const AZURE_TRANSCRIBE_ENDPOINT = process.env.AZURE_TRANSCRIBE_ENDPOINT;
 const AZURE_TRANSCRIBE_DEPLOYMENT = process.env.AZURE_TRANSCRIBE_DEPLOYMENT || "gpt-4o-transcribe-diarize";
@@ -745,6 +762,40 @@ wss.on("connection", (clientWs, req) => {
   // Message-Buffer bis Backend verbunden ist
   let backendReady = false;
   const messageBuffer = [];
+
+  // OpenAI-only transcription model override state (per client connection)
+  const isOpenAIProvider = provider !== "azure";
+  let openaiTranscribeModelIndex = 0;
+  /** @type {any | null} */
+  let lastTranscriptionSessionUpdate = null;
+
+  const getOpenAiTranscribeModel = () =>
+    OPENAI_TRANSCRIBE_MODEL_CANDIDATES[
+      Math.min(openaiTranscribeModelIndex, OPENAI_TRANSCRIBE_MODEL_CANDIDATES.length - 1)
+    ];
+
+  const looksLikeInvalidModelError = (parsedMsg) => {
+    const code = parsedMsg?.error?.code;
+    const message = parsedMsg?.error?.message;
+    if (code === "invalid_model" || code === "model_not_found") return true;
+    if (typeof message === "string" && /invalid\s+model|model\s+not\s+found/i.test(message)) return true;
+    return false;
+  };
+
+  const deepCloneJson = (value) => {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return value;
+    }
+  };
+
+  const applyOpenAiModelOverride = (sessionUpdate) => {
+    if (!sessionUpdate?.session?.input_audio_transcription) return sessionUpdate;
+    const overridden = typeof structuredClone === "function" ? structuredClone(sessionUpdate) : deepCloneJson(sessionUpdate);
+    overridden.session.input_audio_transcription.model = getOpenAiTranscribeModel();
+    return overridden;
+  };
   
   // Determine backend URL and headers based on provider
   let backendUrl;
@@ -807,6 +858,47 @@ wss.on("connection", (clientWs, req) => {
 
   backendWs.on("message", (data) => {
     const msg = data.toString();
+
+    // OpenAI-only: if the chosen model is unsupported, automatically fall back.
+    if (isOpenAIProvider) {
+      try {
+        const parsed = JSON.parse(msg);
+        if (
+          parsed?.type === "error" &&
+          looksLikeInvalidModelError(parsed) &&
+          openaiTranscribeModelIndex < OPENAI_TRANSCRIBE_MODEL_CANDIDATES.length - 1 &&
+          lastTranscriptionSessionUpdate &&
+          backendWs.readyState === WebSocket.OPEN
+        ) {
+          const prevModel = getOpenAiTranscribeModel();
+          openaiTranscribeModelIndex += 1;
+          const nextModel = getOpenAiTranscribeModel();
+          console.warn(
+            `[PROXY] OpenAI model '${prevModel}' rejected; falling back to '${nextModel}'`
+          );
+
+          // Tell the client which model is now being used.
+          if (clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(
+              JSON.stringify({
+                type: "proxy.transcription.model",
+                provider: "openai",
+                model: nextModel,
+                reason: "fallback",
+                candidates: OPENAI_TRANSCRIBE_MODEL_CANDIDATES,
+                timestamp: Date.now(),
+              })
+            );
+          }
+
+          const retryUpdate = applyOpenAiModelOverride(lastTranscriptionSessionUpdate);
+          backendWs.send(JSON.stringify(retryUpdate));
+        }
+      } catch {
+        // ignore non-JSON payloads
+      }
+    }
+
     // Log full message for transcription failures to see the error details
     if (msg.includes('transcription.failed')) {
       console.log(`[PROXY] ${providerLabel} TRANSCRIPTION FAILED:`, msg);
@@ -831,10 +923,44 @@ wss.on("connection", (clientWs, req) => {
   });
 
   clientWs.on("message", (data) => {
-    const msg = data.toString();
+    let msg = data.toString();
     // Only log non-audio messages (skip verbose audio buffer appends)
     if (!msg.includes('"type":"input_audio_buffer.append"')) {
       console.log("[PROXY] Client ->", msg.substring(0, 100) + (msg.length > 100 ? "..." : ""));
+    }
+
+    // OpenAI-only: override transcription model on session update messages.
+    if (isOpenAIProvider) {
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed?.type === "transcription_session.update") {
+          // Keep the user's original session update as a template for retries.
+          lastTranscriptionSessionUpdate = parsed;
+
+          const overridden = applyOpenAiModelOverride(parsed);
+          const desiredModel = overridden?.session?.input_audio_transcription?.model;
+          if (desiredModel) {
+            msg = JSON.stringify(overridden);
+            console.log(`[PROXY] OpenAI session model override -> ${desiredModel}`);
+
+            // Tell the client which model we are sending to OpenAI right now.
+            if (clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(
+                JSON.stringify({
+                  type: "proxy.transcription.model",
+                  provider: "openai",
+                  model: desiredModel,
+                  reason: "override",
+                  candidates: OPENAI_TRANSCRIBE_MODEL_CANDIDATES,
+                  timestamp: Date.now(),
+                })
+              );
+            }
+          }
+        }
+      } catch {
+        // ignore invalid JSON
+      }
     }
     
     if (backendReady && backendWs.readyState === WebSocket.OPEN) {

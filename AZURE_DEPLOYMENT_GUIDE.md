@@ -132,6 +132,17 @@ Used when the client connects with `?provider=azure`:
 - `AZURE_TRANSCRIBE_DEPLOYMENT` (default: `gpt-4o-transcribe-diarize`)
 - `AZURE_TRANSCRIBE_API_VERSION` (default: `2024-12-01-preview`)
 
+#### OpenAI Realtime (transcribe)
+Used when the client connects with `?provider=openai` (default):
+- `OPENAI_API_KEY`
+
+Optional (recommended) to control which OpenAI transcription model is used for Realtime `intent=transcription`:
+- `OPENAI_TRANSCRIBE_MODEL` (default: `gpt-4o-mini-transcribe-2025-12-15`)
+- `OPENAI_TRANSCRIBE_MODEL_FALLBACKS` (default: `gpt-4o-mini-transcribe,gpt-4o-transcribe`)
+
+The proxy applies this override **only** for the OpenAI provider and leaves the Azure provider path untouched.
+If the chosen OpenAI model is rejected (e.g. `invalid_model`), the proxy automatically retries using the fallback list.
+
 #### Azure AI Foundry (Agents/Workflows)
 - `AURA_API_VERSION` (default: `2025-11-15-preview`)
 

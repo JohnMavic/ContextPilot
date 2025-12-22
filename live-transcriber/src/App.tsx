@@ -246,6 +246,8 @@ export default function App() {
     status,
     errorLog,
     segments,
+    activeServerModel,
+    activeServerModelReason,
     volumeLevels,
     micMuted,
     setMicMuted,
@@ -257,6 +259,14 @@ export default function App() {
     clearErrors,
     stats,
   } = useDualRealtime(transcriptionProvider);
+
+  const activeTranscriptionModelLabel = useMemo(() => {
+    const selected = TRANSCRIPTION_MODELS.find((m) => m.id === transcriptionModelId);
+    const providerLabel = selected?.providerLabel || (transcriptionProvider === "azure" ? "Azure OpenAI" : "OpenAI");
+    if (!activeServerModel) return `${providerLabel}: (noch keine Info vom Server)`;
+    const reasonSuffix = activeServerModelReason ? ` [${activeServerModelReason}]` : "";
+    return `${providerLabel}: ${activeServerModel}${reasonSuffix}`;
+  }, [transcriptionModelId, transcriptionProvider, activeServerModel, activeServerModelReason]);
   const {
     responses: auraResponses,
     queryAgent,
@@ -1395,6 +1405,9 @@ ${customPrompt}`, useWebSearch);
                 </option>
               ))}
             </select>
+            <div className="muted" style={{ fontSize: 11, marginTop: 6, opacity: 0.85 }}>
+              Active (server): {activeTranscriptionModelLabel}
+            </div>
             {(status === "running" || status === "connecting") && (
               <span className="agent-switching" style={{ fontSize: 10, opacity: 0.7 }}>
                 Stop to change

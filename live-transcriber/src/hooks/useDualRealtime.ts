@@ -68,6 +68,8 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
   const [error, setError] = useState<string | null>(null);
   const [errorLog, setErrorLog] = useState<ErrorLogEntry[]>([]);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+  const [activeServerModel, setActiveServerModel] = useState<string | null>(null);
+  const [activeServerModelReason, setActiveServerModelReason] = useState<string | null>(null);
   const [volumeLevels, setVolumeLevels] = useState({ mic: 0, speaker: 0 });
   const [micMuted, setMicMutedState] = useState(false); // Mic mute state
   const [stats, setStats] = useState({
@@ -158,6 +160,13 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
   const createMessageHandler = (source: Source) => (evt: MessageEvent) => {
     try {
       const msg = JSON.parse(evt.data);
+
+      // Proxy sends this to indicate which model is actually being used.
+      if (msg?.type === "proxy.transcription.model" && typeof msg.model === "string") {
+        setActiveServerModel(msg.model);
+        setActiveServerModelReason(typeof msg.reason === "string" ? msg.reason : null);
+        return;
+      }
       console.log(`[WS ${source.toUpperCase()}]`, msg.type, msg.speaker_id ? `[${msg.speaker_id}]` : '');
       setStats((s) => ({ ...s, lastEventType: msg.type }));
 
@@ -906,6 +915,8 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
     error,
     errorLog,
     segments,
+    activeServerModel,
+    activeServerModelReason,
     volumeLevels,
     micMuted,
     setMicMuted,
