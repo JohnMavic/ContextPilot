@@ -1,9 +1,9 @@
-# CONTEXTPILOT MFA-Konzept v2
+# CONTEXTPILOT MFA-Konzept v2.1
 ## Umstellung auf Azure Function mit Microsoft Agent Framework
 
-**Version:** 2.0  
-**Datum:** 22. Dezember 2025  
-**Status:** Entwurf zur Überprüfung  
+**Version:** 2.1  
+**Datum:** 24. Dezember 2025  
+**Status:** Validiert (MAF) – Entwurf zur Umsetzung  
 **Technologie-Stack:** Azure Function (Python) + Microsoft Agent Framework (MAF)
 
 ---
@@ -15,9 +15,9 @@ Dieses Konzept beschreibt die Erweiterung von CONTEXTPILOT um eine **MFA-Option*
 **Kernziele:**
 - ✅ Bestehende Funktionalität (Agent, Workflow) bleibt **unverändert**
 - ✅ Neue MFA-Option nutzt **offizielles Microsoft Agent Framework**
-- ✅ Echte Parallelität via `WorkflowBuilder.add_fan_out_edges()`
+- ✅ Echte Parallelität via `add_multi_selection_edge_group()` (dynamisch) + `add_fan_in_edges()` (Fan-In)
 - ✅ Dynamische Agent-Auswahl durch **AURATriage**
-- ✅ Zukunftssicher durch SDK-Updates (`pip install --upgrade`)
+- ✅ Stabil durch Version-Pinning + kontrollierte Updates (Upgrade nur nach Test)
 
 ---
 
@@ -174,14 +174,24 @@ contextpilot-mfa-function/
 └── local.settings.json
 ```
 
-### 4.2 requirements.txt
+### 4.2 requirements.txt (Version-Pinning – empfohlen)
 
+> Wichtig: MAF ist derzeit Preview/Beta. **Du darfst keine unpinned `--pre`-Installationen in Produktion deployen.**
+> Pinnen reduziert das Risiko von Breaking Changes.
+
+```text
+# Azure Functions Runtime
+azure-functions==1.13.3
+
+# Microsoft Agent Framework (MAF) – geprüft (Stand Dez 2025)
+agent-framework-core==1.0.0b251218
+agent-framework-azure-ai==1.0.0b251218
+
+# Auth / Azure SDK
+azure-identity==1.13.0
+typing-extensions==4.9.0
 ```
-azure-functions
-agent-framework-core --pre
-agent-framework-azure-ai --pre
-azure-identity
-```
+
 
 ### 4.3 MAF Workflow Code (mfa_workflow.py)
 
@@ -192,7 +202,7 @@ Basiert auf: github.com/microsoft/agent-framework/.../parallelism/
 """
 
 import asyncio
-from typing import Never
+from typing_extensions import Never
 from agent_framework import (
     Executor,
     WorkflowBuilder,
@@ -207,9 +217,10 @@ from azure.identity.aio import DefaultAzureCredential
 # KONFIGURATION
 # ============================================================
 
-PROJECT_ENDPOINT = "https://<resource>.services.ai.azure.com/api/projects/<project>"
-MODEL_DEPLOYMENT = "gpt-4o-mini"
+import os
 
+PROJECT_ENDPOINT = os.environ["PROJECT_ENDPOINT"]
+MODEL_DEPLOYMENT = os.environ.get("MODEL_DEPLOYMENT", "gpt-4o-mini")
 # Agent-Namen (wie in Foundry Portal definiert)
 TRIAGE_AGENT = "AURATriage"
 WEB_AGENT = "AURAContextPilotWeb"
@@ -232,7 +243,7 @@ class TriageExecutor(Executor):
         self.client = client
     
     @handler
-    async def handle(self, prompt: str, ctx: WorkflowContext) -> dict:
+    async def handle(self, prompt: str, ctx: WorkflowContext) -> None:
         response = await self.client.run(prompt)
         
         # Parse JSON-Entscheidung von Triage
@@ -366,28 +377,28 @@ async def build_mfa_workflow():
         AzureAIAgentClient(
             project_endpoint=PROJECT_ENDPOINT,
             model_deployment_name=MODEL_DEPLOYMENT,
-            async_credential=credential,
+            credential=credential,
             agent_name=TRIAGE_AGENT
         ).create_agent() as triage_client,
         
         AzureAIAgentClient(
             project_endpoint=PROJECT_ENDPOINT,
             model_deployment_name=MODEL_DEPLOYMENT,
-            async_credential=credential,
+            credential=credential,
             agent_name=WEB_AGENT
         ).create_agent() as web_client,
         
         AzureAIAgentClient(
             project_endpoint=PROJECT_ENDPOINT,
             model_deployment_name=MODEL_DEPLOYMENT,
-            async_credential=credential,
+            credential=credential,
             agent_name=CONTEXT_AGENT
         ).create_agent() as context_client,
         
         AzureAIAgentClient(
             project_endpoint=PROJECT_ENDPOINT,
             model_deployment_name=MODEL_DEPLOYMENT,
-            async_credential=credential,
+            credential=credential,
             agent_name=SYNTHESIZER_AGENT
         ).create_agent() as synth_client,
     ):
@@ -508,6 +519,32 @@ async def mfa_endpoint(req: func.HttpRequest) -> func.HttpResponse:
             mimetype="application/json"
         )
 ```
+
+### 4.5 Rolle von `AzureAIAgentClient` im CONTEXTPILOT-MAF Bild
+
+**Kurzantwort:** `AzureAIAgentClient` ist **kein** Foundry-Agent. Es ist der **Python-SDK-Client/Adapter**, mit dem MAF einen bestehenden **Azure AI Foundry Agent** (z. B. `AURAContextPilotWeb`) als ausführbaren `ChatAgent` in Python instanziert.
+
+**Warum brauchen wir ihn?**
+- Im bestehenden Node/Proxy-Flow ruft ihr Agents/Workflows über die **Foundry Responses API** auf.
+- Im neuen MAF-Flow läuft die Orchestrierung in **Python** (Azure Function). Damit die Workflow-Executors die **gleichen** Foundry-Agents nutzen können, brauchen sie einen Python-Client, der:
+  - Auth (Managed Identity / Credential) handhabt,
+  - `project_endpoint` + `agent_name` auflöst,
+  - eine lauffähige `ChatAgent`-Instanz erzeugt (`create_agent()`),
+  - und dann `run()` auf diesem Agent erlaubt.
+
+**So passt es ins Bild:**
+- `AURAContextPilotWeb`, `AURAContextPilot`, `AURAContextPilotResponseSynthesizer` bleiben **die gleichen Foundry Agents wie heute**.
+- Neu kommt `AURATriage` dazu (Foundry Agent).
+- `AzureAIAgentClient(..., agent_name="<AgentName>")` ist nur die **Transport-/SDK-Schicht**, um diese Agents in Python/MAF aufzurufen.
+
+### 4.6 Timeout-Realität für HTTP Trigger (Consumption)
+
+Für **HTTP Trigger** gilt ein praktisches Response-Limit (Load Balancer Idle Timeout). Plane konservativ:
+
+- `host.json` → `functionTimeout`: **00:03:30** (210s) als Safe Default.
+- Wenn du absehbar >230s brauchst: **Durable Functions async pattern** oder „defer work + immediate response“.
+
+Begründung und Limits: siehe Microsoft Learn (Function app time-out duration – HTTP Trigger 230s Limit).
 
 ---
 
@@ -861,7 +898,7 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 | **Dynamische Auswahl** | Nein (fest definiert) | Ja (Triage entscheidet) |
 | **Erweiterbarkeit** | Workflow neu definieren | Agent hinzufügen, fertig |
 | **Microsoft-Support** | Foundry Team | Agent Framework Team |
-| **SDK-Updates** | N/A | `pip install --upgrade` |
+| **SDK-Updates** | N/A | Version-Pinning + kontrollierte Upgrades |
 | **Hosting** | Foundry-managed | Azure Function (dein Tenant) |
 
 ---
@@ -897,7 +934,7 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 - [ ] MFA-Option hinzufügen
 - [ ] E2E-Test
 
-**Geschätzter Gesamtaufwand: 4-5 Tage**
+**Geschätzter Gesamtaufwand: 3-4 Werktage (PoC/Start)**
 
 ---
 
@@ -906,24 +943,35 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 | Risiko | Wahrsch. | Impact | Mitigation |
 |--------|----------|--------|------------|
 | MAF ist Preview (Breaking Changes) | Mittel | Hoch | Version pinnen, vor Update testen |
-| Azure Function Cold Start | Sicher | Niedrig | Premium Plan oder Keep-Alive |
+| Azure Function Cold Start | Sicher | Niedrig | Consumption: Keep-Alive/Ping; Premium: prewarmed workers |
 | Triage gibt kein valides JSON | Mittel | Mittel | Fallback: Alle Agenten aufrufen |
 | Foundry API ändert sich | Niedrig | Hoch | MAF-SDK abstrahiert das |
+| HTTP Trigger Response-Limit (~230s) | Niedrig | Hoch | Timeout 210s + Async Pattern (Durable) falls nötig |
 | Bestehende Prozesse brechen | Sehr niedrig | Kritisch | Komplett isoliert, eigene ID-Range |
 
 ---
 
-## 11. Offene Fragen für Review
+## 11. Entscheidungen (Review abgeschlossen)
 
-1. **Hosting-Plan:** Consumption (günstig, Cold Start) oder Premium (immer warm)?
+1. **Hosting-Plan:** Start mit **Consumption** (PoC/Cost).  
+   **Wechsel auf Premium/Flex Consumption**, wenn mindestens eines zutrifft:
+   - Latenz muss **konstant niedrig** sein und Cold Starts sind nicht akzeptabel.
+   - Hohe gleichzeitige Nutzung (viele parallele Requests) führt zu spürbaren Queues.
+   - Laufzeiten nähern sich regelmäßig dem HTTP-Response-Limit (siehe 4.6) oder es wird ein Async-Pattern nötig.
 
-2. **Auth:** Function Key oder Managed Identity zwischen Proxy und Function?
+2. **Auth (Proxy → Function):** Start mit **Function Key** (`x-functions-key`).  
+   Premium/Enterprise-Härtung später: Azure AD/EasyAuth + Managed Identity (Keyless).
 
-3. **Timeout:** Foundry-Agenten können 30s+ brauchen – wie mit Azure Function Timeout umgehen?
+3. **Timeout:**  
+   - `host.json` `functionTimeout`: **00:03:30** (210s)  
+   - Proxy Fetch Timeout (Node): **200s**  
+   - Retry-Policy Proxy → Function: **3 Versuche**, Backoff **1s / 2s / 4s**, nur bei 5xx/Network-Errors.
 
-4. **Logging:** Wo sollen Traces hin? Application Insights? Log Analytics?
+4. **Logging/Traces:**  
+   - Azure Function: **Application Insights** aktivieren.  
+   - Proxy: bestehende Logs beibehalten; zusätzlich `x-correlation-id` Header durchreichen.
 
-5. **Fallback:** Was wenn Azure Function down ist – automatisch auf Workflow fallen?
+5. **Fallback:** Wenn MFA Function nicht erreichbar oder 5xx nach Retries → optionaler Fallback auf bestehenden **Foundry Workflow** (sequenziell), um Service-Continuity zu halten.
 
 ---
 
@@ -937,3 +985,132 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 ---
 
 *Dokument erstellt für Review. Feedback willkommen.*
+
+
+## 13. MAF Recherche (validiert, mit Quellen)
+
+Tabelle: **Frage → Antwort → Quelle**
+
+| Frage | Antwort | Quelle |
+|---|---|---|
+| Was ist `AzureAIAgentClient`? | Python SDK-Client für Azure AI Foundry Agents; erstellt einen `ChatAgent` über `create_agent()`. | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.azure.azureaiagentclient?view=agent-framework-python-latest |
+| Wie werden Foundry Agents in MAF Workflows genutzt? | Über `AzureAIAgentClient(...).create_agent()` wird ein `ChatAgent` erzeugt, der per `run()` aufgerufen wird; dieser Agent repräsentiert den Foundry Agent (Name/ID). | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.azure.azureaiagentclient?view=agent-framework-python-latest |
+| Unterstützt MAF Fan-In / Fan-Out? | `WorkflowBuilder` bietet `add_fan_in_edges()` (synchronisiert, sammelt Liste) und `add_fan_out_edges()` (broadcast). | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest |
+| Unterstützt MAF dynamische Multi-Selection (Triage entscheidet)? | `add_multi_selection_edge_group()` sendet Messages an mehrere Targets gemäß Selection-Funktion. | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest |
+| Gibt es Fallstricke mit Executor-Instanzen? | Wenn Executor-Instanzen direkt übergeben werden, können sie über mehrere Workflow-Instanzen geteilt werden; `register_executor/register_agent` ist der sichere Weg, falls Workflows gecached werden. | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest |
+| Wie wird Azure Functions Timeout konfiguriert? | `functionTimeout` in `host.json` (timespan string). Fixed upper bound empfohlen. | https://learn.microsoft.com/en-us/azure/azure-functions/functions-host-json |
+| Welche Defaults/Maxima gelten je Plan und was ist das HTTP-Limit? | Consumption: default 5 min, max 10 min; **HTTP Trigger max ~230s Response** (Load Balancer Idle Timeout). | https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale |
+
+**Technische Schlussfolgerung (Go/No-Go):** **GO** für additive Einführung von MFA/MAF, sofern Version-Pinning + Timeout 210s + isoliertes Routing strikt eingehalten werden.
+
+---
+
+## 14. Externer Entwickler Guide (verbindlich)
+
+### 14.1 Kurze Projektbeschreibung
+
+CONTEXTPILOT besitzt heute zwei stabile Ausführungswege:
+- **Agent** (Foundry Agent direkt)
+- **Workflow** (Foundry Workflow sequenziell)
+
+Neu wird ein **dritter** Weg hinzugefügt:
+- **MFA / MAF** (Azure Function + Microsoft Agent Framework, parallelisiert)
+
+Dieser dritte Weg ist **rein additiv**. Nichts Bestehendes wird ersetzt oder verändert.
+
+### 14.2 Ziel
+
+Du musst einen neuen, unabhängigen Ausführungsweg implementieren, der:
+1. **Bestehende Agent- und Workflow-Prozesse nicht zerstört** (Regression-frei).
+2. Lokal als PoC funktioniert.
+3. Danach unverändert (nur Konfig) auf Azure Functions deployt werden kann.
+4. MAF nutzt, um `AURATriage` → (Web/Context parallel oder einzeln) → Synthesizer auszuführen.
+
+### 14.3 Plan (3–4 Werktage)
+
+**Tag 1 (0.5–1.0d):** Repo/Branch Setup + lokale Function Skeleton + Requirements pinned + Healthcheck.  
+**Tag 1–2 (1.0–1.5d):** MAF Workflow implementieren (Triage + Multi-Selection + Fan-In + Synthese) + lokale Tests.  
+**Tag 3 (0.5–1.0d):** Proxy: minimaler MFA-Routing-Pfad + Retry/Timeout + UI dropdown (optional) + E2E lokal.  
+**Tag 4 (0.5d, optional):** Azure Deploy (Consumption) + RBAC/MI + App Insights + E2E in Azure.
+
+### 14.4 Settings (konkrete Werte – direkt übernehmbar)
+
+**Azure Function (Consumption, HTTP Trigger):**
+- `host.json`:
+  - `functionTimeout`: **00:03:30** (210s)
+- App Settings:
+  - `PROJECT_ENDPOINT`: `<Foundry Project Endpoint>`
+  - `MODEL_DEPLOYMENT`: `gpt-4o-mini` (oder euer Deployment-Name)
+- Logging: Application Insights **on**
+
+**Proxy → Function (Node):**
+- Request Timeout: **200s**
+- Retries: **3** (nur bei Network errors / 5xx)
+- Backoff: **1s, 2s, 4s**
+- Auth: Header `x-functions-key` (Function Key)
+
+**MAF Package Pins:**
+- `agent-framework-core==1.0.0b251218`
+- `agent-framework-azure-ai==1.0.0b251218`
+
+### 14.5 Schritt-für-Schritt Anleitung (streng)
+
+1. **Branch-Regel (verpflichtend):**  
+   Du musst in einem neuen Branch arbeiten. Es ist verboten direkt auf `main` zu arbeiten.
+
+2. **No-Touch-Regel (verpflichtend):**  
+   Es ist verboten, bestehende Funktionen `handleAgentRequest()` und `handleWorkflowRequest()` logisch zu verändern.  
+   Erlaubt ist ausschließlich:
+   - ein zusätzlicher `if (agent.type === "mfa") return handleMFARequest(...);`
+   - neue, isolierte Funktionen/Dateien (`handleMFARequest`, `loadMFAConfigs`, etc.)
+   Wenn du mehr ändern willst, musst du vorher fragen.
+
+3. **Neuer Weg = neuer Typ:**  
+   Du musst `type: "mfa"` als separates Routing-Kriterium nutzen.  
+   Du darfst niemals bestehende `type: "agent"` oder `type: "workflow"` Semantik ändern.
+
+4. **Lokaler PoC zuerst:**  
+   Bevor du irgendetwas nach Azure deployt, musst du lokal folgendes nachweisen:
+   - Function startet lokal.
+   - `POST /api/mfa` liefert JSON `{ "output_text": "...", "workflow": "mfa" }`.
+   - Triage JSON Parsing funktioniert (inkl. Fallback: beide Agents).
+   - Web/Context laufen parallel (nachweisbar über Logs/Timing).
+
+5. **MAF Workflow (Pflichtstruktur):**
+   Du musst exakt diese Struktur implementieren:
+   - Start: `AURATriage`
+   - Routing: `add_multi_selection_edge_group()` (Triage entscheidet)
+   - Fan-In: `add_fan_in_edges()` → `AURAContextPilotResponseSynthesizer`
+   Der Workflow darf nicht sequenziell sein.
+
+6. **AzureAIAgentClient Verständnis (Pflicht):**  
+   Du darfst `AzureAIAgentClient` nicht als “Agent” bezeichnen.  
+   Es ist der Python-Client, der einen Foundry Agent als `ChatAgent` instanziert.
+
+7. **Timeout-Regel (HTTP):**  
+   Du musst sicherstellen, dass der Workflow typischerweise <60s bleibt.  
+   Es ist verboten, bewusst Workloads zu bauen, die nahe 230s laufen, ohne Async Pattern.
+
+8. **Deployment erst nach Checkliste:**  
+   Du darfst erst deployen, wenn:
+   - requirements pinned sind
+   - functionTimeout 210s gesetzt ist
+   - MI/RBAC gesetzt ist
+   - Proxy MFA Route nur additiv implementiert ist
+   - E2E Test lokal erfolgreich ist
+
+9. **Regression-Tests (Pflicht):**  
+   Vor Merge musst du demonstrieren:
+   - Agent-Modus funktioniert weiterhin.
+   - Workflow-Modus funktioniert weiterhin.
+   - MFA-Modus funktioniert.
+   Wenn einer der drei Modi nicht funktioniert: Du darfst nicht mergen.
+
+---
+
+## 15. Referenzen (zusätzlich zu Kap. 12)
+
+- MAF WorkflowBuilder API: https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest
+- MAF AzureAIAgentClient API: https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.azure.azureaiagentclient?view=agent-framework-python-latest
+- Azure Functions Hosting/Timeouts: https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale
+- Azure Functions host.json: https://learn.microsoft.com/en-us/azure/azure-functions/functions-host-json
