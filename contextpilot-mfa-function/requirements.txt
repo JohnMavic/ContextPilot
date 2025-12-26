@@ -2,8 +2,10 @@
 azure-functions==1.13.3
 
 # Microsoft Agent Framework (MAF) – Pin auf eine getestete Version
-# agent-framework-core enthält AzureAIClient (basiert auf azure-ai-projects V2)
+# agent-framework-core ist das Base-Package
+# agent-framework-azure-ai enthält AzureAIClient (für Azure AI Foundry Integration)
 agent-framework-core==1.0.0b251223
+agent-framework-azure-ai==1.0.0b251223
 
 # azure-ai-projects V2 für existing agents by name
 azure-ai-projects==2.0.0b2

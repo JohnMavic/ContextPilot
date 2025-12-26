@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 import json
-import os
+import logging
 import uuid
 
 import azure.functions as func
 
-from mfa_workflow import run_mfa_workflow
-
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+
+
+@app.route(route="healthz", methods=["GET"])
+def healthz(req: func.HttpRequest) -> func.HttpResponse:
+    """Health check endpoint - lädt ohne Heavy-Imports."""
+    return func.HttpResponse(
+        json.dumps({"ok": True, "version": "2.4"}),
+        status_code=200,
+        mimetype="application/json",
+    )
 
 
 @app.route(route="mfa", methods=["POST"])
@@ -46,6 +54,9 @@ async def mfa_endpoint(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     try:
+        # Lazy import: verhindert, dass Worker-Indexing bei ImportError komplett ausfällt
+        from mfa_workflow import run_mfa_workflow
+
         result = await run_mfa_workflow(prompt)
         return func.HttpResponse(
             json.dumps({
