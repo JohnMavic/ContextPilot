@@ -20,6 +20,125 @@
 
 ---
 
+## 🚀 Lokale Entwicklungsumgebung starten
+
+> **Was Sie hier lernen:** Um CONTEXTPILOT lokal zu entwickeln und zu testen, müssen drei Komponenten gestartet werden: (1) Das React-Frontend via Vite, (2) der Node.js-Proxy-Server, und (3) die Python Azure Function. Jede Komponente läuft in einem eigenen Terminal-Fenster.
+
+### Voraussetzungen
+
+- Node.js 22.x installiert
+- Python 3.11 installiert
+- Azure Functions Core Tools (`npm install -g azure-functions-core-tools@4`)
+- Azure CLI (`az login` bereits ausgeführt)
+- `.env.local` Datei in `live-transcriber/` mit korrekten Werten
+- `local.settings.json` in `contextpilot-mfa-function/` (aus Template erstellen)
+
+### Terminal 1: Frontend (Vite Dev Server)
+
+```powershell
+cd E:\ContextPilot\live-transcriber
+npm run dev
+```
+
+**Erwartete Ausgabe:**
+```
+  VITE v7.2.4  ready in 500 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+```
+
+**Öffne:** http://localhost:5173/
+
+---
+
+### Terminal 2: Proxy Server (Node.js)
+
+```powershell
+cd E:\ContextPilot\live-transcriber
+npm start
+```
+
+**Oder direkt:**
+```powershell
+cd E:\ContextPilot\live-transcriber
+node proxy-server.js
+```
+
+**Erwartete Ausgabe:**
+```
+[Proxy] Server listening on port 3001
+[Proxy] Loaded 2 agents, 1 workflow, 1 MFA
+```
+
+**API verfügbar unter:** http://localhost:3001/
+
+---
+
+### Terminal 3: Azure Function (Python + MAF)
+
+```powershell
+cd E:\ContextPilot\contextpilot-mfa-function
+
+# Python Virtual Environment aktivieren (falls nicht aktiv)
+..\.venv\Scripts\Activate.ps1
+
+# Function starten
+func start --port 7071 --verbose
+```
+
+**Erwartete Ausgabe:**
+```
+Azure Functions Core Tools
+...
+Functions:
+        healthz: [GET] http://localhost:7071/api/healthz
+        mfa_endpoint: [POST] http://localhost:7071/api/mfa
+```
+
+**Health Check testen:**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:7071/api/healthz"
+# Erwartung: {"ok": true, "version": "2.4"}
+```
+
+---
+
+### Zusammenfassung: Drei Terminals
+
+| Terminal | Ordner | Befehl | Port |
+|----------|--------|--------|------|
+| **1 - Frontend** | `live-transcriber` | `npm run dev` | 5173 |
+| **2 - Proxy** | `live-transcriber` | `npm start` | 3001 |
+| **3 - Function** | `contextpilot-mfa-function` | `func start --port 7071` | 7071 |
+
+### Wichtige lokale URLs
+
+| Komponente | URL | Zweck |
+|------------|-----|-------|
+| Frontend | http://localhost:5173/ | React App (UI) |
+| Proxy API | http://localhost:3001/agents | Agent-Liste abrufen |
+| Function Health | http://localhost:7071/api/healthz | Function-Status prüfen |
+| Function MFA | http://localhost:7071/api/mfa | MFA-Endpoint testen |
+
+### Typischer Workflow
+
+1. **Alle drei Terminals starten** (Reihenfolge egal)
+2. **Frontend öffnen:** http://localhost:5173/
+3. **Agent-Dropdown:** Sollte "MFA (Multi-Agent)" zeigen
+4. **Frage stellen:** Die Anfrage geht Frontend → Proxy → Function → AI Foundry
+
+### Troubleshooting
+
+| Problem | Lösung |
+|---------|--------|
+| `func: command not found` | `npm install -g azure-functions-core-tools@4` |
+| Function zeigt "0 Functions" | `local.settings.json` prüfen, alle ENV VARs gesetzt? |
+| Proxy Error "ECONNREFUSED" | Function läuft? Port 7071 frei? |
+| Frontend zeigt keine Agents | Proxy läuft? `.env.local` korrekt? |
+
+---
+
 ### Begriffserklärung: MFA vs. MAF
 
 | Abkürzung | Bedeutung | Verwendung |
