@@ -8,6 +8,18 @@
 
 ---
 
+### Projektbeteiligte
+
+| Rolle | Name/Tool |
+|-------|-----------|
+| **Auftraggeber** | Martin Hämmerli |
+| **Entwickler** | GitHub Copilot / Claude Opus 4.5 |
+| **Berater** | ChatGPT 5.2 / Extended Thinking |
+
+**GitHub Repository:** [https://github.com/JohnMavic/ContextPilot](https://github.com/JohnMavic/ContextPilot)
+
+---
+
 ### Begriffserklärung: MFA vs. MAF
 
 | Abkürzung | Bedeutung | Verwendung |
@@ -33,6 +45,8 @@ Dieses Konzept beschreibt die Erweiterung von CONTEXTPILOT um eine **MFA-Option*
 ---
 
 ## 2. Architektur: Vorher vs. Nachher
+
+> **Was Sie hier lernen:** Die CONTEXTPILOT-Architektur besteht aus drei Komponenten: React-Frontend (SWA), Node.js-Proxy (App Service), und Azure AI Foundry Agents. Die MFA-Erweiterung fügt eine Python-basierte Azure Function hinzu, die parallel mehrere Agents orchestriert – ohne die bestehenden Wege (Agent/Workflow) zu verändern.
 
 ### 2.1 Bestehende Architektur (bleibt erhalten!)
 
@@ -111,6 +125,8 @@ Dieses Konzept beschreibt die Erweiterung von CONTEXTPILOT um eine **MFA-Option*
 
 ## 3. Warum diese Architektur die bestehenden Prozesse nicht zerstört
 
+> **Was Sie hier lernen:** Der MFA-Weg ist vollständig isoliert vom bestehenden Code. Im `proxy-server.js` wird lediglich eine `if`-Bedingung (`if (agent.type === "mfa")`) hinzugefügt, die zu einer komplett neuen Funktion `handleMFARequest()` weiterleitet. Bestehende Funktionen `handleAgentRequest()` und `handleWorkflowRequest()` bleiben unverändert.
+
 ### 3.1 Isolationsprinzip
 
 | Aspekt | Bestehend | MFA (Neu) | Konflikt? |
@@ -121,6 +137,8 @@ Dieses Konzept beschreibt die Erweiterung von CONTEXTPILOT um eine **MFA-Option*
 | **Foundry Agenten** | Direkt aufgerufen | Indirekt via MAF | ❌ Agenten unverändert |
 
 ### 3.2 Code-Änderungen im Proxy (Minimal-invasiv)
+
+> **Was Sie hier lernen:** Die einzige Änderung an bestehendem Code ist eine `if`-Bedingung in `handleAgentRequest()`: Wenn `agent.type === "mfa"`, wird zu `handleMFARequest()` verzweigt. Die bestehenden Pfade für `type: "agent"` und `type: "workflow"` bleiben völlig unverändert.
 
 ```javascript
 // proxy-server.js - Zeile 282-288 (bestehend)
@@ -143,6 +161,8 @@ async function handleAgentRequest(req, res, body) {
 ```
 
 ### 3.3 Neue Funktion für MFA (komplett isoliert)
+
+> **Was Sie hier lernen:** Die Funktion `handleMFARequest()` ist komplett neu und berührt keinen bestehenden Code. Sie ruft die Azure Function über HTTP auf, übergibt den User-Prompt, und gibt die Antwort zurück. Bei Fehlern (5xx, Timeout) gibt es 3 Retry-Versuche mit exponentiellem Backoff.
 
 ```javascript
 // proxy-server.js - NEUE Funktion (keine Änderung an bestehendem Code)
@@ -172,20 +192,47 @@ async function handleMFARequest(req, res, body, mfaConfig) {
 
 ## 4. Azure Function: MAF-Implementation im Detail
 
+> **Was Sie hier lernen:** Die Azure Function ist eine Python 3.11-Anwendung, die im Ordner `contextpilot-mfa-function/` liegt. Sie verwendet das Microsoft Agent Framework (MAF) SDK, um Azure AI Foundry Agents aufzurufen. Der Einstiegspunkt ist `function_app.py` (HTTP-Trigger), die Workflow-Logik liegt in `mfa_workflow.py`.
+
 ### 4.1 Projektstruktur
+
+> ⚠️ **KORREKTUR (26.12.2025):** Die ursprüngliche Struktur war zu komplex. Der `agents/` Ordner wurde nicht benötigt.
+
+<details>
+<summary>❌ <span style="color:red"><b>FALSCH - Ursprüngliche Konzept-Struktur</b></span></summary>
 
 ```
 contextpilot-mfa-function/
 ├── function_app.py          # Azure Function Entry Point
 ├── mfa_workflow.py          # MAF Workflow Definition
-├── agents/
-│   └── foundry_agents.py    # Agent-Wrapper für Foundry
+├── agents/                   ❌ NICHT BENÖTIGT
+│   └── foundry_agents.py    ❌ NICHT BENÖTIGT
 ├── requirements.txt
 ├── host.json
 └── local.settings.json
 ```
+</details>
+
+✅ **KORREKT - Tatsächliche Produktiv-Struktur:**
+
+```
+contextpilot-mfa-function/
+├── function_app.py          # Azure Function Entry Point (mit Lazy Import!)
+├── mfa_workflow.py          # MFA Workflow-Logik (direkt, ohne Executor-Klassen)
+├── requirements.txt         # MUSS agent-framework-azure-ai enthalten!
+├── host.json
+├── local.settings.json.template  # Template (local.settings.json nicht committen!)
+└── .gitignore
+```
+
+**Wichtige Unterschiede:**
+- Kein `agents/` Ordner nötig - alle Logik in `mfa_workflow.py`
+- Keine separaten Executor-Klassen - direkter async/await Flow
+- `local.settings.json.template` statt der echten Datei (Secrets!)
 
 ### 4.2 requirements.txt (Version-Pinning – empfohlen)
+
+> **Was Sie hier lernen:** Die Datei `requirements.txt` listet alle Python-Pakete, die die Azure Function benötigt. Kritisch sind zwei MAF-Pakete: `agent-framework-core` (Basis-SDK) und `agent-framework-azure-ai` (Azure AI Foundry Integration). Ohne das zweite Paket erscheint der Fehler "0 Functions registered" beim Deployment.
 
 > Wichtig: MAF/Foundry SDKs sind teilweise Preview/Beta. **Du darfst keine unpinned `--pre`-Installationen deployen.**
 > Ziel: reproduzierbares Deployment ohne "drift" durch transitive Pre-Release Updates.
@@ -220,15 +267,37 @@ Hinweis zur Reproduzierbarkeit:
 
 ### 4.3 MAF Workflow Code (mfa_workflow.py)
 
+> **Was Sie hier lernen:** Die Datei `mfa_workflow.py` enthält die Funktion `run_mfa_workflow(prompt)`, die den Multi-Agent-Flow ausführt. Der Flow ist: (1) AURATriage entscheidet das Routing, (2) je nach Routing werden AURAContextPilotWeb und/oder AURAContextPilot aufgerufen, (3) bei zwei Agents fasst der Synthesizer die Ergebnisse zusammen. Die Agents werden per `agent_name=` + `use_latest_version=True` aufgelöst.
+
+> ⚠️ **KORREKTUR (26.12.2025):** Die Annahmen zu `agent_id` und dem Import-Pfad waren falsch!
+
+<details>
+<summary>❌ <span style="color:red"><b>FALSCH - Ursprüngliche Konzept-Annahmen</b></span></summary>
+
 ```python
 """
 CONTEXTPILOT MFA Workflow (MAF, Python)
 Pattern: Triage -> Fan-Out (parallel) -> Fan-In -> Synthesizer
 
 Wichtig:
-- Bestehende Foundry Agents werden als *existing agents* per agent_id verwendet.
-- Kein "resolve by name" annehmen.
+- Bestehende Foundry Agents werden als *existing agents* per agent_id verwendet.  ❌ FALSCH
+- Kein "resolve by name" annehmen.  ❌ FALSCH - resolve by name funktioniert!
 - SDK-default ENV VARs verwenden (AZURE_AI_PROJECT_ENDPOINT / AZURE_AI_MODEL_DEPLOYMENT_NAME).
+"""
+```
+</details>
+
+✅ **KORREKT - Tatsächliche Implementation:**
+
+```python
+"""
+CONTEXTPILOT MFA Workflow v2.4 (MAF, Python)
+
+Korrekte Erkenntnisse:
+- Agents werden per NAME aufgelöst (nicht per agent_id!)
+- AzureAIClient(..., agent_name="...", use_latest_version=True) funktioniert
+- Kein WorkflowBuilder/Executor-Pattern nötig für einfache Flows
+- Direkter async/await ist einfacher und funktioniert
 """
 
 from __future__ import annotations
@@ -239,27 +308,48 @@ from typing import Any
 
 from typing_extensions import Never
 
+```
+
+<details>
+<summary>❌ <span style="color:red"><b>FALSCH - Import-Pfad und AGENT_ID</b></span></summary>
+
+```python
 from agent_framework import (
     ChatAgent,
     Executor,
-    WorkflowBuilder,
+    WorkflowBuilder,      # ❌ Nicht nötig für einfache Flows
     WorkflowContext,
     WorkflowOutputEvent,
     handler,
 )
-from agent_framework_azure_ai import AzureAIAgentClient
+from agent_framework_azure_ai import AzureAIAgentClient  # ❌ FALSCHER IMPORT-PFAD!
 from azure.identity.aio import DefaultAzureCredential
 
-# ============================================================
-# KONFIGURATION (ENV VARS)
-# ============================================================
-AZURE_AI_PROJECT_ENDPOINT = os.environ["AZURE_AI_PROJECT_ENDPOINT"]
-AZURE_AI_MODEL_DEPLOYMENT_NAME = os.environ["AZURE_AI_MODEL_DEPLOYMENT_NAME"]
-
-AURA_TRIAGE_AGENT_ID = os.environ["AURA_TRIAGE_AGENT_ID"]
+# ❌ FALSCH: AGENT_ID verwenden
+AURA_TRIAGE_AGENT_ID = os.environ["AURA_TRIAGE_AGENT_ID"]  # ❌ IDs sind fragil!
 AURA_WEB_AGENT_ID = os.environ["AURA_WEB_AGENT_ID"]
 AURA_CONTEXT_AGENT_ID = os.environ["AURA_CONTEXT_AGENT_ID"]
 AURA_SYNTHESIZER_AGENT_ID = os.environ["AURA_SYNTHESIZER_AGENT_ID"]
+```
+</details>
+
+✅ **KORREKT - Produktiv-Code:**
+
+```python
+# Korrekter Import-Pfad!
+from agent_framework.azure import AzureAIClient  # ✅ RICHTIG: agent_framework.azure
+from azure.identity.aio import DefaultAzureCredential
+
+AZURE_AI_PROJECT_ENDPOINT = os.environ["AZURE_AI_PROJECT_ENDPOINT"]
+AZURE_AI_MODEL_DEPLOYMENT_NAME = os.environ["AZURE_AI_MODEL_DEPLOYMENT_NAME"]
+
+# ✅ KORREKT: AGENT_NAME verwenden (nicht ID!)
+# Namen sind stabil, IDs ändern sich bei Agent-Updates
+AURA_TRIAGE_AGENT_NAME = os.environ["AURA_TRIAGE_AGENT_NAME"]
+AURA_QUICK_AGENT_NAME = os.environ.get("AURA_QUICK_AGENT_NAME", "AURAContextPilotQuick")
+AURA_WEB_AGENT_NAME = os.environ["AURA_WEB_AGENT_NAME"]
+AURA_CONTEXT_AGENT_NAME = os.environ["AURA_CONTEXT_AGENT_NAME"]
+AURA_SYNTHESIZER_AGENT_NAME = os.environ["AURA_SYNTHESIZER_AGENT_NAME"]
 
 
 # ============================================================
@@ -345,6 +435,11 @@ class SynthesizerExecutor(Executor):
 # ============================================================
 # WORKFLOW GRAPH
 # ============================================================
+# ⚠️ HINWEIS: Der WorkflowBuilder/DAG-Ansatz erwies sich als Overkill.
+# Die finale Implementierung nutzt einfache if/else Logik.
+# Siehe: contextpilot-mfa-function/mfa_workflow.py
+# ============================================================
+
 def select_agents(triage_output: dict[str, Any], target_ids: list[str]) -> list[str]:
     """
     Auswahlfunktion für add_multi_selection_edge_group().
@@ -364,53 +459,57 @@ def select_agents(triage_output: dict[str, Any], target_ids: list[str]) -> list[
     return selected or [web_id, context_id]
 
 
-async def build_mfa_workflow():
-    """Erstellt den MAF Workflow: Triage -> parallel -> Synthese."""
+# ⚠️ FALSCH - ÜBERKOMPLEXES PATTERN ⚠️
+#
+# Das folgende Pattern verwendet:
+# 1. AzureAIAgentClient (veraltet) statt AzureAIClient
+# 2. agent_id (starr) statt agent_name + use_latest_version
+# 3. WorkflowBuilder (Overkill für diesen Use-Case)
+#
+# <details>
+# <summary>❌ Ursprünglicher (falscher) Code</summary>
+#
+# async def build_mfa_workflow():
+#     async with (
+#         DefaultAzureCredential() as credential,
+#         AzureAIAgentClient(
+#             credential=credential,
+#             project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
+#             model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
+#             agent_id=AURA_TRIAGE_AGENT_ID,  # ❌ FALSCH!
+#         ).create_agent() as triage_agent,
+#         # ... weitere agents mit agent_id ...
+#     ):
+#         workflow = WorkflowBuilder()...  # ❌ Überkomplex
+#
+# </details>
 
-    async with (
-        DefaultAzureCredential() as credential,
-        AzureAIAgentClient(
+# ✅ KORREKTE IMPLEMENTIERUNG (einfach und stabil):
+async def run_mfa_workflow(prompt: str) -> dict[str, Any]:
+    """Führt den optimierten MFA-Workflow aus.
+    
+    Verwendet:
+    - AzureAIClient (nicht AzureAIAgentClient!)
+    - agent_name + use_latest_version=True (nicht agent_id!)
+    - Einfache sequentielle Logik (kein WorkflowBuilder nötig)
+    """
+    
+    async with DefaultAzureCredential() as credential:
+        
+        # === PHASE 1: TRIAGE ===
+        async with AzureAIClient(
             credential=credential,
             project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
             model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
-            agent_id=AURA_TRIAGE_AGENT_ID,
-        ).create_agent() as triage_agent,
-        AzureAIAgentClient(
-            credential=credential,
-            project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
-            model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
-            agent_id=AURA_WEB_AGENT_ID,
-        ).create_agent() as web_agent,
-        AzureAIAgentClient(
-            credential=credential,
-            project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
-            model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
-            agent_id=AURA_CONTEXT_AGENT_ID,
-        ).create_agent() as context_agent,
-        AzureAIAgentClient(
-            credential=credential,
-            project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
-            model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
-            agent_id=AURA_SYNTHESIZER_AGENT_ID,
-        ).create_agent() as synth_agent,
-    ):
-        triage = TriageExecutor(triage_agent)
-        web_exec = WebAgentExecutor(web_agent)
-        context_exec = ContextAgentExecutor(context_agent)
-        synthesizer = SynthesizerExecutor(synth_agent)
-
-        workflow = (
-            WorkflowBuilder()
-            .set_start_executor(triage)
-            .add_multi_selection_edge_group(
-                triage,
-                [web_exec, context_exec],
-                selection_func=select_agents,
-            )
-            .add_fan_in_edges([web_exec, context_exec], synthesizer)
-            .build()
-        )
-        return workflow
+            agent_name=AURA_TRIAGE_AGENT_NAME,  # ✅ Name statt ID!
+            use_latest_version=True,             # ✅ Automatische Updates!
+        ).create_agent() as triage_agent:
+            triage_result = await triage_agent.run(prompt)
+            routing = parse_triage_response(triage_result.text)
+        
+        # === PHASE 2-4: Weitere Agents nach Bedarf ===
+        # Siehe vollständige Implementierung in:
+        # contextpilot-mfa-function/mfa_workflow.py
 
 
 async def run_mfa_workflow(prompt: str) -> str:
@@ -427,6 +526,13 @@ async def run_mfa_workflow(prompt: str) -> str:
 
 ### 4.4 Azure Function Entry Point (function_app.py)
 
+> **Was Sie hier lernen:** Die Datei `function_app.py` definiert die HTTP-Trigger der Azure Function. Sie enthält zwei Endpoints: `/api/healthz` (Health-Check ohne schwere Imports) und `/api/mfa` (der eigentliche MFA-Endpoint). **KRITISCH:** Der Import von `mfa_workflow` muss INNERHALB der Funktion erfolgen (Lazy Import), nicht am Dateianfang – sonst werden 0 Functions registriert!
+
+> ⚠️ **KRITISCHE KORREKTUR (26.12.2025):** Der Top-Level Import von `mfa_workflow` war der Hauptgrund für das "0 Functions"-Problem!
+
+<details>
+<summary>❌ <span style="color:red"><b>FALSCH - Top-Level Import (VERURSACHT 0 FUNCTIONS!)</b></span></summary>
+
 ```python
 """
 Azure Function HTTP Trigger für CONTEXTPILOT MFA.
@@ -435,9 +541,96 @@ Azure Function HTTP Trigger für CONTEXTPILOT MFA.
 import azure.functions as func
 import json
 import asyncio
-from mfa_workflow import run_mfa_workflow
+from mfa_workflow import run_mfa_workflow  # ❌ TOP-LEVEL IMPORT = FATAL!
 
 app = func.FunctionApp()
+```
+
+**Warum ist das falsch?**
+- Azure Functions Python v2 Model indexiert Functions durch Import von `function_app.py`
+- Wenn dabei eine Exception auftritt (z.B. `ModuleNotFoundError`), werden **0 Functions** registriert
+- Das Deployment zeigt "erfolgreich", aber keine Functions sind verfügbar!
+- Der Health-Check `/admin/host/status` zeigt "Running" aber keine Functions
+</details>
+
+✅ **KORREKT - Lazy Import Pattern (Produktiv-Code):**
+
+```python
+"""
+Azure Function HTTP Trigger für CONTEXTPILOT MFA.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import uuid
+
+import azure.functions as func
+
+# ✅ KEIN TOP-LEVEL IMPORT von mfa_workflow!
+# Der Import erfolgt LAZY innerhalb der Funktion
+
+app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+
+
+@app.route(route="healthz", methods=["GET"])
+def healthz(req: func.HttpRequest) -> func.HttpResponse:
+    """Health check endpoint - lädt OHNE Heavy-Imports."""
+    return func.HttpResponse(
+        json.dumps({"ok": True, "version": "2.4"}),
+        status_code=200,
+        mimetype="application/json",
+    )
+
+
+@app.route(route="mfa", methods=["POST"])
+async def mfa_endpoint(req: func.HttpRequest) -> func.HttpResponse:
+    """MFA Endpoint mit LAZY Import."""
+    
+    correlation_id = req.headers.get("x-correlation-id") or str(uuid.uuid4())
+    
+    try:
+        body = req.get_json()
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid JSON"}),
+            status_code=400,
+            mimetype="application/json",
+        )
+
+    prompt = (body or {}).get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return func.HttpResponse(
+            json.dumps({"error": "Missing 'prompt' in request body"}),
+            status_code=400,
+            mimetype="application/json",
+        )
+
+    try:
+        # ✅ LAZY IMPORT: Import INNERHALB der Funktion!
+        # Das verhindert, dass Worker-Indexing bei ImportError ausfällt
+        from mfa_workflow import run_mfa_workflow
+
+        result = await run_mfa_workflow(prompt)
+        return func.HttpResponse(
+            json.dumps({
+                "output_text": result["response"],
+                "workflow": "mfa",
+                "agents_used": result["agents_used"],
+                "routing": result["routing"],
+            }),
+            status_code=200,
+            mimetype="application/json",
+            headers={"x-correlation-id": correlation_id},
+        )
+    except Exception as e:
+        logging.exception("MFA failed (cid=%s)", correlation_id)
+        return func.HttpResponse(
+            json.dumps({"error": str(e)}),
+            status_code=500,
+            mimetype="application/json",
+        )
 
 @app.route(route="mfa", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
 async def mfa_endpoint(req: func.HttpRequest) -> func.HttpResponse:
@@ -492,22 +685,27 @@ async def mfa_endpoint(req: func.HttpRequest) -> func.HttpResponse:
 
 ### 4.5 Rolle von `AzureAIAgentClient` im CONTEXTPILOT-MAF Bild
 
+> **Was Sie hier lernen:** Die Klasse `AzureAIClient` (nicht `AzureAIAgentClient`!) ist der Python-Client, der Azure AI Foundry Agents als ausführbare `ChatAgent`-Instanzen bereitstellt. Sie handhabt Authentifizierung (Managed Identity), Projekt-Endpoint-Konfiguration und Agent-Auflösung per Name.
+
 **Kurzantwort:** `AzureAIAgentClient` ist **kein** Foundry-Agent. Es ist der **Python-SDK-Client/Adapter**, mit dem MAF einen bestehenden **Azure AI Foundry Agent** (z. B. `AURAContextPilotWeb`) als ausführbaren `ChatAgent` in Python instanziert.
 
 **Warum brauchen wir ihn?**
 - Im bestehenden Node/Proxy-Flow ruft ihr Agents/Workflows über die **Foundry Responses API** auf.
 - Im neuen MAF-Flow läuft die Orchestrierung in **Python** (Azure Function). Damit die Workflow-Executors die **gleichen** Foundry-Agents nutzen können, brauchen sie einen Python-Client, der:
   - Auth (Managed Identity / Credential) handhabt,
-  - `project_endpoint` + `agent_id` nutzt (Existing Agent),
+  - `project_endpoint` + `agent_name` nutzt (~~agent_id~~ ❌),
   - eine lauffähige `ChatAgent`-Instanz erzeugt (`create_agent()`),
   - und dann `run()` auf diesem Agent erlaubt.
 
 **So passt es ins Bild:**
 - `AURAContextPilotWeb`, `AURAContextPilot`, `AURAContextPilotResponseSynthesizer` bleiben **die gleichen Foundry Agents wie heute**.
 - Neu kommt `AURATriage` dazu (Foundry Agent).
-- `AzureAIAgentClient(..., agent_id="<AgentId>")` ist nur die **Transport-/SDK-Schicht**, um diese Agents in Python/MAF aufzurufen.
+- ~~`AzureAIAgentClient(..., agent_id="<AgentId>")`~~ ❌ **FALSCH!**
+- ✅ **KORREKT:** `AzureAIClient(..., agent_name="<AgentName>", use_latest_version=True)` ist die **Transport-/SDK-Schicht**, um diese Agents in Python/MAF aufzurufen.
 
 ### 4.6 Timeout-Realität für HTTP Trigger (Consumption)
+
+> **Was Sie hier lernen:** Azure Functions haben ein hartes HTTP-Response-Limit von 230 Sekunden (Azure Load Balancer Idle Timeout). Die `functionTimeout`-Einstellung in `host.json` sollte darunter liegen (210s empfohlen). Bei längeren Workloads: Durable Functions oder Async Pattern verwenden.
 
 Für **HTTP Trigger** gilt ein praktisches Response-Limit (Load Balancer Idle Timeout). Plane konservativ:
 
@@ -519,6 +717,8 @@ Begründung und Limits: siehe Microsoft Learn (Function app time-out duration �
 ---
 
 ## 5. AURATriage: Entscheidungslogik
+
+> **Was Sie hier lernen:** AURATriage ist ein Azure AI Foundry Agent, der als Routing-Entscheider fungiert. Er analysiert die Benutzeranfrage und gibt JSON zurück: `{"routing": {"direct": bool, "web": bool, "context": bool}}`. Die Funktion `parse_triage_response()` in `mfa_workflow.py` verarbeitet diese JSON-Antwort und entscheidet, welche nachfolgenden Agents aufgerufen werden.
 
 ### 5.1 Neues Pattern: Direct Response (v2.2)
 
@@ -543,6 +743,8 @@ Begründung und Limits: siehe Microsoft Learn (Function app time-out duration �
 ```
 
 ### 5.2 System Instructions für AURATriage (in Foundry Portal)
+
+> **Was Sie hier lernen:** Die System Instructions für AURATriage werden im Azure AI Foundry Portal konfiguriert. Sie definieren die drei Routing-Optionen (direct, web, context) und geben dem Agent klare Beispiele, wann welche Option zu wählen ist. Das Ziel ist Geschwindigkeit: "direct" vermeidet unnötige Agent-Aufrufe.
 
 ```
 You are AURATriage, the intelligent routing agent for CONTEXTPILOT.
@@ -612,6 +814,8 @@ User: "Compare our sales strategy with industry best practices"
 
 ### 5.3 Wie die Entscheidung verarbeitet wird
 
+> **Was Sie hier lernen:** Die Funktion `parse_triage_response()` in `mfa_workflow.py` verarbeitet die JSON-Antwort von AURATriage. Bei `direct: true` wird sofort geantwortet (via AURAContextPilotQuick), bei `web`/`context` werden die entsprechenden Agents aufgerufen, und nur bei BEIDEN wird der Synthesizer verwendet.
+
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  ENTSCHEIDUNGSFLUSS (v2.2)                                          │
@@ -653,6 +857,8 @@ User: "Compare our sales strategy with industry best practices"
 ---
 
 ## 5.4 Alle Agent Instructions (Backup)
+
+> **Was Sie hier lernen:** Dieser Abschnitt enthält die vollständigen System Instructions für alle 5 Agents, wie sie im Azure AI Foundry Portal konfiguriert sind. Diese dienen als Backup und Dokumentation – bei Neuerstellung eines Agents können Sie diese Instructions direkt kopieren.
 
 ### AURATriage (Routing Agent)
 
@@ -819,6 +1025,8 @@ IMPORTANT:
 
 ## 6. Erweiterbarkeit: Neue Agenten hinzufügen
 
+> **Was Sie hier lernen:** Um einen neuen Agent hinzuzufügen, erstellen Sie ihn im Azure AI Foundry Portal, fügen eine Umgebungsvariable `AURA_NEWAGENT_AGENT_NAME` hinzu, und erweitern die `run_mfa_workflow()` Funktion um die entsprechende if-Bedingung. Die Triage-Instructions müssen ebenfalls angepasst werden, damit der neue Agent berücksichtigt wird.
+
 ### 6.1 Schritt-für-Schritt
 
 **Beispiel: Legal-Agent hinzufügen**
@@ -869,6 +1077,8 @@ IMPORTANT:
 
 ## 7. Änderungen im bestehenden System
 
+> **Was Sie hier lernen:** Die MFA-Integration erfordert minimale Änderungen am Proxy-Server. Die Funktion `loadMFAConfigs()` lädt MFA-Konfigurationen aus Umgebungsvariablen (`MFA_1_NAME`, `MFA_1_ENDPOINT`). Die Funktion `handleMFARequest()` leitet Anfragen an die Azure Function weiter. Im Frontend wird das Dropdown um die MFA-Option erweitert.
+
 ### 7.1 Übersicht aller Änderungen
 
 | Komponente | Änderung | Risiko für Bestehendes |
@@ -883,6 +1093,8 @@ IMPORTANT:
 | **AURATriage** | Neuer Agent in Foundry | ❌ Kein Risiko |
 
 ### 7.2 Proxy-Änderungen im Detail
+
+> **Was Sie hier lernen:** Die konkrete Code-Änderungen im `proxy-server.js`: (1) `loadMFAConfigs()` liest MFA-Konfigurationen aus Umgebungsvariablen `MFA_1_NAME`, `MFA_1_ENDPOINT` etc., (2) `handleMFARequest()` leitet POST-Anfragen an die Azure Function weiter, (3) `/agents` Endpoint gibt MFA-Optionen im Response zurück.
 
 **Datei:** `proxy-server.js`
 
@@ -1057,6 +1269,8 @@ function listAgentsAPI(req, res) {
 
 ### 7.3 Umgebungsvariablen (.env.local)
 
+> **Was Sie hier lernen:** Die MFA-Konfiguration erfolgt über Umgebungsvariablen im gleichen Schema wie Agents und Workflows: `MFA_1_NAME`, `MFA_1_LABEL`, `MFA_1_ENDPOINT`. Der Index beginnt bei 1 (nicht 0). Die MFA-IDs sind negative Zahlen ab -101, um sie von Agents (positiv) und Workflows (negativ ab -1) zu unterscheiden.
+
 ```bash
 # ============================================================
 # BESTEHENDE KONFIGURATION (unverändert)
@@ -1082,6 +1296,8 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 
 ## 8. Vergleich: Foundry Workflow vs. MFA
 
+> **Was Sie hier lernen:** Der bestehende Foundry Workflow führt Agents sequenziell aus (Web → Context → Synthesizer), was 15-20 Sekunden dauert. MFA führt Web und Context parallel aus, wodurch die Latenz auf 7-10 Sekunden sinkt. Zusätzlich kann MFA dynamisch entscheiden, welche Agents überhaupt benötigt werden.
+
 | Aspekt | Foundry Workflow | MFA (Azure Function + MAF) |
 |--------|------------------|----------------------------|
 | **Ausführung** | Sequenziell | Parallel |
@@ -1095,6 +1311,8 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 ---
 
 ## 9. Implementierungsplan
+
+> **Was Sie hier lernen:** Die MFA-Implementierung gliedert sich in 5 Phasen: (1) Azure Function erstellen mit Managed Identity und RBAC, (2) AURATriage Agent im Foundry Portal erstellen, (3) `mfa_workflow.py` implementieren und lokal testen, (4) Proxy-Server um `handleMFARequest()` erweitern, (5) Frontend-Dropdown anpassen. Gesamtaufwand: 3-4 Werktage.
 
 ### Phase 1: Azure Function Setup (1 Tag)
 - [ ] Azure Function App erstellen (Python, Consumption Plan)
@@ -1131,6 +1349,8 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 
 ## 10. Risikobewertung
 
+> **Was Sie hier lernen:** Das größte Risiko ist, dass MAF Preview-Software ist und Breaking Changes enthalten kann. Mitigation: Version-Pinning in `requirements.txt`. Das zweitgrößte Risiko sind Cold Starts bei Consumption Plan (erste Anfrage nach Inaktivität dauert länger). Mitigation: Flex Consumption Plan oder Keep-Alive-Ping.
+
 | Risiko | Wahrsch. | Impact | Mitigation |
 |--------|----------|--------|------------|
 | MAF ist Preview (Breaking Changes) | Mittel | Hoch | Version pinnen, vor Update testen |
@@ -1143,6 +1363,8 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 ---
 
 ## 11. Entscheidungen (Review abgeschlossen)
+
+> **Was Sie hier lernen:** Die wichtigsten Architekturentscheidungen: (1) Flex Consumption Plan für die Azure Function (empfohlen ab Dezember 2025), (2) Function Key für Authentifizierung zwischen Proxy und Function, (3) Timeout von 210 Sekunden (`host.json`), (4) Retry-Policy mit 3 Versuchen und exponentiellem Backoff.
 
 1. **Hosting-Plan:** Start mit **Consumption** (PoC/Cost).  
    **Wechsel auf Premium/Flex Consumption**, wenn mindestens eines zutrifft:
@@ -1168,6 +1390,8 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 
 ## 12. Referenzen
 
+> **Was Sie hier lernen:** Alle wichtigen Links zur offiziellen Microsoft-Dokumentation für MAF, Azure Functions und Azure AI Foundry. Das Microsoft Agent Framework Repository auf GitHub enthält Python-Beispiele für parallele Workflows unter `/samples/getting_started/workflows/parallelism`.
+
 - [Microsoft Agent Framework GitHub](https://github.com/microsoft/agent-framework)
 - [MAF Parallelism Samples](https://github.com/microsoft/agent-framework/tree/main/python/samples/getting_started/workflows/parallelism)
 - [Azure AI Foundry Agent Service](https://learn.microsoft.com/en-us/azure/ai-foundry/agents/)
@@ -1180,14 +1404,18 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 
 ## 13. MAF Recherche (validiert, mit Quellen)
 
+> **Was Sie hier lernen:** Eine FAQ-Tabelle mit validierten Antworten zu MAF-Fragen. Wichtigste Erkenntnis: Die Klasse heißt `AzureAIClient` (nicht `AzureAIAgentClient`), der Import ist `from agent_framework.azure import AzureAIClient`, und Agents werden per `agent_name=` + `use_latest_version=True` aufgelöst (nicht per `agent_id`).
+
+> ⚠️ **WICHTIGE KORREKTUR:** Die ursprüngliche Recherche verwendete teilweise veraltete Begriffe (`AzureAIAgentClient`, `agent_id`). Die **korrekte** Klasse ist `AzureAIClient` aus `agent_framework.azure`, und Agents werden per **Name** (`agent_name=`) aufgelöst, nicht per ID.
+
 Tabelle: **Frage → Antwort → Quelle**
 
 | Frage | Antwort | Quelle |
 |---|---|---|
-| Was ist `AzureAIAgentClient`? | Python SDK-Client für Azure AI Foundry Agents; erstellt einen `ChatAgent` über `create_agent()`. | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.azure.azureaiagentclient?view=agent-framework-python-latest |
-| Wie werden Foundry Agents in MAF Workflows genutzt? | Über `AzureAIAgentClient(...).create_agent()` wird ein `ChatAgent` erzeugt, der per `run()` aufgerufen wird; dieser Agent repräsentiert den Foundry Agent (Name/ID). | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.azure.azureaiagentclient?view=agent-framework-python-latest |
-| Unterstützt MAF Fan-In / Fan-Out? | `WorkflowBuilder` bietet `add_fan_in_edges()` (synchronisiert, sammelt Liste) und `add_fan_out_edges()` (broadcast). | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest |
-| Unterstützt MAF dynamische Multi-Selection (Triage entscheidet)? | `add_multi_selection_edge_group()` sendet Messages an mehrere Targets gemäß Selection-Funktion. | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest |
+| Was ist ~~`AzureAIAgentClient`~~ `AzureAIClient`? | Python SDK-Client für Azure AI Foundry Agents; erstellt einen `ChatAgent` über `create_agent()`. **Import:** `from agent_framework.azure import AzureAIClient` | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.azure.azureaiagentclient?view=agent-framework-python-latest |
+| Wie werden Foundry Agents in MAF Workflows genutzt? | Über `AzureAIClient(agent_name=..., use_latest_version=True).create_agent()` wird ein `ChatAgent` erzeugt, der per `run()` aufgerufen wird. **⚠️ NICHT `agent_id` verwenden!** | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.azure.azureaiagentclient?view=agent-framework-python-latest |
+| Unterstützt MAF Fan-In / Fan-Out? | `WorkflowBuilder` bietet `add_fan_in_edges()` und `add_fan_out_edges()`. **Hinweis:** Für einfache Flows ist WorkflowBuilder Overkill - einfache if/else-Logik genügt. | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest |
+| Unterstützt MAF dynamische Multi-Selection (Triage entscheidet)? | `add_multi_selection_edge_group()` ist verfügbar, aber für unseren Use-Case wurde einfachere if/else-Logik implementiert. | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest |
 | Gibt es Fallstricke mit Executor-Instanzen? | Wenn Executor-Instanzen direkt übergeben werden, können sie über mehrere Workflow-Instanzen geteilt werden; `register_executor/register_agent` ist der sichere Weg, falls Workflows gecached werden. | https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest |
 | Wie wird Azure Functions Timeout konfiguriert? | `functionTimeout` in `host.json` (timespan string). Fixed upper bound empfohlen. | https://learn.microsoft.com/en-us/azure/azure-functions/functions-host-json |
 | Welche Defaults/Maxima gelten je Plan und was ist das HTTP-Limit? | Consumption: default 5 min, max 10 min; **HTTP Trigger max ~230s Response** (Load Balancer Idle Timeout). | https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale |
@@ -1197,6 +1425,8 @@ Tabelle: **Frage → Antwort → Quelle**
 ---
 
 ## 14. Externer Entwickler Guide (verbindlich)
+
+> **Was Sie hier lernen:** Eine strenge Schritt-für-Schritt-Anleitung für externe Entwickler. Die wichtigsten Regeln: (1) Arbeite in einem eigenen Branch, nie direkt auf `main`, (2) Ändere niemals `handleAgentRequest()` oder `handleWorkflowRequest()` logisch, (3) Nutze `type: "mfa"` als neues Routing-Kriterium, (4) Teste lokal bevor du deployst.
 
 ### 14.1 Kurze Projektbeschreibung
 
@@ -1233,10 +1463,12 @@ Du musst einen neuen, unabhängigen Ausführungsweg implementieren, der:
 - App Settings (Function):
   - `AZURE_AI_PROJECT_ENDPOINT`: `https://<your-project>.services.ai.azure.com/api/projects/<project-id>` citeturn6view0
   - `AZURE_AI_MODEL_DEPLOYMENT_NAME`: `gpt-4o-mini` (oder euer Deployment-Name) citeturn6view0
-  - `AURA_TRIAGE_AGENT_ID`: `<existing-agent-id>` (AURATriage)
-  - `AURA_WEB_AGENT_ID`: `<existing-agent-id>` (AURAContextPilotWeb)
-  - `AURA_CONTEXT_AGENT_ID`: `<existing-agent-id>` (AURAContextPilot)
-  - `AURA_SYNTHESIZER_AGENT_ID`: `<existing-agent-id>` (AURAContextPilotResponseSynthesizer)
+  - ~~`AURA_TRIAGE_AGENT_ID`~~ ❌ **FALSCH - Verwende Namen statt IDs:**
+  - `AURA_TRIAGE_AGENT_NAME`: `AURATriage` ✅
+  - `AURA_WEB_AGENT_NAME`: `AURAContextPilotWeb` ✅
+  - `AURA_CONTEXT_AGENT_NAME`: `AURAContextPilot` ✅
+  - `AURA_SYNTHESIZER_AGENT_NAME`: `AURAContextPilotResponseSynthesizer` ✅
+  - `AURA_QUICK_AGENT_NAME`: `AURAContextPilotQuick` ✅ (für Direct Response)
 - Logging: Application Insights **on**
 
 **Proxy → Function (Node):**
@@ -1274,14 +1506,17 @@ Du musst einen neuen, unabhängigen Ausführungsweg implementieren, der:
    - Triage JSON Parsing funktioniert (inkl. Fallback: beide Agents).
    - Web/Context laufen parallel (nachweisbar über Logs/Timing).
 
-5. **MAF Workflow (Pflichtstruktur):**
-   Du musst exakt diese Struktur implementieren:
+5. ~~**MAF Workflow (Pflichtstruktur):**~~ ❌ **KORREKTUR: WorkflowBuilder ist NICHT nötig!**
+   
+   > ⚠️ Der ursprüngliche Plan sah `WorkflowBuilder` vor. In der Praxis reicht einfache **if/else-Logik**. Siehe `contextpilot-mfa-function/mfa_workflow.py`
+   
+   ~~Du musst exakt diese Struktur implementieren:~~
    - Start: `AURATriage`
-   - Routing: `add_multi_selection_edge_group()` (Triage entscheidet)
-   - Fan-In: `add_fan_in_edges()` → `AURAContextPilotResponseSynthesizer`
-   Der Workflow darf nicht sequenziell sein.
+   - ~~Routing: `add_multi_selection_edge_group()` (Triage entscheidet)~~
+   - ~~Fan-In: `add_fan_in_edges()` → `AURAContextPilotResponseSynthesizer`~~
+   ~~Der Workflow darf nicht sequenziell sein.~~
 
-6. **AzureAIAgentClient Verständnis (Pflicht):**  
+6. ~~**AzureAIAgentClient Verständnis (Pflicht):**~~ ❌ KORREKTUR: Die Klasse heißt `AzureAIClient`!
    Du darfst `AzureAIAgentClient` nicht als “Agent” bezeichnen.  
    Es ist der Python-Client, der einen Foundry Agent als `ChatAgent` instanziert.
 
@@ -1308,6 +1543,8 @@ Du musst einen neuen, unabhängigen Ausführungsweg implementieren, der:
 
 ## 15. Referenzen (zusätzlich zu Kap. 12)
 
+> **Was Sie hier lernen:** Direkte Links zu den Microsoft Learn API-Dokumentationen für `WorkflowBuilder` (DAG-Workflows), `AzureAIClient` (Agent-Instanzierung), sowie Azure Functions Hosting-Optionen und Timeout-Konfiguration in `host.json`.
+
 - MAF WorkflowBuilder API: https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.workflowbuilder?view=agent-framework-python-latest
 - MAF AzureAIAgentClient API: https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.azure.azureaiagentclient?view=agent-framework-python-latest
 - Azure Functions Hosting/Timeouts: https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale
@@ -1316,6 +1553,8 @@ Du musst einen neuen, unabhängigen Ausführungsweg implementieren, der:
 ---
 
 ## 16. Deployment Guide
+
+> **Was Sie hier lernen:** Eine vollständige, validierte Anleitung für das Azure-Deployment. Dieses Kapitel dokumentiert die tatsächlich durchgeführten Schritte inkl. Fehlerbehebung. Kritische Erkenntnisse: (1) `agent-framework-azure-ai` MUSS in requirements.txt stehen, (2) Lazy Imports in `function_app.py` verhindern "0 Functions"-Fehler, (3) "Azure AI User"-Rolle muss auf der Resource Group des AI Foundry Projects gesetzt werden.
 
 **Version:** 1.0  
 **Datum:** 26. Dezember 2025  
