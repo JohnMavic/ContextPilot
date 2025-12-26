@@ -1,23 +1,8 @@
 {
   "version": "2.0",
-  "functionTimeout": "00:03:30",
-  "logging": {
-    "applicationInsights": {
-      "samplingSettings": {
-        "isEnabled": true,
-        "excludedTypes": "Request"
-      }
-    },
-    "logLevel": {
-      "default": "Information",
-      "Host.Results": "Error",
-      "Function": "Information",
-      "Host.Aggregator": "Trace"
-    }
-  },
-  "extensions": {
-    "http": {
-      "routePrefix": "api"
-    }
+  "isDefaultHostConfig": true,
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[4.*, 5.0.0)"
   }
 }
