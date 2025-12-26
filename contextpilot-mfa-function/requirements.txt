@@ -1,0 +1,21 @@
+# Azure Functions Runtime
+azure-functions==1.13.3
+
+# Microsoft Agent Framework (MAF) – Pin auf eine getestete Version
+# agent-framework-core enthält AzureAIClient (basiert auf azure-ai-projects V2)
+agent-framework-core==1.0.0b251223
+
+# azure-ai-projects V2 für existing agents by name
+azure-ai-projects==2.0.0b2
+
+# HTTP stack
+aiohttp==3.13.2
+
+# Auth / Typing
+azure-identity>=1.17.0
+
+# Pydantic is pulled in by agent-framework-core. On Python 3.12, very old
+# pydantic-core versions do not have wheels and trigger a Rust build.
+# Keep us on a wheel-supported baseline.
+pydantic>=2.6.0,<3
+typing-extensions==4.12.2

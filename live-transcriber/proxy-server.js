@@ -7,24 +7,47 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { DefaultAzureCredential } from "@azure/identity";
+import { randomUUID } from "crypto";
 
 // Get directory of current file for relative paths
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Lade .env.local manuell (relative to this file)
-try {
-  const envPath = join(__dirname, ".env.local");
+function loadEnvFileRelative(filename) {
+  const envPath = join(__dirname, filename);
   const envContent = readFileSync(envPath, "utf-8");
-  envContent.split("\n").forEach((line) => {
-    const [key, ...vals] = line.split("=");
-    if (key && vals.length) {
-      process.env[key.trim()] = vals.join("=").trim();
+  envContent.split("\n").forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) return;
+
+    const eq = line.indexOf("=");
+    if (eq <= 0) return;
+
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
     }
+
+    process.env[key] = value;
   });
-  console.log("Loaded .env.local from:", envPath);
+  console.log(`Loaded ${filename} from:`, envPath);
+}
+
+// Lade .env.local (optional) und danach .env.local.maf (optional) als Override
+try {
+  loadEnvFileRelative(".env.local");
 } catch (e) {
   console.log("Keine .env.local gefunden, nutze Umgebungsvariablen");
+}
+
+try {
+  loadEnvFileRelative(".env.local.maf");
+} catch (e) {
+  // optional
 }
 
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
@@ -98,7 +121,35 @@ function loadWorkflows() {
 
 const AGENTS = loadAgents();
 const WORKFLOWS = loadWorkflows();
-const DEFAULT_AGENT_ID = parseInt(process.env.DEFAULT_AGENT || "1", 10);
+
+// MFA configs (Azure Function-backed MAF orchestration) - optional and fully additive
+function loadMFAConfigs() {
+  const mfas = {};
+  let i = 1;
+  while (process.env[`MFA_${i}_NAME`]) {
+    // Negative IDs ab -100 für MFA (unterscheidbar von Workflows)
+    const mfaId = -100 - i;
+    mfas[mfaId] = {
+      id: mfaId,
+      name: process.env[`MFA_${i}_NAME`],
+      label: process.env[`MFA_${i}_LABEL`] || process.env[`MFA_${i}_NAME`],
+      endpoint: process.env[`MFA_${i}_ENDPOINT`],
+      functionKey: process.env[`MFA_${i}_FUNCTION_KEY`] || null,
+      // Optional: fallback to an existing workflow (negative workflow ID)
+      // Example: MFA_1_FALLBACK_WORKFLOW_ID=-1
+      fallbackWorkflowId: process.env[`MFA_${i}_FALLBACK_WORKFLOW_ID`]
+        ? parseInt(process.env[`MFA_${i}_FALLBACK_WORKFLOW_ID`], 10)
+        : null,
+      type: "mfa",
+    };
+    i++;
+  }
+  return mfas;
+}
+
+const MFAS = loadMFAConfigs();
+// Default: MFA if available (first MFA is -101), otherwise first agent (1)
+const DEFAULT_AGENT_ID = parseInt(process.env.DEFAULT_AGENT || "-101", 10);
 
 // Legacy fallback für alte Konfiguration
 const LEGACY_ENDPOINT = process.env.AURA_ENDPOINT;
@@ -110,6 +161,10 @@ let currentAgentId = DEFAULT_AGENT_ID;
 
 // Get current selection (agent or workflow)
 function getCurrentAgent() {
+  // Check if it's an MFA (IDs ab -100)
+  if (currentAgentId <= -100 && MFAS[currentAgentId]) {
+    return MFAS[currentAgentId];
+  }
   // Check if it's a workflow (negative ID)
   if (currentAgentId < 0 && WORKFLOWS[currentAgentId]) {
     return WORKFLOWS[currentAgentId];
@@ -147,6 +202,13 @@ Object.values(WORKFLOWS).forEach(wf => {
   console.log(`      Endpoint: ${wf.endpoint}`);
   console.log(`      Auth: ${wf.apiKey ? 'API Key' : 'Azure AD'}`);
   console.log(`      Note: Workflows create conversation automatically`);
+});
+
+console.log("\n=== Configured MFA Options ===");
+Object.values(MFAS).forEach(mfa => {
+  console.log(`  [${mfa.id}] ${mfa.label} (${mfa.name})`);
+  console.log(`      Endpoint: ${mfa.endpoint || "(not set)"}`);
+  console.log(`      Auth: ${mfa.functionKey ? "Function Key" : "(none)"}`);
 });
 console.log(`\nDefault Agent: [${DEFAULT_AGENT_ID}] ${AGENTS[DEFAULT_AGENT_ID]?.label || LEGACY_AGENT_NAME}`);
 console.log("AURA API Version:", AURA_API_VERSION);
@@ -196,6 +258,14 @@ function listAgentsAPI(req, res) {
     type: "workflow",
     active: w.id === currentAgentId
   }));
+
+  const mfaList = Object.values(MFAS).map(m => ({
+    id: m.id,
+    name: m.name,
+    label: m.label,
+    type: "mfa",
+    active: m.id === currentAgentId
+  }));
   
   res.writeHead(200, { 
     "Content-Type": "application/json",
@@ -204,6 +274,7 @@ function listAgentsAPI(req, res) {
   res.end(JSON.stringify({ 
     agents: agentList,
     workflows: workflowList,
+    mfas: mfaList,
     currentAgentId,
     apiVersion: AURA_API_VERSION
   }));
@@ -214,26 +285,28 @@ function switchAgentAPI(req, res, body) {
   try {
     const { agentId } = JSON.parse(body || "{}");
     
-    // Check if it's a valid agent or workflow
+    // Check if it's a valid agent, workflow, or MFA
     const isAgent = agentId > 0 && AGENTS[agentId];
-    const isWorkflow = agentId < 0 && WORKFLOWS[agentId];
-    
-    if (!agentId || (!isAgent && !isWorkflow)) {
+    const isMfa = agentId <= -100 && MFAS[agentId];
+    const isWorkflow = agentId < 0 && !isMfa && WORKFLOWS[agentId];
+
+    if (!agentId || (!isAgent && !isWorkflow && !isMfa)) {
       res.writeHead(400, { 
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*"
       });
       res.end(JSON.stringify({ 
-        error: "Invalid agent/workflow ID",
+        error: "Invalid agent/workflow/mfa ID",
         availableAgents: Object.keys(AGENTS).map(Number),
-        availableWorkflows: Object.keys(WORKFLOWS).map(Number)
+        availableWorkflows: Object.keys(WORKFLOWS).map(Number),
+        availableMfas: Object.keys(MFAS).map(Number)
       }));
       return;
     }
     
     currentAgentId = agentId;
-    const selection = isAgent ? AGENTS[agentId] : WORKFLOWS[agentId];
-    const selectionType = isAgent ? "agent" : "workflow";
+    const selection = isAgent ? AGENTS[agentId] : isMfa ? MFAS[agentId] : WORKFLOWS[agentId];
+    const selectionType = isAgent ? "agent" : isMfa ? "mfa" : "workflow";
     console.log(`[AURA] Switched to ${selectionType} [${agentId}] ${selection.label}`);
     
     res.writeHead(200, { 
@@ -298,6 +371,11 @@ async function listAssistants(req, res) {
 // Supports STREAMING for faster response times
 async function handleAgentRequest(req, res, body) {
   const agent = getCurrentAgent();
+
+  // Route to MFA handler if it's an MFA
+  if (agent.type === "mfa") {
+    return handleMFARequest(req, res, body, agent);
+  }
   
   // Route to workflow handler if it's a workflow
   if (agent.type === "workflow") {
@@ -681,11 +759,184 @@ async function handleWorkflowRequest(req, res, body, workflow) {
   }
 }
 
+// Handle MFA (Azure Function-backed) Request - fully additive path
+async function handleMFARequest(req, res, body, mfaConfig) {
+  console.log(`[MFA] Request for: ${mfaConfig.label}`);
+
+  const correlationId =
+    (req?.headers && (req.headers["x-correlation-id"] || req.headers["X-Correlation-Id"])) ||
+    randomUUID();
+
+  if (!mfaConfig.endpoint) {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        error: "MFA endpoint not configured",
+        hint: `Set MFA_${Math.abs(mfaConfig.id + 100)}_ENDPOINT in .env.local`,
+      })
+    );
+    return;
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(body || "{}");
+  } catch (e) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid JSON payload" }));
+    return;
+  }
+
+  const prompt = payload.prompt;
+  if (!prompt) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Missing 'prompt' in request body" }));
+    return;
+  }
+
+  console.log("[MFA] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
+  console.log("[MFA] Forwarding to Azure Function:", mfaConfig.endpoint);
+
+  const timeoutMs = parseInt(process.env.MFA_PROXY_TIMEOUT_MS || "200000", 10);
+  // No retries - Rate Limit ist 50k TPM, Retries verschlimmern das Problem
+  const maxRetries = 0;
+  const retryBackoffMs = [];
+
+  async function doFetch(attempt) {
+    const headers = {
+      "Content-Type": "application/json",
+      "x-correlation-id": correlationId,
+    };
+    if (mfaConfig.functionKey) {
+      headers["x-functions-key"] = mfaConfig.functionKey;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error("MFA proxy timeout")), timeoutMs);
+    try {
+      return await fetch(mfaConfig.endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ prompt }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function wait(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+
+  async function maybeFallback(err, lastStatus) {
+    if (!mfaConfig.fallbackWorkflowId) return false;
+    const wf = WORKFLOWS[mfaConfig.fallbackWorkflowId];
+    if (!wf) {
+      console.warn(
+        `[MFA] Fallback workflow not found for id=${mfaConfig.fallbackWorkflowId}. Skipping fallback.`
+      );
+      return false;
+    }
+
+    console.warn(
+      `[MFA] Falling back to workflow ${wf.name} (id=${wf.id}) due to MFA failure` +
+        (lastStatus ? ` (status=${lastStatus})` : "")
+    );
+
+    // Reuse the same request body; workflow handler manages its own schema.
+    // Add correlation id for consistency (as response header).
+    res.setHeader("x-correlation-id", correlationId);
+    return handleWorkflowRequest(req, res, body, wf);
+  }
+
+  try {
+    let resp = null;
+    let lastErr = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        resp = await doFetch(attempt);
+
+        // Retry only on 5xx
+        if (resp.status >= 500 && resp.status <= 599 && attempt < maxRetries) {
+          const delay = retryBackoffMs[Math.min(attempt, retryBackoffMs.length - 1)];
+          console.warn(`[MFA] ${resp.status} from function, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+          await wait(delay);
+          continue;
+        }
+
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < maxRetries) {
+          const delay = retryBackoffMs[Math.min(attempt, retryBackoffMs.length - 1)];
+          console.warn(`[MFA] Network/timeout error, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`, err?.message);
+          await wait(delay);
+          continue;
+        }
+        break;
+      }
+    }
+
+    if (!resp) {
+      const didFallback = await maybeFallback(lastErr, null);
+      if (didFallback) return;
+
+      res.setHeader("x-correlation-id", correlationId);
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "MFA request failed", hint: lastErr?.message || "Network error" }));
+      return;
+    }
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("[MFA] Error:", text);
+
+      // Optional fallback on 5xx or repeated failures; do not fallback on 4xx.
+      if (resp.status >= 500 && resp.status <= 599) {
+        const didFallback = await maybeFallback(new Error(text), resp.status);
+        if (didFallback) return;
+      }
+
+      res.setHeader("x-correlation-id", correlationId);
+      res.writeHead(resp.status, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "MFA request failed", body: text }));
+      return;
+    }
+
+    const result = await resp.json();
+    console.log("[MFA] Response received, length:", result.output_text?.length);
+    console.log("[MFA] Agents used:", result.agents_used);
+    console.log("[MFA] Routing:", JSON.stringify(result.routing));
+
+    res.setHeader("x-correlation-id", correlationId);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      output_text: result.output_text,
+      workflow: "mfa",
+      agents_used: result.agents_used || [],
+      routing: result.routing || {},
+    }));
+  } catch (err) {
+    console.error("[MFA] Request error:", err);
+    const didFallback = await maybeFallback(err, null);
+    if (didFallback) return;
+
+    res.setHeader("x-correlation-id", correlationId);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: err?.message || "MFA request failed" }));
+  }
+}
+
 const server = createServer((req, res) => {
   const { method, url } = req;
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, api-key");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, api-key, x-correlation-id"
+  );
 
   if (method === "OPTIONS") {
     res.writeHead(204);

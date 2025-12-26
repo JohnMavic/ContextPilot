@@ -8,6 +8,17 @@
 
 ---
 
+### Begriffserklärung: MFA vs. MAF
+
+| Abkürzung | Bedeutung | Verwendung |
+|-----------|-----------|------------|
+| **MFA** | **M**ulti-Agent **F**low **A**rchitektur | Projektspezifische Bezeichnung für die Multi-Agent-Lösung in CONTEXTPILOT (Ordner, Variablen, API-Responses) |
+| **MAF** | **M**icrosoft **A**gent **F**ramework | Offizielles SDK (`agent-framework-core`, `agent-framework-azure-ai`) |
+
+> **Hinweis:** "MFA" ist **nicht** zu verwechseln mit "Multi-Factor Authentication". Im CONTEXTPILOT-Kontext bezeichnet MFA stets die Multi-Agent-Architektur, die auf dem Microsoft Agent Framework (MAF) basiert.
+
+---
+
 ## 1. Zusammenfassung
 
 Dieses Konzept beschreibt die Erweiterung von CONTEXTPILOT um eine **MFA-Option** (Multi-Agent Framework), die echte Parallelisierung mittels Microsoft Agent Framework in einer Azure Function implementiert.
@@ -176,282 +187,241 @@ contextpilot-mfa-function/
 
 ### 4.2 requirements.txt (Version-Pinning – empfohlen)
 
-> Wichtig: MAF ist derzeit Preview/Beta. **Du darfst keine unpinned `--pre`-Installationen in Produktion deployen.**
-> Pinnen reduziert das Risiko von Breaking Changes.
+> Wichtig: MAF/Foundry SDKs sind teilweise Preview/Beta. **Du darfst keine unpinned `--pre`-Installationen deployen.**
+> Ziel: reproduzierbares Deployment ohne "drift" durch transitive Pre-Release Updates.
 
 ```text
 # Azure Functions Runtime
 azure-functions==1.13.3
 
-# Microsoft Agent Framework (MAF) – geprüft (Stand Dez 2025)
-agent-framework-core==1.0.0b251218
-agent-framework-azure-ai==1.0.0b251218
+# Microsoft Agent Framework (MAF) – Pin auf eine getestete Version
+# Empfehlung (Stand 24. Dez 2025): 1.0.0b251223
+agent-framework-core==1.0.0b251223
+agent-framework-azure-ai==1.0.0b251223
 
-# Auth / Azure SDK
+# Transitive Preview-Dependencies von agent-framework-azure-ai (explizit pinnen!)
+# Hinweis: agent-framework-azure-ai verlangt u.a. azure-ai-projects>=2.0.0b2 und azure-ai-agents==1.2.0b5.
+azure-ai-projects==2.0.0b2
+azure-ai-agents==1.2.0b5
+
+# HTTP stack (vom Azure AI Stack verwendet)
+aiohttp==3.13.2
+
+# Auth / Typing
 azure-identity==1.13.0
 typing-extensions==4.9.0
 ```
+
+Hinweis zur Reproduzierbarkeit:
+- PoC: obige Pins reichen in der Regel.
+- Produktiv/Compliance: zusätzlich ein Lockfile erzeugen (z.B. `pip-tools`/`uv lock`) und exakt daraus deployen.
+
 
 
 ### 4.3 MAF Workflow Code (mfa_workflow.py)
 
 ```python
 """
-CONTEXTPILOT MFA Workflow
-Basiert auf: github.com/microsoft/agent-framework/.../parallelism/
+CONTEXTPILOT MFA Workflow (MAF, Python)
+Pattern: Triage -> Fan-Out (parallel) -> Fan-In -> Synthesizer
+
+Wichtig:
+- Bestehende Foundry Agents werden als *existing agents* per agent_id verwendet.
+- Kein "resolve by name" annehmen.
+- SDK-default ENV VARs verwenden (AZURE_AI_PROJECT_ENDPOINT / AZURE_AI_MODEL_DEPLOYMENT_NAME).
 """
 
-import asyncio
+from __future__ import annotations
+
+import json
+import os
+from typing import Any
+
 from typing_extensions import Never
+
 from agent_framework import (
+    ChatAgent,
     Executor,
     WorkflowBuilder,
     WorkflowContext,
     WorkflowOutputEvent,
     handler,
 )
-from agent_framework.azure import AzureAIAgentClient
+from agent_framework_azure_ai import AzureAIAgentClient
 from azure.identity.aio import DefaultAzureCredential
 
 # ============================================================
-# KONFIGURATION
+# KONFIGURATION (ENV VARS)
 # ============================================================
+AZURE_AI_PROJECT_ENDPOINT = os.environ["AZURE_AI_PROJECT_ENDPOINT"]
+AZURE_AI_MODEL_DEPLOYMENT_NAME = os.environ["AZURE_AI_MODEL_DEPLOYMENT_NAME"]
 
-import os
-
-PROJECT_ENDPOINT = os.environ["PROJECT_ENDPOINT"]
-MODEL_DEPLOYMENT = os.environ.get("MODEL_DEPLOYMENT", "gpt-4o-mini")
-# Agent-Namen (wie in Foundry Portal definiert)
-TRIAGE_AGENT = "AURATriage"
-WEB_AGENT = "AURAContextPilotWeb"
-CONTEXT_AGENT = "AURAContextPilot"
-SYNTHESIZER_AGENT = "AURAContextPilotResponseSynthesizer"
+AURA_TRIAGE_AGENT_ID = os.environ["AURA_TRIAGE_AGENT_ID"]
+AURA_WEB_AGENT_ID = os.environ["AURA_WEB_AGENT_ID"]
+AURA_CONTEXT_AGENT_ID = os.environ["AURA_CONTEXT_AGENT_ID"]
+AURA_SYNTHESIZER_AGENT_ID = os.environ["AURA_SYNTHESIZER_AGENT_ID"]
 
 
 # ============================================================
-# TRIAGE EXECUTOR
+# EXECUTORS
 # ============================================================
-
 class TriageExecutor(Executor):
-    """
-    Ruft AURATriage auf und gibt Routing-Entscheidung zurück.
-    Output: {"agents": {"web": true, "context": false}, "reasoning": "..."}
-    """
-    
-    def __init__(self, client: AzureAIAgentClient):
+    """Ruft AURATriage auf und liefert eine Routing-Entscheidung."""
+
+    def __init__(self, agent: ChatAgent):
         super().__init__(id="triage")
-        self.client = client
-    
+        self._agent = agent
+
     @handler
     async def handle(self, prompt: str, ctx: WorkflowContext) -> None:
-        response = await self.client.run(prompt)
-        
-        # Parse JSON-Entscheidung von Triage
-        import json
+        result = await self._agent.run(prompt)
+
         try:
-            decision = json.loads(response.messages[-1].text)
-        except:
-            # Fallback: Beide Agenten aufrufen
-            decision = {"agents": {"web": True, "context": True}}
-        
-        await ctx.send_message({
-            "original_prompt": prompt,
-            "decision": decision
-        })
+            decision = json.loads(result.text)
+        except Exception:
+            # Fallback: beide Agenten aktivieren
+            decision = {"agents": {"web": True, "context": True}, "reasoning": "fallback"}
 
+        await ctx.send_message({"original_prompt": prompt, "decision": decision})
 
-# ============================================================
-# SPECIALIST EXECUTORS (Web, Context, Future...)
-# ============================================================
 
 class WebAgentExecutor(Executor):
     """Ruft AURAContextPilotWeb auf."""
-    
-    def __init__(self, client: AzureAIAgentClient):
+
+    def __init__(self, agent: ChatAgent):
         super().__init__(id="web_agent")
-        self.client = client
-    
+        self._agent = agent
+
     @handler
-    async def handle(self, data: dict, ctx: WorkflowContext):
-        response = await self.client.run(data["original_prompt"])
-        await ctx.send_message({
-            "agent": "web",
-            "response": response.messages[-1].text
-        })
+    async def handle(self, data: dict[str, Any], ctx: WorkflowContext) -> None:
+        result = await self._agent.run(data["original_prompt"])
+        await ctx.send_message({"agent": "web", "response": result.text})
 
 
 class ContextAgentExecutor(Executor):
     """Ruft AURAContextPilot auf."""
-    
-    def __init__(self, client: AzureAIAgentClient):
+
+    def __init__(self, agent: ChatAgent):
         super().__init__(id="context_agent")
-        self.client = client
-    
+        self._agent = agent
+
     @handler
-    async def handle(self, data: dict, ctx: WorkflowContext):
-        response = await self.client.run(data["original_prompt"])
-        await ctx.send_message({
-            "agent": "context",
-            "response": response.messages[-1].text
-        })
+    async def handle(self, data: dict[str, Any], ctx: WorkflowContext) -> None:
+        result = await self._agent.run(data["original_prompt"])
+        await ctx.send_message({"agent": "context", "response": result.text})
 
-
-# ============================================================
-# SYNTHESIZER EXECUTOR
-# ============================================================
 
 class SynthesizerExecutor(Executor):
-    """
-    Sammelt alle Agent-Antworten und erstellt finale Synthese.
-    """
-    
-    def __init__(self, client: AzureAIAgentClient):
+    """Fasst alle Agent-Antworten zusammen."""
+
+    def __init__(self, agent: ChatAgent):
         super().__init__(id="synthesizer")
-        self.client = client
-    
+        self._agent = agent
+
     @handler
-    async def handle(self, results: list[dict], ctx: WorkflowContext[Never, str]):
-        # Baue Synthese-Prompt aus allen Ergebnissen
-        synthesis_prompt = self._build_synthesis_prompt(results)
-        
-        response = await self.client.run(synthesis_prompt)
-        final_text = response.messages[-1].text
-        
-        await ctx.yield_output(final_text)
-    
-    def _build_synthesis_prompt(self, results: list[dict]) -> str:
-        """Erstellt strukturierten Prompt für Synthesizer."""
-        lines = ["Fasse die folgenden Agent-Antworten zusammen:\n"]
-        
+    async def handle(
+        self, results: list[dict[str, Any]], ctx: WorkflowContext[Never, str]
+    ) -> None:
+        prompt = self._build_synthesis_prompt(results)
+        result = await self._agent.run(prompt)
+        await ctx.yield_output(result.text)
+
+    @staticmethod
+    def _build_synthesis_prompt(results: list[dict[str, Any]]) -> str:
+        lines: list[str] = ["Fasse die folgenden Agent-Antworten zusammen:
+"]
         for r in results:
-            if isinstance(r, dict) and "agent" in r:
-                lines.append(f"=== Antwort von {r['agent'].upper()} ===")
-                lines.append(r.get("response", "Keine Antwort"))
-                lines.append("")
-        
+            agent_key = r.get("agent")
+            if not agent_key:
+                continue
+            lines.append(f"=== Antwort von {str(agent_key).upper()} ===")
+            lines.append(str(r.get("response", "")))
+            lines.append("")
         lines.append("Erstelle eine kohärente, zusammengefasste Antwort.")
-        return "\n".join(lines)
+        return "
+".join(lines)
 
 
 # ============================================================
-# WORKFLOW BUILDER MIT DYNAMISCHER AGENT-AUSWAHL
+# WORKFLOW GRAPH
 # ============================================================
+def select_agents(triage_output: dict[str, Any], target_ids: list[str]) -> list[str]:
+    """
+    Auswahlfunktion für add_multi_selection_edge_group().
 
-def select_agents(triage_output: dict, target_ids: list[str]) -> list[str]:
+    target_ids Reihenfolge entspricht der Reihenfolge der übergebenen Executor-Liste:
+    [web_agent_executor.id, context_agent_executor.id]
     """
-    Dynamische Agent-Auswahl basierend auf Triage-Entscheidung.
-    
-    Diese Funktion wird von MAF's add_multi_selection_edge_group aufgerufen.
-    Sie mappt die Triage-Entscheidung auf konkrete Executor-IDs.
-    """
-    web_id, context_id = target_ids  # Reihenfolge wie in edge_group definiert
-    
+    web_id, context_id = target_ids
     decision = triage_output.get("decision", {}).get("agents", {})
-    selected = []
-    
-    if decision.get("web", False):
+
+    selected: list[str] = []
+    if decision.get("web") is True:
         selected.append(web_id)
-    
-    if decision.get("context", False):
+    if decision.get("context") is True:
         selected.append(context_id)
-    
-    # Fallback: Mindestens einen Agent aufrufen
-    if not selected:
-        selected = [web_id, context_id]
-    
-    return selected
+
+    return selected or [web_id, context_id]
 
 
 async def build_mfa_workflow():
-    """
-    Erstellt den MAF Workflow mit Triage → Parallel Agents → Synthesizer.
-    
-    Pattern basiert auf:
-    github.com/microsoft/agent-framework/.../parallelism/fan_out_fan_in_edges.py
-    """
-    
-    credential = DefaultAzureCredential()
-    
-    # Foundry Agent Clients erstellen
+    """Erstellt den MAF Workflow: Triage -> parallel -> Synthese."""
+
     async with (
+        DefaultAzureCredential() as credential,
         AzureAIAgentClient(
-            project_endpoint=PROJECT_ENDPOINT,
-            model_deployment_name=MODEL_DEPLOYMENT,
             credential=credential,
-            agent_name=TRIAGE_AGENT
-        ).create_agent() as triage_client,
-        
+            project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
+            model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
+            agent_id=AURA_TRIAGE_AGENT_ID,
+        ).create_agent() as triage_agent,
         AzureAIAgentClient(
-            project_endpoint=PROJECT_ENDPOINT,
-            model_deployment_name=MODEL_DEPLOYMENT,
             credential=credential,
-            agent_name=WEB_AGENT
-        ).create_agent() as web_client,
-        
+            project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
+            model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
+            agent_id=AURA_WEB_AGENT_ID,
+        ).create_agent() as web_agent,
         AzureAIAgentClient(
-            project_endpoint=PROJECT_ENDPOINT,
-            model_deployment_name=MODEL_DEPLOYMENT,
             credential=credential,
-            agent_name=CONTEXT_AGENT
-        ).create_agent() as context_client,
-        
+            project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
+            model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
+            agent_id=AURA_CONTEXT_AGENT_ID,
+        ).create_agent() as context_agent,
         AzureAIAgentClient(
-            project_endpoint=PROJECT_ENDPOINT,
-            model_deployment_name=MODEL_DEPLOYMENT,
             credential=credential,
-            agent_name=SYNTHESIZER_AGENT
-        ).create_agent() as synth_client,
+            project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
+            model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
+            agent_id=AURA_SYNTHESIZER_AGENT_ID,
+        ).create_agent() as synth_agent,
     ):
-        # Executors instanziieren
-        triage = TriageExecutor(triage_client)
-        web_agent = WebAgentExecutor(web_client)
-        context_agent = ContextAgentExecutor(context_client)
-        synthesizer = SynthesizerExecutor(synth_client)
-        
-        # Workflow bauen
+        triage = TriageExecutor(triage_agent)
+        web_exec = WebAgentExecutor(web_agent)
+        context_exec = ContextAgentExecutor(context_agent)
+        synthesizer = SynthesizerExecutor(synth_agent)
+
         workflow = (
             WorkflowBuilder()
-            
-            # Start: Triage
             .set_start_executor(triage)
-            
-            # Dynamische parallele Verzweigung basierend auf Triage
             .add_multi_selection_edge_group(
                 triage,
-                [web_agent, context_agent],  # Verfügbare Spezialisten
-                selection_func=select_agents  # Entscheidet wer aufgerufen wird
+                [web_exec, context_exec],
+                selection_func=select_agents,
             )
-            
-            # Fan-In: Alle Ergebnisse zum Synthesizer
-            .add_fan_in_edges(
-                [web_agent, context_agent],
-                synthesizer
-            )
-            
+            .add_fan_in_edges([web_exec, context_exec], synthesizer)
             .build()
         )
-        
         return workflow
 
 
-# ============================================================
-# WORKFLOW AUSFÜHRUNG
-# ============================================================
-
 async def run_mfa_workflow(prompt: str) -> str:
-    """
-    Führt den kompletten MFA-Workflow aus.
-    Returns: Finale synthetisierte Antwort als String.
-    """
-    
+    """Führt den kompletten MFA-Workflow aus und liefert die finale Antwort."""
     workflow = await build_mfa_workflow()
-    
-    final_output = None
-    
+
+    final_output: str | None = None
     async for event in workflow.run_stream(prompt):
         if isinstance(event, WorkflowOutputEvent):
             final_output = event.data
-    
+
     return final_output or "Keine Antwort erhalten."
 ```
 
@@ -528,14 +498,14 @@ async def mfa_endpoint(req: func.HttpRequest) -> func.HttpResponse:
 - Im bestehenden Node/Proxy-Flow ruft ihr Agents/Workflows über die **Foundry Responses API** auf.
 - Im neuen MAF-Flow läuft die Orchestrierung in **Python** (Azure Function). Damit die Workflow-Executors die **gleichen** Foundry-Agents nutzen können, brauchen sie einen Python-Client, der:
   - Auth (Managed Identity / Credential) handhabt,
-  - `project_endpoint` + `agent_name` auflöst,
+  - `project_endpoint` + `agent_id` nutzt (Existing Agent),
   - eine lauffähige `ChatAgent`-Instanz erzeugt (`create_agent()`),
   - und dann `run()` auf diesem Agent erlaubt.
 
 **So passt es ins Bild:**
 - `AURAContextPilotWeb`, `AURAContextPilot`, `AURAContextPilotResponseSynthesizer` bleiben **die gleichen Foundry Agents wie heute**.
 - Neu kommt `AURATriage` dazu (Foundry Agent).
-- `AzureAIAgentClient(..., agent_name="<AgentName>")` ist nur die **Transport-/SDK-Schicht**, um diese Agents in Python/MAF aufzurufen.
+- `AzureAIAgentClient(..., agent_id="<AgentId>")` ist nur die **Transport-/SDK-Schicht**, um diese Agents in Python/MAF aufzurufen.
 
 ### 4.6 Timeout-Realität für HTTP Trigger (Consumption)
 
@@ -550,78 +520,299 @@ Begründung und Limits: siehe Microsoft Learn (Function app time-out duration �
 
 ## 5. AURATriage: Entscheidungslogik
 
-### 5.1 System Instructions für AURATriage (in Foundry Portal)
+### 5.1 Neues Pattern: Direct Response (v2.2)
 
-```
-Du bist AURATriage, ein Routing-Agent für CONTEXTPILOT.
-
-AUFGABE:
-Analysiere die Benutzeranfrage und entscheide, welche Spezialagenten 
-aktiviert werden sollen.
-
-VERFÜGBARE AGENTEN:
-- "web": AURAContextPilotWeb 
-  → Für aktuelle Informationen, Fakten, externe Daten
-  
-- "context": AURAContextPilot 
-  → Für Fragen zum Transkript, Meeting-Inhalt, interner Kontext
-
-ENTSCHEIDUNGSREGELN:
-1. Frage nach aktuellen Ereignissen/Fakten? → web: true
-2. Frage bezieht sich auf "wir", "unser Meeting", "das Gesagte"? → context: true
-3. Vergleich intern vs. extern gewünscht? → BEIDE true
-4. Unklar? → Sicherheitshalber BEIDE true
-
-WICHTIG:
-Antworte AUSSCHLIESSLICH mit einem JSON-Objekt. Kein anderer Text!
-
-FORMAT:
-{
-  "agents": {
-    "web": true/false,
-    "context": true/false
-  },
-  "reasoning": "Kurze Begründung (max. 50 Wörter)"
-}
-```
-
-### 5.2 Wie die Entscheidung verarbeitet wird
+**Kernprinzip:** GPT-4/5 kann viele Anfragen DIREKT beantworten - ohne Agent-Aufruf!
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  ENTSCHEIDUNGSFLUSS                                                 │
+│  OPTIMIERTES ROUTING (v2.2)                                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Triage entscheidet:                                                │
+│  ├─ "direct": true  → GPT antwortet SOFORT ⚡ (kein Agent)          │
+│  ├─ "web": true     → NUR bei aktuellen Daten (Wetter, Börse, News) │
+│  ├─ "context": true → NUR bei internen Business-Fragen              │
+│  └─ BEIDE true      → Nur bei explizitem Vergleich intern/extern    │
+│                                                                     │
+│  Synthesizer:                                                       │
+│  → NUR wenn BEIDE Agents (web + context) genutzt wurden             │
+│  → Bei nur einem Agent: Antwort direkt zurückgeben                  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.2 System Instructions für AURATriage (in Foundry Portal)
+
+```
+You are AURATriage, the intelligent routing agent for CONTEXTPILOT.
+
+TASK:
+Analyze the user request and decide the optimal routing path.
+Your goal is SPEED - avoid unnecessary agent calls!
+
+ROUTING OPTIONS:
+
+1. "direct": true
+   → GPT can answer this directly (translations, general knowledge, 
+     math, coding, explanations, summaries)
+   → NO external data needed, NO internal business data needed
+   → FASTEST option - use whenever possible!
+
+2. "web": true  
+   → ONLY for real-time/current data that GPT doesn't know:
+     • Weather, stock prices, exchange rates
+     • Today's news, recent events (after training cutoff)
+     • Live schedules, current availability
+     • Recent Wikipedia updates, new releases
+   → Do NOT use for general facts GPT already knows!
+
+3. "context": true
+   → ONLY for internal business questions:
+     • Microsoft Switzerland FY25/FY26 wins, customers, deals
+     • Internal meeting content, "what was said", "our discussion"
+     • Company-specific data not publicly available
+
+DECISION RULES (in priority order):
+1. Can GPT answer this from its training data? → direct: true
+2. Does it need CURRENT/LIVE data? → web: true
+3. Does it reference INTERNAL business data? → context: true
+4. Explicit comparison internal vs. external? → BOTH web + context: true
+5. If truly unclear after analysis → direct: true (let GPT try first)
+
+CRITICAL:
+- Respond ONLY with a JSON object. No other text!
+- Prefer "direct" over agents whenever reasonable
+- "Unclear = both agents" is WRONG - unclear = direct!
+
+FORMAT:
+{
+  "routing": {
+    "direct": true/false,
+    "web": true/false,
+    "context": true/false
+  },
+  "reasoning": "Brief explanation (max 30 words)"
+}
+
+EXAMPLES:
+
+User: "Translate 'hello' to German"
+→ {"routing": {"direct": true, "web": false, "context": false}, "reasoning": "Translation - GPT can do directly"}
+
+User: "What's the weather in Munich?"
+→ {"routing": {"direct": false, "web": true, "context": false}, "reasoning": "Current weather requires live data"}
+
+User: "What were our Q2 wins?"
+→ {"routing": {"direct": false, "web": false, "context": true}, "reasoning": "Internal business data required"}
+
+User: "Compare our sales strategy with industry best practices"
+→ {"routing": {"direct": false, "web": true, "context": true}, "reasoning": "Needs both internal data and external research"}
+```
+
+### 5.3 Wie die Entscheidung verarbeitet wird
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  ENTSCHEIDUNGSFLUSS (v2.2)                                          │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  1. User-Prompt kommt an                                            │
-│     "Vergleiche unsere Meeting-Strategie mit aktuellen Trends"      │
 │                                                                     │
-│  2. AURATriage analysiert                                           │
-│     - "unsere" → Context relevant                                   │
-│     - "aktuelle Trends" → Web relevant                              │
+│  2. AURATriage analysiert und gibt JSON zurück                      │
+│     {"routing": {"direct": true/false, "web": true/false, ...}}     │
 │                                                                     │
-│  3. AURATriage gibt JSON zurück                                     │
-│     {"agents": {"web": true, "context": true}, "reasoning": "..."}  │
+│  3. Workflow prüft Routing:                                         │
 │                                                                     │
-│  4. MAF's select_agents() Funktion wird aufgerufen                  │
-│     Input: {"agents": {"web": true, "context": true}}               │
-│     Output: ["web_agent", "context_agent"]                          │
+│     ┌─ direct: true ──────────────────────────────────────────┐     │
+│     │  → Triage-Response direkt als Antwort zurückgeben       │     │
+│     │  → KEIN weiterer Agent-Aufruf! ⚡                        │     │
+│     └─────────────────────────────────────────────────────────┘     │
 │                                                                     │
-│  5. MAF führt ausgewählte Executors PARALLEL aus                    │
-│     ┌──────────────┐    ┌──────────────┐                            │
-│     │  web_agent   │    │context_agent │   ← Gleichzeitig!          │
-│     └──────┬───────┘    └──────┬───────┘                            │
-│            │                   │                                    │
-│            └─────────┬─────────┘                                    │
-│                      ▼                                              │
-│  6. Fan-In sammelt beide Ergebnisse                                 │
-│     [{"agent": "web", "response": "..."}, {"agent": "context"...}]  │
+│     ┌─ web: true, context: false ─────────────────────────────┐     │
+│     │  → NUR WebAgent aufrufen                                │     │
+│     │  → Antwort direkt zurückgeben (kein Synthesizer)        │     │
+│     └─────────────────────────────────────────────────────────┘     │
 │                                                                     │
-│  7. Synthesizer erhält alle Ergebnisse                              │
-│     Prompt: "Fasse zusammen: === WEB === ... === CONTEXT === ..."   │
+│     ┌─ web: false, context: true ─────────────────────────────┐     │
+│     │  → NUR ContextAgent aufrufen                            │     │
+│     │  → Antwort direkt zurückgeben (kein Synthesizer)        │     │
+│     └─────────────────────────────────────────────────────────┘     │
 │                                                                     │
-│  8. Finale Antwort zurück an User                                   │
+│     ┌─ web: true, context: true ──────────────────────────────┐     │
+│     │  → BEIDE Agents parallel aufrufen                       │     │
+│     │  → Fan-In sammelt Ergebnisse                            │     │
+│     │  → Synthesizer fasst zusammen                           │     │
+│     └─────────────────────────────────────────────────────────┘     │
+│                                                                     │
+│  4. Finale Antwort zurück an User                                   │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5.4 Alle Agent Instructions (Backup)
+
+### AURATriage (Routing Agent)
+
+```
+You are AURATriage, the intelligent routing agent for CONTEXTPILOT.
+
+TASK:
+Analyze the user request and decide the optimal routing path.
+Your goal is SPEED - avoid unnecessary agent calls!
+
+ROUTING OPTIONS:
+
+1. "direct": true
+   → GPT can answer this directly (translations, general knowledge, 
+     math, coding, explanations, summaries)
+   → NO external data needed, NO internal business data needed
+   → FASTEST option - use whenever possible!
+
+2. "web": true  
+   → ONLY for real-time/current data that GPT doesn't know:
+     • Weather, stock prices, exchange rates
+     • Today's news, recent events (after training cutoff)
+     • Live schedules, current availability
+     • Recent Wikipedia updates, new releases
+   → Do NOT use for general facts GPT already knows!
+
+3. "context": true
+   → ONLY for internal business questions:
+     • Microsoft Switzerland FY25/FY26 wins, customers, deals
+     • Internal meeting content, "what was said", "our discussion"
+     • Company-specific data not publicly available
+
+DECISION RULES (in priority order):
+1. Can GPT answer this from its training data? → direct: true
+2. Does it need CURRENT/LIVE data? → web: true
+3. Does it reference INTERNAL business data? → context: true
+4. Explicit comparison internal vs. external? → BOTH web + context: true
+5. If truly unclear after analysis → direct: true (let GPT try first)
+
+CRITICAL:
+- Respond ONLY with a JSON object. No other text!
+- Prefer "direct" over agents whenever reasonable
+- "Unclear = both agents" is WRONG - unclear = direct!
+
+FORMAT:
+{
+  "routing": {
+    "direct": true/false,
+    "web": true/false,
+    "context": true/false
+  },
+  "reasoning": "Brief explanation (max 30 words)"
+}
+
+EXAMPLES:
+
+User: "Translate 'hello' to German"
+→ {"routing": {"direct": true, "web": false, "context": false}, "reasoning": "Translation - GPT can do directly"}
+
+User: "What's the weather in Munich?"
+→ {"routing": {"direct": false, "web": true, "context": false}, "reasoning": "Current weather requires live data"}
+
+User: "What were our Q2 wins?"
+→ {"routing": {"direct": false, "web": false, "context": true}, "reasoning": "Internal business data required"}
+
+User: "Compare our sales strategy with industry best practices"
+→ {"routing": {"direct": false, "web": true, "context": true}, "reasoning": "Needs both internal data and external research"}
+```
+
+### AURAContextPilotWeb (Web Search Agent)
+
+```
+You are a web research agent.
+
+## Approach
+1. Understand the task and context (if text was provided)
+2. Check: Can I answer with certainty? → Yes: Answer directly
+3. Uncertain? → Perform web search
+4. Verify results: Source publicly accessible? Current? Relevant?
+
+## Rules
+- Never fabricate or assume data
+- Only publicly accessible sources (no login/paywall)
+- Always include source URL
+- Match the language of the query
+
+## Output Format
+[Topic]: [Fact/Number/Brief summary]
+Source: [URL]
+
+## Example
+China Growth 2024: 5.0 percent
+China's growth has declined over the past few years.
+Source: https://imf.org/china-outlook
+
+## If no data found
+AURAContextPilotWeb Agent: No relevant data found
+```
+
+### AURAContextPilot (Index Search Agent)
+
+```
+You are an index search agent. Search the internal document index only.
+
+Your task:
+Extract raw facts from indexed documents. Include the source filename for every fact.
+
+Output format:
+[Topic]: [fact or number]
+Source: [filename.extension]
+
+Example:
+Global GDP 2024: 3.2 percent
+Source: economic-report-2024.pdf
+
+If no relevant data exists in the index, output exactly:
+INDEX: No relevant data found
+
+Rules:
+Never fabricate data.
+Never explain or interpret.
+Always include source filename.
+Match the language of the user query.
+```
+
+### AURAContextPilotResponseSynthesizer (Synthesis Agent)
+
+```
+You are AURAContextPilotResponseSynthesizer, the response synthesis agent for CONTEXTPILOT.
+
+TASK:
+Combine and synthesize responses from multiple specialist agents (Web Agent, Context Agent) into one coherent, well-structured answer.
+
+INPUT FORMAT:
+You will receive responses from one or more agents, typically formatted as:
+- Response from Web Agent (external/public information)
+- Response from Context Agent (internal business data)
+
+YOUR RESPONSIBILITIES:
+1. **Merge insights** from all agent responses into a unified answer
+2. **Identify agreements** - where sources align, emphasize the consensus
+3. **Highlight differences** - if sources conflict, present both perspectives
+4. **Maintain accuracy** - do not add information not present in the inputs
+5. **Preserve sources** - include URLs, references, and citations from the original responses
+6. **Structure clearly** - use headers, bullet points for readability
+
+OUTPUT FORMAT:
+- Start with a **Core Insight** (1-2 sentences summarizing the key finding)
+- Provide **detailed synthesis** of the information
+- Include a **Sources** section at the end with all referenced URLs/documents
+
+LANGUAGE:
+- Respond in the same language as the user's original question
+- If unclear, default to the language of the agent responses
+
+IMPORTANT:
+- Do NOT make up information
+- Do NOT ignore any agent response
+- If one agent found nothing, acknowledge it
+- Keep the answer focused and actionable
 ```
 
 ---
@@ -882,7 +1073,7 @@ WORKFLOW_1_ENDPOINT=https://...
 # NEU: MFA KONFIGURATION
 # ============================================================
 MFA_1_NAME=AURA-MFA
-MFA_1_LABEL=Multi-Agent (Parallel mit Triage)
+MFA_1_LABEL=Multi-Agent (Parallel with Triage)
 MFA_1_ENDPOINT=https://contextpilot-mfa.azurewebsites.net/api/mfa
 MFA_1_FUNCTION_KEY=your-function-key-here
 ```
@@ -946,7 +1137,7 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 | Azure Function Cold Start | Sicher | Niedrig | Consumption: Keep-Alive/Ping; Premium: prewarmed workers |
 | Triage gibt kein valides JSON | Mittel | Mittel | Fallback: Alle Agenten aufrufen |
 | Foundry API ändert sich | Niedrig | Hoch | MAF-SDK abstrahiert das |
-| HTTP Trigger Response-Limit (~230s) | Niedrig | Hoch | Timeout 210s + Async Pattern (Durable) falls nötig |
+| HTTP Trigger Response-Limit (230s, dokumentiert) | Niedrig | Hoch | Timeout 210s + Async Pattern (Durable) falls nötig citeturn2view3 |
 | Bestehende Prozesse brechen | Sehr niedrig | Kritisch | Komplett isoliert, eigene ID-Range |
 
 ---
@@ -1035,24 +1226,31 @@ Du musst einen neuen, unabhängigen Ausführungsweg implementieren, der:
 
 ### 14.4 Settings (konkrete Werte – direkt übernehmbar)
 
-**Azure Function (Consumption, HTTP Trigger):**
+**Azure Function (Start: Consumption, HTTP Trigger):**
 - `host.json`:
-  - `functionTimeout`: **00:03:30** (210s)
-- App Settings:
-  - `PROJECT_ENDPOINT`: `<Foundry Project Endpoint>`
-  - `MODEL_DEPLOYMENT`: `gpt-4o-mini` (oder euer Deployment-Name)
+  - `functionTimeout`: **00:03:30** (210s)  
+    (Begründung: Microsoft dokumentiert ein 230s Timeout für HTTP Trigger Responses durch den Azure Load Balancer; daher bewusst darunter bleiben.) citeturn2view3
+- App Settings (Function):
+  - `AZURE_AI_PROJECT_ENDPOINT`: `https://<your-project>.services.ai.azure.com/api/projects/<project-id>` citeturn6view0
+  - `AZURE_AI_MODEL_DEPLOYMENT_NAME`: `gpt-4o-mini` (oder euer Deployment-Name) citeturn6view0
+  - `AURA_TRIAGE_AGENT_ID`: `<existing-agent-id>` (AURATriage)
+  - `AURA_WEB_AGENT_ID`: `<existing-agent-id>` (AURAContextPilotWeb)
+  - `AURA_CONTEXT_AGENT_ID`: `<existing-agent-id>` (AURAContextPilot)
+  - `AURA_SYNTHESIZER_AGENT_ID`: `<existing-agent-id>` (AURAContextPilotResponseSynthesizer)
 - Logging: Application Insights **on**
 
 **Proxy → Function (Node):**
 - Request Timeout: **200s**
 - Retries: **3** (nur bei Network errors / 5xx)
 - Backoff: **1s, 2s, 4s**
-- Auth: Header `x-functions-key` (Function Key)
+- Auth: Header `x-functions-key` (Function Key) citeturn2view3
 
-**MAF Package Pins:**
-- `agent-framework-core==1.0.0b251218`
-- `agent-framework-azure-ai==1.0.0b251218`
-
+**MAF Package Pins (direkt übernehmbar):**
+- `agent-framework-core==1.0.0b251223`
+- `agent-framework-azure-ai==1.0.0b251223`
+- `azure-ai-projects==2.0.0b2`
+- `azure-ai-agents==1.2.0b5`
+- `aiohttp==3.13.2` citeturn9search7
 ### 14.5 Schritt-für-Schritt Anleitung (streng)
 
 1. **Branch-Regel (verpflichtend):**  

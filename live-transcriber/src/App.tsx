@@ -19,7 +19,7 @@ interface AgentInfo {
   id: number;
   name: string;
   label: string;
-  type: "agent" | "workflow";
+  type: "agent" | "workflow" | "mfa";
   active: boolean;
 }
 
@@ -166,6 +166,7 @@ export default function App() {
   // Agent selection state
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [workflows, setWorkflows] = useState<AgentInfo[]>([]);
+  const [mfas, setMfas] = useState<AgentInfo[]>([]);
   const [currentAgentId, setCurrentAgentId] = useState<number | null>(null);
   const [agentSwitching, setAgentSwitching] = useState(false);
   
@@ -188,6 +189,9 @@ export default function App() {
         if (data.workflows) {
           // Add type to workflows for UI display
           setWorkflows(data.workflows.map((w: AgentInfo) => ({ ...w, type: "workflow" as const })));
+        }
+        if (data.mfas) {
+          setMfas(data.mfas.map((m: AgentInfo) => ({ ...m, type: "mfa" as const })));
         }
         if (data.currentAgentId !== undefined) {
           setCurrentAgentId(data.currentAgentId);
@@ -213,6 +217,7 @@ export default function App() {
         // Update active state in both lists
         setAgents(prev => prev.map(a => ({ ...a, active: a.id === agentId })));
         setWorkflows(prev => prev.map(w => ({ ...w, active: w.id === agentId })));
+        setMfas(prev => prev.map(m => ({ ...m, active: m.id === agentId })));
       }
     } catch (err) {
       console.error("Failed to switch agent:", err);
@@ -1418,8 +1423,8 @@ ${customPrompt}`, useWebSearch);
         
         {/* Agent Selection - oberhalb Audio Settings */}
         <div className="panel sidebar-panel">
-          <h3>AI Agent / Workflow</h3>
-          {agents.length === 0 && workflows.length === 0 ? (
+          <h3>AI Agent / Workflow / MFA</h3>
+          {agents.length === 0 && workflows.length === 0 && mfas.length === 0 ? (
             <p className="muted" style={{ fontSize: 12 }}>Loading agents...</p>
           ) : (
             <div className="agent-selector">
@@ -1429,9 +1434,9 @@ ${customPrompt}`, useWebSearch);
                 disabled={agentSwitching}
                 className="agent-dropdown"
               >
-                {/* Agents Group */}
+                {/* Agent Group */}
                 {agents.length > 0 && (
-                  <optgroup label="🤖 Agents">
+                  <optgroup label="🤖 Agent">
                     {agents.map(agent => (
                       <option key={agent.id} value={agent.id}>
                         {agent.label || agent.name}
@@ -1439,12 +1444,22 @@ ${customPrompt}`, useWebSearch);
                     ))}
                   </optgroup>
                 )}
-                {/* Workflows Group */}
+                {/* Workflow Group */}
                 {workflows.length > 0 && (
-                  <optgroup label="⚡ Workflows">
+                  <optgroup label="⚡ Workflow">
                     {workflows.map(workflow => (
                       <option key={workflow.id} value={workflow.id}>
                         {workflow.label || workflow.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {/* MFA Group */}
+                {mfas.length > 0 && (
+                  <optgroup label="🧩 MFA">
+                    {mfas.map(mfa => (
+                      <option key={mfa.id} value={mfa.id}>
+                        {mfa.label || mfa.name}
                       </option>
                     ))}
                   </optgroup>
@@ -1746,6 +1761,8 @@ ${customPrompt}`, useWebSearch);
                           highlights={highlights}
                           sourceGroupId={`aura-source-${response.id}`}
                           followUps={response.followUps}
+                          agentsUsed={response.agentsUsed}
+                          routing={response.routing}
                         />
                       </div>
                     ))}

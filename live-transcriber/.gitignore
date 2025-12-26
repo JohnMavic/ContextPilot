@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 .env.local
+.env.local.maf
 appservice-appsettings.generated.json
 appservice-appsettings.generated.redacted.json
 dist-ssr

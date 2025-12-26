@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { HighlightedText } from "./HighlightedText";
-import type { AuraFollowUp } from "../hooks/useAuraAgent";
+import type { AuraFollowUp, AuraRouting } from "../hooks/useAuraAgent";
 import type { Highlight, HighlightColor } from "../hooks/useHighlights";
 
 // Farben passend zu den Highlight-Klassen
@@ -247,6 +247,9 @@ interface AuraResponsePanelProps {
   highlights: Highlight[];
   sourceGroupId: string;
   followUps: AuraFollowUp[];
+  // NEU: MFA Routing-Metadaten
+  agentsUsed?: string[];
+  routing?: AuraRouting;
 }
 
 export function AuraResponsePanel({
@@ -265,6 +268,8 @@ export function AuraResponsePanel({
   highlights,
   sourceGroupId,
   followUps,
+  agentsUsed,
+  routing: _routing, // Available for future use
 }: AuraResponsePanelProps) {
   const borderColor = colorMap[color];
   const [followUpText, setFollowUpText] = useState("");
@@ -339,6 +344,51 @@ export function AuraResponsePanel({
             <pre>{prompt}</pre>
           </details>
         )}
+        
+        {/* MFA Routing Info - dezente Anzeige */}
+        {agentsUsed && agentsUsed.length > 0 && (
+          <div className="aura-routing-info">
+            <div className="routing-icons-row">
+              <span className="routing-label">🔀</span>
+              <span className="routing-agents">
+                {agentsUsed.map((agent, i) => {
+                  // Icon für jeden Agent
+                  let icon = "⚙️";
+                  let shortName = agent;
+                  
+                  if (agent.includes("Triage")) {
+                    icon = "🎯";
+                    shortName = "Triage";
+                  } else if (agent.includes("Quick")) {
+                    icon = "⚡";
+                    shortName = "Quick";
+                  } else if (agent.includes("Web")) {
+                    icon = "🌐";
+                    shortName = "Web";
+                  } else if (agent.includes("Synthesizer")) {
+                    icon = "🔗";
+                    shortName = "Synthesizer";
+                  } else if (agent.includes("ContextPilot")) {
+                    icon = "📑";
+                    shortName = "Context";
+                  }
+                  
+                  return (
+                    <span key={agent} className="agent-badge">
+                      <span className="agent-icon">{icon}</span>
+                      <span className="agent-name">{shortName}</span>
+                      {i < agentsUsed.length - 1 && <span className="agent-arrow">→</span>}
+                    </span>
+                  );
+                })}
+              </span>
+            </div>
+            <div className="routing-names-row">
+              {agentsUsed.join(" → ")}
+            </div>
+          </div>
+        )}
+        
         {loading && (
           <div className="aura-loading">
             <span className="aura-spinner" style={{ color: borderColor }}>◌</span>

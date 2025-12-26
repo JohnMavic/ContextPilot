@@ -1833,6 +1833,68 @@ h5.aura-heading {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+/* MFA Routing Info - dezente Anzeige */
+.aura-routing-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 10px;
+  margin: 6px 0 10px 0;
+  border-radius: 5px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.aura-routing-info .routing-icons-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aura-routing-info .routing-names-row {
+  font-size: 10px;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding-left: 22px;
+  opacity: 0.8;
+}
+
+.aura-routing-info .routing-label {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.aura-routing-info .routing-agents {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: #cbd5f5;
+}
+
+.aura-routing-info .agent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.aura-routing-info .agent-icon {
+  font-size: 13px;
+}
+
+.aura-routing-info .agent-name {
+  color: #93c5fd;
+}
+
+.aura-routing-info .agent-arrow {
+  color: #64748b;
+  margin: 0 3px;
+}
+
 .aura-prompt-followup {
   margin-left: 22px;
 }
