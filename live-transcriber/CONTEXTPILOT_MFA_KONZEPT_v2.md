@@ -1312,3 +1312,691 @@ Du musst einen neuen, unabhängigen Ausführungsweg implementieren, der:
 - MAF AzureAIAgentClient API: https://learn.microsoft.com/en-us/python/api/agent-framework-core/agent_framework.azure.azureaiagentclient?view=agent-framework-python-latest
 - Azure Functions Hosting/Timeouts: https://learn.microsoft.com/en-us/azure/azure-functions/functions-scale
 - Azure Functions host.json: https://learn.microsoft.com/en-us/azure/azure-functions/functions-host-json
+
+---
+
+## 16. Deployment Guide
+
+**Version:** 1.0  
+**Datum:** 26. Dezember 2025  
+**Status:** Produktiv validiert
+
+---
+
+### 16.1 Executive Summary
+
+Dieses Kapitel dokumentiert das vollständige Deployment der CONTEXTPILOT MFA-Lösung auf Azure. Die Lösung besteht aus drei Hauptkomponenten:
+
+1. **Azure Function App** (`contextpilot-mfa-func`) - Führt den Multi-Agent-Workflow mit Microsoft Agent Framework (MAF) aus
+2. **Proxy Server** (`contextpilot-proxy-2025`) - Routet Anfragen und bietet die API für das Frontend
+3. **Static Web App** (`ashy-dune-06d0e9810`) - Das React-Frontend
+
+**Was wir erreicht haben:**
+- ✅ Python-basierte Azure Function mit 5 Agents (Triage, Quick, Web, Context, Synthesizer)
+- ✅ Flex Consumption Hosting Plan (empfohlen ab Dezember 2025)
+- ✅ Managed Identity mit korrekten RBAC-Berechtigungen
+- ✅ CI/CD via GitHub Actions für automatische Deployments
+- ✅ Lazy Imports zur Vermeidung von Indexing-Fehlern
+
+---
+
+### 16.2 Ressourcen-Architektur
+
+#### 16.2.1 Executive Summary
+
+Die CONTEXTPILOT-Lösung verwendet Ressourcen in **zwei Azure Resource Groups**. Diese Trennung ist wichtig für die RBAC-Konfiguration, da Berechtigungen auf der richtigen Resource Group gesetzt werden müssen.
+
+#### 16.2.2 Technische Details
+
+**Resource Group: `ContextPilot-Resource`** (Switzerland North)
+
+| Ressource | Typ | Zweck |
+|-----------|-----|-------|
+| `contextpilot-mfa-func` | Function App (Flex Consumption) | MFA-Workflow Ausführung |
+| `contextpilot-proxy-2025` | App Service (Linux Node.js) | Proxy Server für Frontend |
+| `contextpilotmfastore` | Storage Account | Function App Storage |
+| `contextpilot-proxy-2025` | Application Insights | Monitoring Proxy |
+| `contextpilot-mfa-func` | Application Insights | Monitoring Function |
+
+**Resource Group: `Area-Review-Resource`** (Sweden Central)
+
+| Ressource | Typ | Zweck |
+|-----------|-----|-------|
+| `contextpilot-resource` | Azure AI Services | AI Foundry Account |
+| `contextpilot-resource/contextpilot` | AI Foundry Project | Enthält alle Agents |
+
+**Architektur-Diagramm:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Resource Group: ContextPilot-Resource (Switzerland North)                  │
+│                                                                             │
+│  ┌─────────────────────┐     ┌─────────────────────────────┐                │
+│  │ Static Web App      │────▶│ Proxy Server                │                │
+│  │ (Frontend React)    │     │ contextpilot-proxy-2025     │                │
+│  │ ashy-dune-06d0e9810 │     │ Node.js 22.x                │                │
+│  └─────────────────────┘     └──────────────┬──────────────┘                │
+│                                             │                               │
+│                              ┌──────────────┴──────────────┐                │
+│                              │                             │                │
+│                              ▼                             ▼                │
+│                    type: "agent/workflow"           type: "mfa"             │
+│                              │                             │                │
+│                              │              ┌──────────────┘                │
+│                              │              ▼                               │
+│                              │    ┌─────────────────────────────┐           │
+│                              │    │ Function App                │           │
+│                              │    │ contextpilot-mfa-func       │           │
+│                              │    │ Python 3.11 + MAF           │           │
+│                              │    │ Flex Consumption Plan       │           │
+│                              │    └──────────────┬──────────────┘           │
+│                              │                   │                          │
+└──────────────────────────────┼───────────────────┼──────────────────────────┘
+                               │                   │
+                               ▼                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Resource Group: Area-Review-Resource (Sweden Central)                      │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Azure AI Foundry: contextpilot-resource                             │    │
+│  │                                                                     │    │
+│  │  Project: contextpilot                                              │    │
+│  │  ├── AURATriage                                                     │    │
+│  │  ├── AURAContextPilotQuick                                          │    │
+│  │  ├── AURAContextPilotWeb                                            │    │
+│  │  ├── AURAContextPilot (Index)                                       │    │
+│  │  └── AURAContextPilotResponseSynthesizer                            │    │
+│  │                                                                     │    │
+│  │  Endpoint: https://contextpilot-resource.services.ai.azure.com      │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 16.3 Azure Function App Deployment
+
+#### 16.3.1 Executive Summary
+
+Wir haben eine **Python-basierte Azure Function** erstellt, die den Multi-Agent-Workflow orchestriert. Die Function verwendet das **Flex Consumption** Hosting-Modell (empfohlen ab Dezember 2025), das Linux Consumption ablöst. Der Code wird via `func azure functionapp publish` deployed.
+
+**Wichtigste Erkenntnis:** Das Package `agent-framework-azure-ai` muss in `requirements.txt` stehen, da es den `AzureAIClient` enthält. `agent-framework-core` allein reicht nicht!
+
+#### 16.3.2 Technische Details
+
+**1. Function App erstellen (Flex Consumption)**
+
+```powershell
+# Flex Consumption ist der neue Standard (Dezember 2025)
+# Linux Consumption wird ab September 2028 nicht mehr unterstützt
+
+az functionapp create `
+  --resource-group ContextPilot-Resource `
+  --name contextpilot-mfa-func `
+  --storage-account contextpilotmfastore `
+  --flexconsumption-location centralus `
+  --runtime python `
+  --runtime-version 3.11 `
+  --functions-version 4
+```
+
+**Hinweis:** Flex Consumption ist nicht in allen Regionen verfügbar. Central US, East US, West Europe sind unterstützt.
+
+**2. Dateistruktur der Function**
+
+```
+contextpilot-mfa-function/
+├── function_app.py          # HTTP Trigger (Python v2 Model)
+├── mfa_workflow.py           # MAF Workflow-Logik
+├── requirements.txt          # Python Dependencies
+├── host.json                 # Function Host Konfiguration
+├── local.settings.json       # Lokale Umgebungsvariablen (nicht committen!)
+├── local.settings.json.template  # Template für lokale Entwicklung
+└── .gitignore
+```
+
+**3. requirements.txt (kritisch!)**
+
+```pip-requirements
+# Azure Functions Runtime
+azure-functions==1.13.3
+
+# Microsoft Agent Framework (MAF) – BEIDE Packages sind nötig!
+# agent-framework-core ist das Base-Package
+# agent-framework-azure-ai enthält AzureAIClient (für Azure AI Foundry Integration)
+agent-framework-core==1.0.0b251223
+agent-framework-azure-ai==1.0.0b251223
+
+# azure-ai-projects V2 für existing agents by name
+azure-ai-projects==2.0.0b2
+
+# HTTP stack
+aiohttp==3.13.2
+
+# Auth / Typing
+azure-identity>=1.17.0
+pydantic>=2.6.0,<3
+```
+
+**⚠️ WICHTIG:** Ohne `agent-framework-azure-ai` erscheint folgender Fehler:
+```
+ModuleNotFoundError: The package agent-framework-azure-ai is required to use `AzureAIClient`.
+```
+
+**4. function_app.py mit Lazy Import (kritisch!)**
+
+```python
+"""Azure Function HTTP Trigger für CONTEXTPILOT MFA."""
+
+from __future__ import annotations
+
+import json
+import logging
+import uuid
+
+import azure.functions as func
+
+# WICHTIG: KEIN Top-Level Import von mfa_workflow!
+# Das würde das Function-Indexing blockieren, wenn Dependencies fehlen.
+
+app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+
+
+@app.route(route="healthz", methods=["GET"])
+def healthz(req: func.HttpRequest) -> func.HttpResponse:
+    """Health check endpoint - lädt ohne Heavy-Imports."""
+    return func.HttpResponse(
+        json.dumps({"ok": True, "version": "2.4"}),
+        status_code=200,
+        mimetype="application/json",
+    )
+
+
+@app.route(route="mfa", methods=["POST"])
+async def mfa_endpoint(req: func.HttpRequest) -> func.HttpResponse:
+    """MFA Endpoint - Lazy Import von mfa_workflow."""
+    
+    correlation_id = req.headers.get("x-correlation-id") or str(uuid.uuid4())
+    
+    try:
+        body = req.get_json()
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid JSON"}),
+            status_code=400,
+            mimetype="application/json",
+        )
+
+    prompt = (body or {}).get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return func.HttpResponse(
+            json.dumps({"error": "Missing 'prompt' in request body"}),
+            status_code=400,
+            mimetype="application/json",
+        )
+
+    try:
+        # LAZY IMPORT: Verhindert, dass Worker-Indexing bei ImportError ausfällt
+        from mfa_workflow import run_mfa_workflow
+
+        result = await run_mfa_workflow(prompt)
+        return func.HttpResponse(
+            json.dumps({
+                "output_text": result["response"],
+                "workflow": "mfa",
+                "agents_used": result["agents_used"],
+                "routing": result["routing"],
+            }),
+            status_code=200,
+            mimetype="application/json",
+            headers={"x-correlation-id": correlation_id},
+        )
+    except Exception as e:
+        logging.exception("MFA failed (cid=%s)", correlation_id)
+        return func.HttpResponse(
+            json.dumps({"error": str(e), "hint": "Check Azure Function logs"}),
+            status_code=500,
+            mimetype="application/json",
+        )
+```
+
+**⚠️ KRITISCH - Lazy Import Pattern:**
+
+Bei Azure Functions Python v2 Model werden alle HTTP Triggers durch Import von `function_app.py` indexiert. Wenn dabei eine Exception auftritt (z.B. `ModuleNotFoundError`), werden **0 Functions** registriert, obwohl das Deployment "erfolgreich" war.
+
+**Falsch (blockiert Indexing):**
+```python
+from mfa_workflow import run_mfa_workflow  # TOP-LEVEL = GEFÄHRLICH!
+
+@app.route(route="mfa", methods=["POST"])
+async def mfa_endpoint(req):
+    result = await run_mfa_workflow(...)
+```
+
+**Richtig (Lazy Import):**
+```python
+@app.route(route="mfa", methods=["POST"])
+async def mfa_endpoint(req):
+    from mfa_workflow import run_mfa_workflow  # INNERHALB der Funktion!
+    result = await run_mfa_workflow(...)
+```
+
+**5. host.json**
+
+```json
+{
+  "version": "2.0",
+  "functionTimeout": "00:03:30",
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
+    },
+    "logLevel": {
+      "default": "Information",
+      "Host.Results": "Error",
+      "Function": "Information",
+      "Host.Aggregator": "Trace"
+    }
+  },
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[4.*, 5.0.0)"
+  }
+}
+```
+
+**6. App Settings konfigurieren**
+
+```powershell
+az functionapp config appsettings set `
+  --name contextpilot-mfa-func `
+  --resource-group ContextPilot-Resource `
+  --settings `
+    "AZURE_AI_PROJECT_ENDPOINT=https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot" `
+    "AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4o" `
+    "AURA_TRIAGE_AGENT_NAME=AURATriage" `
+    "AURA_QUICK_AGENT_NAME=AURAContextPilotQuick" `
+    "AURA_WEB_AGENT_NAME=AURAContextPilotWeb" `
+    "AURA_CONTEXT_AGENT_NAME=AURAContextPilot" `
+    "AURA_SYNTHESIZER_AGENT_NAME=AURAContextPilotResponseSynthesizer" `
+    "AzureWebJobsFeatureFlags=EnableWorkerIndexing"
+```
+
+**7. Deployment durchführen**
+
+```powershell
+cd E:\ContextPilot\contextpilot-mfa-function
+func azure functionapp publish contextpilot-mfa-func --python
+```
+
+**Erwartete Ausgabe bei Erfolg:**
+
+```
+Functions in contextpilot-mfa-func:
+    healthz - [httpTrigger]
+        Invoke url: https://contextpilot-mfa-func.azurewebsites.net/api/healthz
+
+    mfa_endpoint - [httpTrigger]
+        Invoke url: https://contextpilot-mfa-func.azurewebsites.net/api/mfa
+```
+
+**⚠️ Wenn "0 Functions" angezeigt wird:** Prüfe Application Insights auf ImportErrors (siehe Troubleshooting).
+
+---
+
+### 16.4 Managed Identity und RBAC
+
+#### 16.4.1 Executive Summary
+
+Die Azure Function muss auf Azure AI Foundry zugreifen können, um die Agents auszuführen. Anstatt API-Keys im Code zu speichern, verwenden wir **Managed Identity** - Azure authentifiziert die Function automatisch. Die kritische Erkenntnis war, dass die RBAC-Rolle auf der **richtigen Resource Group** gesetzt werden muss (wo das AI Foundry Projekt liegt, nicht wo die Function liegt).
+
+#### 16.4.2 Technische Details
+
+**1. Managed Identity aktivieren**
+
+```powershell
+az functionapp identity assign `
+  --name contextpilot-mfa-func `
+  --resource-group ContextPilot-Resource
+```
+
+**Ausgabe (Principal ID merken):**
+```json
+{
+  "principalId": "f6350cb3-3f75-414c-924f-c363a85aa072",
+  "tenantId": "134528fb-1b3d-43bc-8b75-fb1361b41af1",
+  "type": "SystemAssigned"
+}
+```
+
+**2. RBAC-Rolle zuweisen**
+
+Die Function braucht die Rolle **"Azure AI User"** auf der Resource Group, wo das AI Foundry Projekt liegt:
+
+```powershell
+# WICHTIG: Rolle muss auf Area-Review-Resource gesetzt werden,
+# NICHT auf ContextPilot-Resource!
+
+az role assignment create `
+  --assignee f6350cb3-3f75-414c-924f-c363a85aa072 `
+  --role "Azure AI User" `
+  --scope "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/Area-Review-Resource"
+```
+
+**Warum "Azure AI User"?**
+
+Die Rolle enthält die notwendige Data Action für Agent-Zugriff:
+```json
+{
+  "dataActions": ["Microsoft.CognitiveServices/*"]
+}
+```
+
+Andere Rollen wie "Cognitive Services User" reichen NICHT für Agents!
+
+**3. Alle zugewiesenen Rollen prüfen**
+
+```powershell
+az role assignment list `
+  --assignee f6350cb3-3f75-414c-924f-c363a85aa072 `
+  --scope "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/Area-Review-Resource" `
+  --query "[].roleDefinitionName" -o json
+```
+
+**Erwartete Ausgabe:**
+```json
+["Azure AI User"]
+```
+
+**4. Häufiger Fehler und Lösung**
+
+**Fehler:**
+```
+PermissionDenied: The principal lacks the required data action 
+`Microsoft.CognitiveServices/accounts/AIServices/agents/read`
+```
+
+**Ursache:** Rolle ist auf falscher Resource Group gesetzt.
+
+**Lösung:** Prüfen wo das AI Foundry Projekt liegt:
+```powershell
+az resource list --query "[?contains(name, 'contextpilot')].{name:name, rg:resourceGroup}" -o table
+```
+
+---
+
+### 16.5 Proxy Server Konfiguration
+
+#### 16.5.1 Executive Summary
+
+Der Proxy Server ist der zentrale Routing-Punkt für alle Frontend-Anfragen. Er wurde erweitert, um den neuen MFA-Typ zu unterstützen. Die Konfiguration erfolgt über Umgebungsvariablen (`MFA_1_NAME`, `MFA_1_ENDPOINT`, etc.). Nach Änderungen muss der Code via GitHub Actions neu deployed werden.
+
+#### 16.5.2 Technische Details
+
+**1. MFA-Umgebungsvariablen setzen**
+
+```powershell
+az webapp config appsettings set `
+  --name contextpilot-proxy-2025 `
+  --resource-group ContextPilot-Resource `
+  --settings `
+    "MFA_1_NAME=MFA" `
+    "MFA_1_LABEL=MFA (Multi-Agent)" `
+    "MFA_1_ENDPOINT=https://contextpilot-mfa-func.azurewebsites.net/api/mfa"
+```
+
+**⚠️ WICHTIG:** Der Index startet bei 1, nicht bei 0! (`MFA_1_NAME`, nicht `MFA_0_NAME`)
+
+**2. Proxy Server Code (proxy-server.js)**
+
+Der Proxy lädt MFA-Konfigurationen beim Start:
+
+```javascript
+// MFA configs (Azure Function-backed MAF orchestration)
+function loadMFAConfigs() {
+  const mfas = {};
+  let i = 1;
+  while (process.env[`MFA_${i}_NAME`]) {
+    const mfaId = -100 - i;  // Negative IDs ab -101 für MFA
+    mfas[mfaId] = {
+      id: mfaId,
+      name: process.env[`MFA_${i}_NAME`],
+      label: process.env[`MFA_${i}_LABEL`] || process.env[`MFA_${i}_NAME`],
+      endpoint: process.env[`MFA_${i}_ENDPOINT`],
+      type: "mfa",
+    };
+    i++;
+  }
+  return mfas;
+}
+
+const MFAS = loadMFAConfigs();
+```
+
+**3. API Response mit MFA**
+
+Der `/agents` Endpoint gibt jetzt auch MFA zurück:
+
+```json
+{
+  "agents": [...],
+  "workflows": [...],
+  "mfas": [
+    {
+      "id": -101,
+      "name": "MFA",
+      "label": "MFA (Multi-Agent)",
+      "type": "mfa",
+      "active": false
+    }
+  ],
+  "currentAgentId": -1
+}
+```
+
+---
+
+### 16.6 CI/CD Pipeline (GitHub Actions)
+
+#### 16.6.1 Executive Summary
+
+Beide Haupt-Komponenten (Proxy Server und Static Web App) werden automatisch deployed, wenn Code auf den `main` Branch gepusht wird. Die Function App wird hingegen manuell via `func azure functionapp publish` deployed.
+
+#### 16.6.2 Technische Details
+
+**1. Automatische Deployments (main Branch)**
+
+| Komponente | Workflow-Datei | Trigger |
+|------------|----------------|---------|
+| Proxy Server | `.github/workflows/main_contextpilot-proxy-2025.yml` | Push to `main` |
+| Static Web App | `.github/workflows/azure-static-web-apps-ashy-dune-06d0e9810.yml` | Push to `main` |
+| Function App | (kein Workflow) | Manuell: `func azure functionapp publish` |
+
+**2. Workflow für Proxy Server**
+
+```yaml
+name: Build and deploy Node.js app to Azure Web App - contextpilot-proxy-2025
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js version
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22.x'
+      - name: npm install, build, and test
+        working-directory: live-transcriber
+        run: |
+          npm install
+          npm run build --if-present
+```
+
+**3. Deployment-Workflow**
+
+```
+1. Entwicklung auf Feature-Branch (z.B. `maf`)
+2. Commit & Push zu Feature-Branch
+3. Lokaler Test
+4. Merge zu `main`: git checkout main && git merge maf && git push origin main
+5. GitHub Actions triggert automatisch
+6. Deployment läuft (ca. 2-3 Minuten)
+7. Verifizieren: https://contextpilot-proxy-2025-*.azurewebsites.net/agents
+```
+
+**4. Function App manuell deployen**
+
+```powershell
+cd E:\ContextPilot\contextpilot-mfa-function
+func azure functionapp publish contextpilot-mfa-func --python
+```
+
+---
+
+### 16.7 Troubleshooting
+
+#### 16.7.1 Problem: "0 Functions" nach Deployment
+
+**Symptom:**
+```
+Functions in contextpilot-mfa-func:
+    (leer)
+```
+
+**Ursache:** ImportError beim Laden von `function_app.py`
+
+**Diagnose via Application Insights:**
+
+```powershell
+# App Insights App-ID holen
+$aiAppId = az monitor app-insights component show `
+  -g ContextPilot-Resource -a contextpilot-mfa-func `
+  --query appId -o tsv
+
+# Exceptions abfragen
+az monitor app-insights query --app $aiAppId --analytics-query `
+  "exceptions | where timestamp > ago(1h) | project timestamp, outerMessage | take 5"
+```
+
+**Typische Fehler:**
+- `ModuleNotFoundError: agent-framework-azure-ai` → Package in requirements.txt hinzufügen
+- `ModuleNotFoundError: mfa_workflow` → Datei fehlt im Deployment-Package
+
+**Lösung:** Lazy Import verwenden (siehe 16.3.2 Punkt 4)
+
+#### 16.7.2 Problem: PermissionDenied bei Agent-Zugriff
+
+**Symptom:**
+```json
+{
+  "error": "The principal lacks the required data action 
+            Microsoft.CognitiveServices/accounts/AIServices/agents/read"
+}
+```
+
+**Diagnose:**
+
+```powershell
+# Prüfe wo das AI Foundry Projekt liegt
+az resource list --query "[?contains(name, 'contextpilot')].resourceGroup" -o table
+
+# Prüfe zugewiesene Rollen
+az role assignment list --assignee <PRINCIPAL_ID> -o table
+```
+
+**Lösung:** "Azure AI User" Rolle auf die korrekte Resource Group setzen.
+
+#### 16.7.3 Problem: MFA erscheint nicht im Frontend
+
+**Symptom:** Dropdown zeigt nur "Agent" und "Workflow", kein "MFA"
+
+**Diagnose:**
+
+```powershell
+# Prüfe ob MFA-Config gesetzt ist
+az webapp config appsettings list `
+  --name contextpilot-proxy-2025 `
+  --resource-group ContextPilot-Resource `
+  --query "[?contains(name, 'MFA')]" -o table
+
+# Prüfe API Response
+Invoke-RestMethod -Uri "https://<PROXY_URL>/agents" | ConvertTo-Json
+```
+
+**Mögliche Ursachen:**
+1. MFA-Umgebungsvariablen fehlen → setzen mit `az webapp config appsettings set`
+2. Falscher Index (`MFA_0_` statt `MFA_1_`) → Index muss bei 1 starten
+3. Alter Code deployed → Push zu `main` und warten auf GitHub Actions
+
+---
+
+### 16.8 Verifizierung
+
+Nach erfolgreichem Deployment sollten alle Tests bestehen:
+
+```powershell
+# 1. Health Check
+Invoke-RestMethod -Uri "https://contextpilot-mfa-func.azurewebsites.net/api/healthz"
+# Erwartung: {"ok": true, "version": "2.4"}
+
+# 2. MFA Endpoint Test
+$body = '{"prompt": "What is 2+2?"}'
+Invoke-RestMethod -Uri "https://contextpilot-mfa-func.azurewebsites.net/api/mfa" `
+  -Method POST -Body $body -ContentType "application/json"
+# Erwartung: {"output_text": "4", "workflow": "mfa", "agents_used": [...]}
+
+# 3. Proxy Server MFA-Liste
+Invoke-RestMethod -Uri "https://<PROXY_URL>/agents" | ConvertTo-Json
+# Erwartung: Response enthält "mfas" Array
+
+# 4. Frontend
+# Öffne https://ashy-dune-06d0e9810.4.azurestaticapps.net/
+# Erwartung: "MFA (Multi-Agent)" erscheint im Dropdown
+```
+
+---
+
+### 16.9 Quick Reference
+
+**Wichtige URLs:**
+
+| Komponente | URL |
+|------------|-----|
+| Function App Health | `https://contextpilot-mfa-func.azurewebsites.net/api/healthz` |
+| Function App MFA | `https://contextpilot-mfa-func.azurewebsites.net/api/mfa` |
+| Proxy Server Agents | `https://contextpilot-proxy-2025-*.azurewebsites.net/agents` |
+| Frontend | `https://ashy-dune-06d0e9810.4.azurestaticapps.net/` |
+| GitHub Actions | `https://github.com/JohnMavic/ContextPilot/actions` |
+
+**Wichtige Befehle:**
+
+```powershell
+# Function App deployen
+cd E:\ContextPilot\contextpilot-mfa-function
+func azure functionapp publish contextpilot-mfa-func --python
+
+# Proxy Server deployen (via Git)
+git checkout main
+git merge <feature-branch>
+git push origin main
+
+# Function App Logs
+az monitor app-insights query --app <APP_ID> --analytics-query "exceptions | take 10"
+
+# Function App neustarten
+az functionapp restart --name contextpilot-mfa-func --resource-group ContextPilot-Resource
+
+# Proxy Server neustarten
+az webapp restart --name contextpilot-proxy-2025 --resource-group ContextPilot-Resource
+```
