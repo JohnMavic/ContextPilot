@@ -1007,8 +1007,10 @@ wss.on("connection", (clientWs, req) => {
   // Parse query parameter to determine provider (default: openai)
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const provider = url.searchParams.get("provider") || "openai";
+  // For Azure, the model parameter specifies which deployment to use
+  const requestedModel = url.searchParams.get("model") || "gpt-4o-transcribe";
   
-  console.log(`[PROXY] Client verbunden, Provider: ${provider}`);
+  console.log(`[PROXY] Client verbunden, Provider: ${provider}, Model: ${requestedModel}`);
 
   // Message-Buffer bis Backend verbunden ist
   let backendReady = false;
@@ -1052,12 +1054,15 @@ wss.on("connection", (clientWs, req) => {
   let backendUrl;
   let backendHeaders;
   let providerLabel;
+  // For Azure, we use the requested model name as the deployment name
+  let azureDeployment = requestedModel;
   
   if (provider === "azure") {
-    // Azure OpenAI Realtime API for gpt-4o-transcribe-diarize
+    // Azure OpenAI Realtime API - use the requested model as deployment name
+    // Since all models share the same endpoint and API key, only the deployment name changes
     console.log("[PROXY] Azure config check:", {
       endpoint: AZURE_TRANSCRIBE_ENDPOINT,
-      deployment: AZURE_TRANSCRIBE_DEPLOYMENT,
+      deployment: azureDeployment,
       apiVersion: AZURE_TRANSCRIBE_API_VERSION,
       hasApiKey: !!AZURE_TRANSCRIBE_API_KEY
     });
@@ -1066,7 +1071,7 @@ wss.on("connection", (clientWs, req) => {
       clientWs.close(1011, "Azure Transcription not configured");
       return;
     }
-    backendUrl = `wss://${AZURE_TRANSCRIBE_ENDPOINT}/openai/realtime?api-version=${AZURE_TRANSCRIBE_API_VERSION}&deployment=${AZURE_TRANSCRIBE_DEPLOYMENT}&intent=transcription`;
+    backendUrl = `wss://${AZURE_TRANSCRIBE_ENDPOINT}/openai/realtime?api-version=${AZURE_TRANSCRIBE_API_VERSION}&deployment=${azureDeployment}&intent=transcription`;
     backendHeaders = {
       "api-key": AZURE_TRANSCRIBE_API_KEY,
     };
@@ -1096,14 +1101,14 @@ wss.on("connection", (clientWs, req) => {
     console.log(`[PROXY] Mit ${providerLabel} verbunden`);
     backendReady = true;
 
-    // Azure: report the actual configured deployment name to the client for UI transparency.
+    // Azure: report the actual used deployment name to the client for UI transparency.
     // This does NOT change the Azure behavior; it's informational only.
     if (provider === "azure" && clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(
         JSON.stringify({
           type: "proxy.transcription.model",
           provider: "azure",
-          model: AZURE_TRANSCRIBE_DEPLOYMENT,
+          model: azureDeployment,
           reason: "deployment",
           timestamp: Date.now(),
         })

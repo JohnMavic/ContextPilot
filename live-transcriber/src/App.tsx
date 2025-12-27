@@ -41,6 +41,12 @@ const TRANSCRIPTION_MODELS: TranscriptionModel[] = [
     providerLabel: "OpenAI" 
   },
   { 
+    id: "azure-mini", 
+    name: "gpt-4o-mini-transcribe", 
+    provider: "azure", 
+    providerLabel: "Azure OpenAI" 
+  },
+  { 
     id: "azure", 
     name: "gpt-4o-transcribe", 
     provider: "azure", 
@@ -240,10 +246,15 @@ export default function App() {
     clearHighlights,
   } = useHighlights();
   
-  // Get the provider from the selected transcription model
+  // Get the provider and model name from the selected transcription model
   const transcriptionProvider = useMemo((): TranscriptionProvider => {
     const model = TRANSCRIPTION_MODELS.find(m => m.id === transcriptionModelId);
     return (model?.provider as TranscriptionProvider) || "openai";
+  }, [transcriptionModelId]);
+  
+  const transcriptionModelName = useMemo((): string => {
+    const model = TRANSCRIPTION_MODELS.find(m => m.id === transcriptionModelId);
+    return model?.name || "gpt-4o-transcribe";
   }, [transcriptionModelId]);
   
   const {
@@ -264,7 +275,7 @@ export default function App() {
     updateSegmentsFromEdit,
     clearErrors,
     stats,
-  } = useDualRealtime(transcriptionProvider);
+  } = useDualRealtime(transcriptionProvider, transcriptionModelName);
 
   const activeTranscriptionModelLabel = useMemo(() => {
     const selected = TRANSCRIPTION_MODELS.find((m) => m.id === transcriptionModelId);

@@ -63,7 +63,7 @@ export type ErrorLogEntry = {
 // Transcription provider configuration
 export type TranscriptionProvider = "openai" | "azure";
 
-export function useDualRealtime(provider: TranscriptionProvider = "openai") {
+export function useDualRealtime(provider: TranscriptionProvider = "openai", modelName: string = "gpt-4o-transcribe") {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [errorLog, setErrorLog] = useState<ErrorLogEntry[]>([]);
@@ -98,12 +98,12 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
 
   useEffect(() => () => stopAll(), []);
 
-  // If the user switches provider (OpenAI <-> Azure), reset server-reported model
-  // so the UI can't accidentally show a stale model from the previous provider.
+  // If the user switches provider or model (OpenAI <-> Azure, or model type), 
+  // reset server-reported model so the UI can't accidentally show a stale model.
   useEffect(() => {
     setActiveServerModel(null);
     setActiveServerModelReason(null);
-  }, [provider]);
+  }, [provider, modelName]);
 
   const statusRef = useRef<Status>(status);
   useEffect(() => {
@@ -260,19 +260,18 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
   const connectWs = (source: Source, session?: React.MutableRefObject<AudioSession>): WebSocket => {
     const transcriptionPrompt =
       "Auto-detect language. Produce verbatim transcripts (no summaries), keep names and numbers exactly as spoken. Merge adjacent fragments into complete, coherent sentences when they clearly belong together; lightly fix punctuation and obvious word breaks; do not add, omit, or change facts.";
-    // Provider via Query-Parameter an Proxy übergeben (default: openai)
-    const url = `${proxyWsBaseUrl}?provider=${provider}`;
-    console.log(`[WS ${source.toUpperCase()}] Verbinde zu Proxy (${provider}):`, url);
+    // Provider und Model via Query-Parameter an Proxy übergeben
+    const url = `${proxyWsBaseUrl}?provider=${provider}&model=${encodeURIComponent(modelName)}`;
+    console.log(`[WS ${source.toUpperCase()}] Verbinde zu Proxy (${provider}, model=${modelName}):`, url);
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
       console.log(`[WS ${source.toUpperCase()}] Connected to ${provider}`);
       
       // Unterschiedliche Konfiguration für Mic vs Speaker
-      // Model name is required for both providers
+      // Model name: Use the modelName parameter (from UI selection)
       // OpenAI: "gpt-4o-transcribe"
-      // Azure: Use deployment name (gpt-4o-transcribe - NOT diarize, that doesn't work over WebSocket!)
-      const modelName = "gpt-4o-transcribe";  // Same for both providers
+      // Azure: Use deployment name (gpt-4o-transcribe or gpt-4o-mini-transcribe)
       
       const sessionUpdate = {
         type: "transcription_session.update",
