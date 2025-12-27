@@ -30,13 +30,13 @@ interface TranscriptionModel {
   providerLabel: string;
 }
 
-// Available transcription models - OpenAI is DEFAULT and must always work
+// Available transcription models - OpenAI mini is DEFAULT (best quality/price)
 // NOTE: gpt-4o-transcribe-diarize does NOT work over WebSocket Realtime API!
 // Diarization is only available via REST API, not real-time streaming.
 const TRANSCRIPTION_MODELS: TranscriptionModel[] = [
   { 
     id: "openai", 
-    name: "gpt-4o-transcribe", 
+    name: "gpt-4o-mini-transcribe", 
     provider: "openai", 
     providerLabel: "OpenAI" 
   },

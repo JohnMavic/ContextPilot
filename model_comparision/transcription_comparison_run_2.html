@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcription Quality Comparison | Microsoft Foundry Video</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0078d4;
+            --primary-dark: #005a9e;
+            --success: #107c10;
+            --warning: #ffb900;
+            --error: #d13438;
+            --error-light: #fde7e9;
+            --bg: #f5f5f5;
+            --card-bg: #ffffff;
+            --text: #323130;
+            --text-light: #605e5c;
+            --border: #e1dfdd;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1900px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem 3rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        h1::before {
+            content: "🎬";
+            font-size: 1.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-light);
+            margin-top: 0.5rem;
+        }
+
+        .source-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .source-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .source-item a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .source-item a:hover {
+            text-decoration: underline;
+        }
+
+        .legend {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.25rem 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .legend-title {
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        .legend-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .legend-marker {
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+
+        .legend-marker.missing { background: #fff3cd; border-bottom: 2px dashed #856404; }
+        .legend-marker.wrong { background: var(--error-light); border-bottom: 2px wavy var(--error); }
+        .legend-marker.extra { background: #e7f3ff; border-bottom: 2px dotted #0078d4; }
+        .legend-marker.grammar { background: #f3e5f5; border-bottom: 2px solid #7b1fa2; }
+        .legend-marker.case { background: #e8f5e9; border-bottom: 2px double #2e7d32; }
+
+        /* Main Comparison Table */
+        .comparison-wrapper {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .run-label {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .run-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .run-description {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .column-headers {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .column-header {
+            padding: 1.25rem 1.5rem;
+            color: white;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 110px;
+        }
+
+        .column-header:nth-child(1) { background: linear-gradient(135deg, #107c10 0%, #0b5c0b 100%); }
+        .column-header:nth-child(2) { background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%); }
+        .column-header:nth-child(3) { background: linear-gradient(135deg, #00a4ef 0%, #0078d4 100%); }
+        .column-header:nth-child(4) { background: linear-gradient(135deg, #5c2d91 0%, #4a2272 100%); }
+
+        .column-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .column-subtitle {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+
+        .model-version {
+            font-size: 0.65rem;
+            opacity: 0.75;
+            font-weight: 400;
+            margin-top: 0.15rem;
+            font-style: italic;
+        }
+
+        /* Sentence Alignment Table */
+        .sentence-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .sentence-table tr {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .sentence-table tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        .sentence-table tr:hover {
+            background: #f5f7ff;
+        }
+
+        .sentence-table td {
+            padding: 1rem 1.25rem;
+            vertical-align: top;
+            font-size: 0.88rem;
+            line-height: 1.7;
+            width: 25%;
+            border-right: 1px solid #f0f0f0;
+        }
+
+        .sentence-table td:last-child {
+            border-right: none;
+        }
+
+        .sentence-table td:first-child {
+            background: rgba(16, 124, 16, 0.03);
+            font-weight: 450;
+        }
+
+        .row-number {
+            display: inline-block;
+            background: #e9ecef;
+            color: #6c757d;
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-right: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+
+        /* Error Markings */
+        .error-wrong {
+            background: var(--error-light);
+            border-bottom: 2px wavy var(--error);
+            padding: 0 2px;
+        }
+
+        .error-missing {
+            background: #fff3cd;
+            border-bottom: 2px dashed #856404;
+            padding: 0 2px;
+        }
+
+        .error-extra {
+            background: #e7f3ff;
+            border-bottom: 2px dotted #0078d4;
+            padding: 0 2px;
+            text-decoration: line-through;
+            text-decoration-color: var(--primary);
+        }
+
+        .error-grammar {
+            background: #f3e5f5;
+            border-bottom: 2px solid #7b1fa2;
+            padding: 0 2px;
+        }
+
+        .error-case {
+            background: #e8f5e9;
+            border-bottom: 2px double #2e7d32;
+            padding: 0 2px;
+        }
+
+        .inline-note {
+            display: inline-block;
+            font-size: 0.6rem;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-left: 2px;
+            font-weight: 600;
+            vertical-align: middle;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .note-wrong { background: var(--error-light); color: var(--error); }
+        .note-missing { background: #fff3cd; color: #856404; }
+        .note-extra { background: #e7f3ff; color: #0078d4; }
+        .note-grammar { background: #f3e5f5; color: #7b1fa2; }
+        .note-case { background: #e8f5e9; color: #2e7d32; }
+
+        .ellipsis {
+            color: var(--text-light);
+            font-style: italic;
+        }
+
+        .missing-text {
+            color: #856404;
+            font-style: italic;
+            background: #fff3cd;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }
+
+        /* Evaluation Section */
+        .evaluation-section {
+            background: #f8f9fa;
+            border-top: 2px solid var(--border);
+        }
+
+        .evaluation-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1.5rem 2rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .evaluation-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .evaluation-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .evaluation-cell {
+            padding: 1.25rem;
+            border-right: 1px solid var(--border);
+        }
+
+        .evaluation-cell:last-child {
+            border-right: none;
+        }
+
+        .model-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .rating {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .rating-label {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .rating-badge {
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        .rating-excellent { background: #d4edda; color: #155724; }
+        .rating-good { background: #cce5ff; color: #004085; }
+        .rating-fair { background: #fff3cd; color: #856404; }
+        .rating-poor { background: var(--error-light); color: var(--error); }
+
+        .rating-score {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .eval-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 0.6rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.15rem;
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-value.error-count { color: var(--error); }
+
+        .error-breakdown {
+            margin: 1rem 0;
+            padding: 0.75rem;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .breakdown-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .breakdown-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.4rem;
+        }
+
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 0.72rem;
+        }
+
+        .breakdown-label {
+            font-weight: 500;
+            color: var(--text-light);
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+
+        .breakdown-label.wrong-bg { background: var(--error-light); color: var(--error); }
+        .breakdown-label.missing-bg { background: #fff3cd; color: #856404; }
+        .breakdown-label.extra-bg { background: #e7f3ff; color: #0078d4; }
+        .breakdown-label.grammar-bg { background: #f3e5f5; color: #7b1fa2; }
+        .breakdown-label.case-bg { background: #e8f5e9; color: #2e7d32; }
+
+        .breakdown-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .pros-cons h4 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            margin-top: 0.75rem;
+        }
+
+        .pros-cons h4.pros-title { color: var(--success); }
+        .pros-cons h4.cons-title { color: var(--error); }
+
+        .pros-cons ul {
+            list-style: none;
+            font-size: 0.72rem;
+            color: var(--text-light);
+        }
+
+        .pros-cons li {
+            margin-bottom: 0.25rem;
+            line-height: 1.4;
+            padding-left: 1rem;
+            position: relative;
+        }
+
+        .pros-cons li.pro::before { content: "✓"; position: absolute; left: 0; color: var(--success); font-weight: bold; }
+        .pros-cons li.con::before { content: "✗"; position: absolute; left: 0; color: var(--error); font-weight: bold; }
+
+        /* Summary Section */
+        .summary-section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .summary-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .summary-card h3 {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        .summary-score {
+            font-size: 2.5rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-card:nth-child(1) .summary-score { color: var(--success); }
+        .summary-card:nth-child(2) .summary-score { color: var(--primary); }
+        .summary-card:nth-child(3) .summary-score { color: #00a4ef; }
+        .summary-card:nth-child(4) .summary-score { color: #5c2d91; }
+
+        .summary-label {
+            font-size: 0.75rem;
+            color: var(--text-light);
+        }
+
+        .conclusion-box {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .conclusion-box h3 {
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        .conclusion-box p {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            line-height: 1.7;
+        }
+
+        /* Raw Transcripts Section */
+        .raw-transcripts-section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-top: 2rem;
+        }
+
+        .raw-transcripts-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .raw-transcripts-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .transcript-block {
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .transcript-block:last-child {
+            margin-bottom: 0;
+        }
+
+        .transcript-block-header {
+            padding: 1rem 1.5rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .transcript-block-header.original { background: linear-gradient(135deg, rgba(16, 124, 16, 0.1) 0%, rgba(11, 92, 11, 0.1) 100%); }
+        .transcript-block-header.openai { background: linear-gradient(135deg, rgba(0, 120, 212, 0.1) 0%, rgba(0, 90, 158, 0.1) 100%); }
+        .transcript-block-header.azure-mini { background: linear-gradient(135deg, rgba(0, 164, 239, 0.1) 0%, rgba(0, 120, 212, 0.1) 100%); }
+        .transcript-block-header.azure-full { background: linear-gradient(135deg, rgba(92, 45, 145, 0.1) 0%, rgba(74, 34, 114, 0.1) 100%); }
+
+        .transcript-block-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+
+        .transcript-block-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-top: 0.25rem;
+        }
+
+        .copy-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: background 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .copy-btn.copied {
+            background: var(--success);
+        }
+
+        .transcript-content {
+            padding: 1.5rem;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: var(--text);
+            background: white;
+            white-space: pre-wrap;
+            font-family: 'Inter', sans-serif;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .transcript-content::selection {
+            background: rgba(0, 120, 212, 0.2);
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: rgba(255,255,255,0.8);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: white;
+        }
+
+        @media (max-width: 1200px) {
+            .comparison-wrapper {
+                overflow-x: auto;
+            }
+            
+            .sentence-table {
+                min-width: 1400px;
+            }
+            
+            .column-headers {
+                min-width: 1400px;
+            }
+
+            .evaluation-grid {
+                min-width: 1400px;
+            }
+            
+            .evaluation-section {
+                overflow-x: auto;
+            }
+            
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Transcription Quality Comparison</h1>
+            <p class="subtitle">Analyzing different AI transcription models using a Microsoft Foundry presentation video</p>
+            <div class="source-info">
+                <div class="source-item">
+                    <span>📹</span>
+                    <strong>Video:</strong>
+                    <a href="https://youtu.be/C6rxEGJay70?si=hiv5YQxYr9Dq278v" target="_blank">Microsoft Foundry - AI app & agent factory</a>
+                </div>
+                <div class="source-item">
+                    <span>📄</span>
+                    <strong>Reference Transcript:</strong>
+                    <a href="https://techcommunity.microsoft.com/blog/microsoftmechanicsblog/microsoft-foundry---everything-you-need-to-build-ai-apps--agents/4475619" target="_blank">Microsoft Tech Community Blog</a>
+                </div>
+            </div>
+        </header>
+
+        <div class="legend">
+            <span class="legend-title">📋 Error Type Legend:</span>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <span class="legend-marker wrong">wrong</span>
+                    <span>Wrong word</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker missing">missing</span>
+                    <span>Missing text</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker extra">extra</span>
+                    <span>Extra/added text</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker extra">extra (dup)</span>
+                    <span>Duplication</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker grammar">grammar</span>
+                    <span>Grammar error</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker grammar">grammar (struct)</span>
+                    <span>Sentence structure</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker case">case</span>
+                    <span>Capitalization</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison-wrapper">
+            <div class="run-label">
+                <span class="run-badge">Run 2</span>
+                <span class="run-description">Second transcription comparison — testing consistency</span>
+            </div>
+            <div class="column-headers">
+                <div class="column-header">
+                    <div class="column-title">✓ Original Transcript</div>
+                    <div class="column-subtitle">Reference (Microsoft Tech Community)</div>
+                </div>
+                <div class="column-header">
+                    <div class="column-title">OpenAI gpt-4o-mini-transcribe</div>
+                    <div class="column-subtitle">gpt-4o-mini-transcribe-2025-12-15</div>
+                    <div class="model-version">Model version: 2025-12-15</div>
+                </div>
+                <div class="column-header">
+                    <div class="column-title">Azure OpenAI gpt-4o-mini-transcribe</div>
+                    <div class="column-subtitle">gpt-4o-mini-transcribe (Azure)</div>
+                    <div class="model-version">Model version: 2025-12-15</div>
+                </div>
+                <div class="column-header">
+                    <div class="column-title">Azure OpenAI gpt-4o-transcribe</div>
+                    <div class="column-subtitle">gpt-4o-transcribe (Azure)</div>
+                    <div class="model-version">Model version: 2025-03-20</div>
+                </div>
+            </div>
+
+            <table class="sentence-table">
+                <tbody>
+                    <!-- Sentence 1 -->
+                    <tr>
+                        <td><span class="row-number">1</span>If you are building AI apps and agents and want to move faster with more control, the newly expounded Foundry helps you do exactly that, while integrating directly with your code.</td>
+                        <td><span class="row-number">1</span>If you're building AI apps and agents and want to move faster with more control<span class="ellipsis">...</span> The newly expounded foundry helps you do exactly that. while integrating directly with your code.</td>
+                        <td><span class="row-number">1</span>If you're <span class="error-extra">building... Building</span><span class="inline-note note-extra">extra (dup)</span> AI apps and agents and want to move faster with more control, the newly expounded foundry helps you <span class="error-wrong">to Exactly that.</span><span class="inline-note note-wrong">wrong</span> While integrating directly <span class="error-extra">with... Your</span><span class="inline-note note-extra">extra (dup)</span> code.</td>
+                        <td><span class="row-number">1</span>If you're building AI apps and agents and want to move faster with more control, the newly expounded Foundry helps you do exactly that. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> Integrating directly with your code.</td>
+                    </tr>
+                    <!-- Sentence 2 -->
+                    <tr>
+                        <td><span class="row-number">2</span>It works like a unified AI app and agent factory, with rich tooling and observability.</td>
+                        <td><span class="row-number">2</span>It works like a unified AI app and <span class="error-grammar">agent. With</span><span class="inline-note note-grammar">grammar (struct)</span> rich tooling and observability.</td>
+                        <td><span class="row-number">2</span>It works like a unified AI <span class="error-grammar">app. and agent factory,</span><span class="inline-note note-grammar">grammar (struct)</span> with rich tooling and observability.</td>
+                        <td><span class="row-number">2</span><span class="missing-text">[missing: "It works like a"]</span> unified AI app and agent factory, with <span class="error-missing">rich</span><span class="inline-note note-missing">missing</span> and observability.</td>
+                    </tr>
+                    <!-- Sentence 3 -->
+                    <tr>
+                        <td><span class="row-number">3</span>A simple developer experience helps you and your team find the right components you need to start building your agents and move seamlessly from idea all the way to production.</td>
+                        <td><span class="row-number">3</span>A simple developer experience helps you and your <span class="error-grammar">team. Find</span><span class="inline-note note-grammar">grammar (struct)</span> the right components you need to start building your <span class="error-wrong">app.</span><span class="inline-note note-wrong">wrong</span> agents and move seamlessly from idea all the <span class="error-extra">way. way</span><span class="inline-note note-extra">extra (dup)</span> to production.</td>
+                        <td><span class="row-number">3</span>A simple developer experience helps <span class="error-extra">you You</span><span class="inline-note note-extra">extra (dup)</span> and your team find the right components you need to <span class="error-grammar">start. Building</span><span class="inline-note note-grammar">grammar (struct)</span> your agents and move seamlessly from idea all the way to production.</td>
+                        <td><span class="row-number">3</span><span class="error-wrong">Our experience</span><span class="inline-note note-wrong">wrong</span> helps you and your team find the right components you need to start building your agents and move seamlessly. from idea all the way to production.</td>
+                    </tr>
+                    <!-- Sentence 4 -->
+                    <tr>
+                        <td><span class="row-number">4</span>It is augmented by powerful new capabilities, such as an agent framework for multi-agentic apps and workflow automation, or multisource knowledge-based creation to support deep reasoning.</td>
+                        <td><span class="row-number">4</span>It is augmented by powerful new capabilities, such as an agent framework for <span class="error-wrong">mobile. Multi-agentic</span><span class="inline-note note-wrong">wrong</span> apps and workflow automation, or <span class="error-extra">multi-agentic... Multi-source</span><span class="inline-note note-extra">extra (dup)</span> knowledge base creation to support deep reasoning.</td>
+                        <td><span class="row-number">4</span>It is augmented by powerful new capabilities, such as an agent <span class="error-grammar">framework. for</span><span class="inline-note note-grammar">grammar (struct)</span> multi-agentic apps and workflow <span class="error-grammar">automation. or</span><span class="inline-note note-grammar">grammar (struct)</span> multi-source knowledge base creation to support <span class="error-wrong">team. reasoning.</span><span class="inline-note note-wrong">wrong</span></td>
+                        <td><span class="row-number">4</span>It is augmented by powerful new capabilities, such as an agent framework for multi-agentic apps and <span class="error-grammar">workflows. automation</span><span class="inline-note note-grammar">grammar (struct)</span> or multi-source knowledge <span class="error-missing">base</span><span class="inline-note note-missing">missing</span> to support deep reasoning.</td>
+                    </tr>
+                    <!-- Sentence 5 -->
+                    <tr>
+                        <td><span class="row-number">5</span>New levels of observability across your fleet of agents then help you evaluate how well they're operating.</td>
+                        <td><span class="row-number">5</span>New levels of observability across your fleet of agents, then help you evaluate how well they're <span class="error-wrong">doing. operating</span><span class="inline-note note-wrong">wrong</span></td>
+                        <td><span class="row-number">5</span>New levels of observability across your fleet of agents, then help you evaluate <span class="error-extra">how... how</span><span class="inline-note note-extra">extra (dup)</span> well they're operating</td>
+                        <td><span class="row-number">5</span><span class="error-wrong">If you lack</span><span class="inline-note note-wrong">wrong</span> observability across your fleet of agents <span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> help you evaluate how well they're operating.</td>
+                    </tr>
+                    <!-- Sentence 6 -->
+                    <tr>
+                        <td><span class="row-number">6</span>And it is easier than ever to ensure security and safety controls are in place to support the right level of trust and much more.</td>
+                        <td><span class="row-number">6</span>and it is easier than ever to <span class="error-extra">ensure. ensure</span><span class="inline-note note-extra">extra (dup)</span> security and safety controls are in place to support the right level of trust and much more.</td>
+                        <td><span class="row-number">6</span>and it is easier than <span class="error-grammar">ever. to ensure</span><span class="inline-note note-grammar">grammar (struct)</span> security and safety controls are in <span class="error-grammar">place. to support</span><span class="inline-note note-grammar">grammar (struct)</span> the right level of trust, and much more.</td>
+                        <td><span class="row-number">6</span>It is easier than ever to ensure security and <span class="error-grammar">safety. Controls</span><span class="inline-note note-grammar">grammar (struct)</span> are in place to support the right level of trust. <span class="missing-text">[missing: "and much more"]</span></td>
+                    </tr>
+                    <!-- Sentence 7 -->
+                    <tr>
+                        <td><span class="row-number">7</span>Let's tour the new Microsoft Foundry portal while we build an agentic app.</td>
+                        <td><span class="row-number">7</span>Let's tour the new Microsoft Foundry portal while we <span class="error-missing">build.</span><span class="inline-note note-missing">missing</span></td>
+                        <td><span class="row-number">7</span>Let's tour the new Microsoft Foundry portal while <span class="error-extra">we... We</span><span class="inline-note note-extra">extra (dup)</span> build an agentic app.</td>
+                        <td><span class="row-number">7</span><span class="missing-text">[missing: "We'll play..."]</span> Let's tour the new Microsoft Foundry portal while we build an agentic app.</td>
+                    </tr>
+                    <!-- Sentence 8 -->
+                    <tr>
+                        <td><span class="row-number">8</span>We'll play the role of a clothing company using AI to research new market opportunities.</td>
+                        <td><span class="row-number">8</span>We'll play the role of a clothing company. Using AI to research new market opportunities.</td>
+                        <td><span class="row-number">8</span>We'll play the role of a clothing <span class="error-grammar">company. Using</span><span class="inline-note note-grammar">grammar (struct)</span> AI to research new market opportunities.</td>
+                        <td><span class="row-number">8</span>The role of a clothing company using AI to <span class="error-missing">research.</span><span class="inline-note note-missing">missing</span></td>
+                    </tr>
+                    <!-- Sentence 9 -->
+                    <tr>
+                        <td><span class="row-number">9</span>The homepage at ai.azure.com guides you right through a build experience.</td>
+                        <td><span class="row-number">9</span>Homepage at <span class="error-case">AI.azure.com</span><span class="inline-note note-case">case</span> guides <span class="error-wrong">you. You'd write through</span><span class="inline-note note-wrong">wrong</span> a build experience.</td>
+                        <td><span class="row-number">9</span><span class="error-case">the</span><span class="inline-note note-case">case</span> homepage at ai.azure.com. guides you right through a build experience.</td>
+                        <td><span class="row-number">9</span>The homepage at <span class="error-wrong">AI. Asher.com</span><span class="inline-note note-wrong">wrong</span> guides you right through a build experience.</td>
+                    </tr>
+                    <!-- Sentence 10 -->
+                    <tr>
+                        <td><span class="row-number">10</span>It's simple to start building, to create an agent, design a workflow, and browse available AI models right from here.</td>
+                        <td><span class="row-number">10</span>It's simple to <span class="error-wrong">see. Start</span><span class="inline-note note-wrong">wrong</span> building to create an agent, design a workflow. and browse available AI models right from here.</td>
+                        <td><span class="row-number">10</span>It's<span class="ellipsis">...</span> simple to start building, to create an agent, design a<span class="ellipsis">...</span> workflow and browse available AI models <span class="error-wrong">right now. from here.</span><span class="inline-note note-wrong">wrong</span></td>
+                        <td><span class="row-number">10</span>It's simple to start building, to create an agent, design a workflow, and browse available AI models right from here.</td>
+                    </tr>
+                    <!-- Sentence 11 -->
+                    <tr>
+                        <td><span class="row-number">11</span>Alternatively, you can quickly copy the project endpoint, the key, and the region to use it directly in your code with the Microsoft Foundry SDK.</td>
+                        <td><span class="row-number">11</span>Alternatively, you can quickly copy <span class="error-extra">the project. the endpoint,</span><span class="inline-note note-extra">extra</span> the key, and the region to use it directly in your code with the Microsoft Foundry SDK.</td>
+                        <td><span class="row-number">11</span>Alternatively, you can quickly <span class="error-extra">copy. Copy</span><span class="inline-note note-extra">extra (dup)</span> the project endpoint, the key, and the <span class="error-grammar">region. to use</span><span class="inline-note note-grammar">grammar (struct)</span> it directly in your code with the Microsoft <span class="error-wrong">Foundry.</span><span class="inline-note note-wrong">wrong</span></td>
+                        <td><span class="row-number">11</span>Alternatively, you can quickly copy the project endpoint, <span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> and the region to use it directly in your code with the Microsoft Foundry SDK.</td>
+                    </tr>
+                    <!-- Sentence 12 -->
+                    <tr>
+                        <td><span class="row-number">12</span>One of the most notable improvements is how everything you need to do is aligned to the development lifecycle.</td>
+                        <td><span class="row-number">12</span>One of the most notable improvements is how <span class="error-wrong">everything... The first thing</span><span class="inline-note note-wrong">wrong</span> you need to do is <span class="error-grammar">align</span><span class="inline-note note-grammar">grammar</span> to the development lifecycle.</td>
+                        <td><span class="row-number">12</span>One of the most notable <span class="error-grammar">improvements is... How</span><span class="inline-note note-grammar">grammar (struct)</span> everything you need to do is aligned to the development <span class="error-wrong">life cycle.</span><span class="inline-note note-wrong">wrong</span></td>
+                        <td><span class="row-number">12</span><span class="missing-text">[missing: "One of the most"]</span> notable improvements is how everything you need to do is <span class="error-grammar">aligned ...to</span><span class="inline-note note-grammar">grammar</span> the development lifecycle.</td>
+                    </tr>
+                    <!-- Sentence 13 -->
+                    <tr>
+                        <td><span class="row-number">13</span>If you are just getting started, the Discovery tab makes it simple to find everything you need.</td>
+                        <td><span class="row-number">13</span>If you're just getting started, the Discovery <span class="error-wrong">tab...</span><span class="inline-note note-wrong">wrong</span> makes it simple to find everything you need.</td>
+                        <td><span class="row-number">13</span>If you're just getting started, the <span class="error-wrong">discovery... Every tab</span><span class="inline-note note-wrong">wrong</span> makes it simple to find everything you need.</td>
+                        <td><span class="row-number">13</span><span class="missing-text">[missing: "If you are just getting started"]</span> The Discovery <span class="error-case">Tab</span><span class="inline-note note-case">case</span> makes it simple to find everything you need.</td>
+                    </tr>
+                    <!-- Sentence 14 -->
+                    <tr>
+                        <td><span class="row-number">14</span>Feature models are front and center, from OpenAI, Grok, Meta, DeepSeek, Mistral AI, and now for the first time, Anthropic.</td>
+                        <td><span class="row-number">14</span><span class="error-case">Feature Models</span><span class="inline-note note-case">case</span> are front and center from OpenAI, <span class="error-wrong">Mera, Tipsy,</span><span class="inline-note note-wrong">wrong</span> Mistral AI. And now for the first time, Anthropic.</td>
+                        <td><span class="row-number">14</span>Feature models are front and center from OpenAI. Grok, Meta, DeepSeek, Mistral AI. And now for the first time, Anthropic.</td>
+                        <td><span class="row-number">14</span><span class="missing-text">[missing: "Feature models are front and center"]</span> from OpenAI, Grok, Meta, <span class="error-wrong">Deep Mistroll AI</span><span class="inline-note note-wrong">wrong</span> and now for the first time Anthropic.</td>
+                    </tr>
+                    <!-- Sentence 15 -->
+                    <tr>
+                        <td><span class="row-number">15</span>You can also browse model collections, including models that you can run from your local device from Foundry Local.</td>
+                        <td><span class="row-number">15</span>You can also browse model collections, including models that you can<span class="ellipsis">...</span> run from your local device, from Foundry Local.</td>
+                        <td><span class="row-number">15</span>You can also browse model collections, including <span class="error-extra">models. models</span><span class="inline-note note-extra">extra (dup)</span> that you can run from your local device, from Foundry Local.</td>
+                        <td><span class="row-number">15</span>You can also browse model <span class="error-case">Collections</span><span class="inline-note note-case">case</span> including models that you can run from your local device from Foundry Local.</td>
+                    </tr>
+                    <!-- Sentence 16 -->
+                    <tr>
+                        <td><span class="row-number">16</span>Model Leaderboard then helps you reference how the top models compare across quality, safety, throughput, and cost.</td>
+                        <td><span class="row-number">16</span>Model leaderboard then helps you reference how the top models compare across quality, <span class="error-grammar">safety. throughput</span><span class="inline-note note-grammar">grammar</span> and cost</td>
+                        <td><span class="row-number">16</span>Model leaderboard then helps you reference how the top models compare across quality, safety, throughput, and cost.</td>
+                        <td><span class="row-number">16</span>Model leaderboard then helps you reference how the top models compare across quality, safety, throughput, and cost.</td>
+                    </tr>
+                    <!-- Sentence 17 -->
+                    <tr>
+                        <td><span class="row-number">17</span>And you'll see the feature tools, including MCP servers, that you can connect to.</td>
+                        <td><span class="row-number">17</span>and you'll see the <span class="error-wrong">future.</span><span class="inline-note note-wrong">wrong</span> tools, including MCP servers that you can connect to.</td>
+                        <td><span class="row-number">17</span><span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> See the feature tools, including <span class="error-wrong">MTP</span><span class="inline-note note-wrong">wrong</span> servers that you can <span class="error-missing">connect.</span><span class="inline-note note-missing">missing</span></td>
+                        <td><span class="row-number">17</span>and you'll see the <span class="error-wrong">future</span><span class="inline-note note-wrong">wrong</span> tools including MCP servers that you can connect to.</td>
+                    </tr>
+                    <!-- Sentence 18 -->
+                    <tr>
+                        <td><span class="row-number">18</span>Then moving to the left nav, in Agents, you can find samples for different standalone agent types to quickly get you up and running.</td>
+                        <td><span class="row-number">18</span>Then moving to the left nav in Agents. You can find samples for different standalone agent types. to quickly get you up and running.</td>
+                        <td><span class="row-number">18</span>Then move to the left nav in <span class="error-wrong">H...</span><span class="inline-note note-wrong">wrong</span> You can find samples for different standalone <span class="error-wrong">HDL. and types</span><span class="inline-note note-wrong">wrong</span> to quickly get you up and running.</td>
+                        <td><span class="row-number">18</span><span class="missing-text">[missing: "Then moving to the left nav"]</span> in agents. You can find samples <span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> standalone agent types to quickly get you <span class="error-missing">up.</span><span class="inline-note note-missing">missing</span></td>
+                    </tr>
+                    <!-- Sentence 19 -->
+                    <tr>
+                        <td><span class="row-number">19</span>In Models, you can browse a massive industry-leading catalog of thousand of foundational open source and specialized models.</td>
+                        <td><span class="row-number">19</span>In <span class="error-wrong">models...</span><span class="inline-note note-wrong">wrong</span> You can browse a massive industry-leading catalog. of thousands of foundational open source and specialized models.</td>
+                        <td><span class="row-number">19</span>In models, you can browse a massive <span class="error-wrong">industry-leading. reading catalog</span><span class="inline-note note-wrong">wrong</span> of thousands of foundational open <span class="error-case">source</span><span class="inline-note note-case">case</span> and specialized models.</td>
+                        <td><span class="row-number">19</span>In models, you can browse <span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> industry-leading catalog of thousand<span class="ellipsis">...</span> foundational, open source, and specialized models.</td>
+                    </tr>
+                    <!-- Sentence 20 -->
+                    <tr>
+                        <td><span class="row-number">20</span>Click any model to see its capabilities, like this one for GPT-5 Chat.</td>
+                        <td><span class="row-number">20</span>Click any model to see <span class="error-wrong">its...</span><span class="inline-note note-wrong">wrong</span> capabilities, like this one for GPT-5 Chat.</td>
+                        <td><span class="row-number">20</span>Click any model to see its capabilities, like this one for GPT-5 chat.</td>
+                        <td><span class="row-number">20</span>Click any model to see its capabilities, like this one for <span class="error-case">GPT5</span><span class="inline-note note-case">case</span> chat.</td>
+                    </tr>
+                    <!-- Sentence 21 -->
+                    <tr>
+                        <td><span class="row-number">21</span>Then clicking into Deploy, we can try it out from here.</td>
+                        <td><span class="row-number">21</span>Then clicking into deploy, we can try it out from here.</td>
+                        <td><span class="row-number">21</span>Then clicking into deploy, we can try it out from here.</td>
+                        <td><span class="row-number">21</span>Then clicking into deploy We can try it out from here.</td>
+                    </tr>
+                    <!-- Sentence 22 -->
+                    <tr>
+                        <td><span class="row-number">22</span>I'll add a prompt: "What is a must-have apparel for the fall in the Pacific Northwest?"</td>
+                        <td><span class="row-number">22</span>I'll add a prompt. What is a must-have <span class="error-wrong">app?</span><span class="inline-note note-wrong">wrong</span> for the fall in the Pacific Northwest.</td>
+                        <td><span class="row-number">22</span>I'll add a prompt. What is <span class="error-wrong">a month? Must-have</span><span class="inline-note note-wrong">wrong</span> apparel for the fall in the Pacific Northwest.</td>
+                        <td><span class="row-number">22</span><span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> What is a must-have apparel for the fall in the <span class="error-missing">Pacific?</span><span class="inline-note note-missing">missing</span></td>
+                    </tr>
+                    <!-- Sentence 23 -->
+                    <tr>
+                        <td><span class="row-number">23</span>Now, looking at its generated response with recommendations for outerwear, it looks like GPT-5 Chat knows that it rains quite a bit here.</td>
+                        <td><span class="row-number">23</span>Now, looking at its generated response with recommendations for outerwear, it looks like GPT-5 chat knows that it rains quite a bit here.</td>
+                        <td><span class="row-number">23</span>Now, looking at its generated response with<span class="ellipsis">...</span> recommendations for outerwear, it looks like <span class="error-grammar">GPT-5 Chat. knows</span><span class="inline-note note-grammar">grammar (struct)</span> that it rains quite a bit here.</td>
+                        <td><span class="row-number">23</span>Now looking at its <span class="error-wrong">generate With</span><span class="inline-note note-wrong">wrong</span> recommendations for outerwear, <span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> GPT-5 Chat knows that it rains quite a bit here.</td>
+                    </tr>
+                    <!-- Sentence 24 -->
+                    <tr>
+                        <td><span class="row-number">24</span>If I move back to the catalog view, we can also see the new model router that automatically routes prompts to the most efficient models in real time, ensuring high-quality results while minimizing costs.</td>
+                        <td><span class="row-number">24</span>If I move back to the catalog view, we can also see the new model router that automatically routes prompts to <span class="error-extra">the... the</span><span class="inline-note note-extra">extra (dup)</span> most efficient models in real time, ensuring <span class="error-extra">high high-quality</span><span class="inline-note note-extra">extra (dup)</span> results while minimizing costs.</td>
+                        <td><span class="row-number">24</span>If I move back to the catalog view, we can also <span class="error-wrong">see...</span><span class="inline-note note-wrong">wrong</span> the new model router that automatically <span class="error-grammar">routes. Prompts</span><span class="inline-note note-grammar">grammar (struct)</span> to the most efficient models in real <span class="error-grammar">time. Ensuring</span><span class="inline-note note-grammar">grammar (struct)</span> high-quality results while minimizing costs.</td>
+                        <td><span class="row-number">24</span>If I move back to the catalog view, We can also see the new model router that automatically routes prompts to the most efficient models in real time, ensuring high quality results while minimizing costs.</td>
+                    </tr>
+                    <!-- Sentence 25 -->
+                    <tr>
+                        <td><span class="row-number">25</span>I already have it deployed here and ready to use.</td>
+                        <td><span class="row-number">25</span>I already have it deployed here and ready to use.</td>
+                        <td><span class="row-number">25</span>I already have it deployed here and ready to use.</td>
+                        <td><span class="row-number">25</span>I already have it deployed <span class="error-grammar">here. and</span><span class="inline-note note-grammar">grammar (struct)</span> ready to use.</td>
+                    </tr>
+                    <!-- Sentence 26 -->
+                    <tr>
+                        <td><span class="row-number">26</span>Under Tools, you'll find all of the available tools that you can use to connect your agents and apps.</td>
+                        <td><span class="row-number">26</span>Under Tools, you'll find all of the available <span class="error-extra">tools. Tools</span><span class="inline-note note-extra">extra (dup)</span> that you can use to connect your agents and apps.</td>
+                        <td><span class="row-number">26</span><span class="error-case">Under tools,</span><span class="inline-note note-case">case</span> you'll find all of the <span class="error-extra">available... available</span><span class="inline-note note-extra">extra (dup)</span> tools that you can use to connect your agents and apps.</td>
+                        <td><span class="row-number">26</span><span class="missing-text">[missing: "Under Tools"]</span> You will find all of the available tools that you can use to <span class="error-grammar">connect. your</span><span class="inline-note note-grammar">grammar (struct)</span> agents and apps.</td>
+                    </tr>
+                    <!-- Sentence 27 -->
+                    <tr>
+                        <td><span class="row-number">27</span>You can easily find MCP servers and more than a thousand connectors to add to your workflows.</td>
+                        <td><span class="row-number">27</span>You can easily find MCP servers, and more than<span class="ellipsis">...</span> a thousand connectors to add to your workflows.</td>
+                        <td><span class="row-number">27</span>You can easily find MCP <span class="error-grammar">servers. and</span><span class="inline-note note-grammar">grammar (struct)</span> more than a thousand connectors to add to your workflows.</td>
+                        <td><span class="row-number">27</span>You can easily find <span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> and more than a thousand connectors to add to your workflows.</td>
+                    </tr>
+                    <!-- Sentence 28 -->
+                    <tr>
+                        <td><span class="row-number">28</span>You can add them from here or right as you're building your agent.</td>
+                        <td><span class="row-number">28</span>You can add them from here, or right as you're <span class="error-missing">building.</span><span class="inline-note note-missing">missing</span></td>
+                        <td><span class="row-number">28</span>You can add them from here or right <span class="error-wrong">as... You're</span><span class="inline-note note-wrong">wrong</span> building your agent.</td>
+                        <td><span class="row-number">28</span>You can add them from here or right as you're building your agent.</td>
+                    </tr>
+                    <!-- Sentence 29 -->
+                    <tr>
+                        <td><span class="row-number">29</span>Next, to accelerate your efforts, you can access dozens of curated solution templates with step-by-step instructions for coding AI right into your apps.</td>
+                        <td><span class="row-number">29</span>Next, to accelerate your efforts, you can access dozens of curated solution templates. with step-by-step instructions for coding <span class="error-missing">AI.</span><span class="inline-note note-missing">missing</span></td>
+                        <td><span class="row-number">29</span>Next, to <span class="error-extra">accelerate... Accelerate</span><span class="inline-note note-extra">extra (dup)</span> your efforts. You can access dozens of curated <span class="error-grammar">solutions. Solution templates</span><span class="inline-note note-grammar">grammar (struct)</span> with step-by-step instructions for <span class="error-wrong">customizable code samples.</span><span class="inline-note note-wrong">wrong</span></td>
+                        <td><span class="row-number">29</span><span class="error-missing">⌀</span><span class="inline-note note-missing">missing</span> To accelerate your efforts, you can access <span class="error-wrong">Thousands</span><span class="inline-note note-wrong">wrong</span> of curated solution templates with step-by-step <span class="error-wrong">...have instructions</span><span class="inline-note note-wrong">wrong</span> for coding AI right into your apps.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Evaluation Section -->
+            <div class="evaluation-section">
+                <div class="evaluation-header">
+                    <span>📊</span>
+                    <h2>Evaluation</h2>
+                </div>
+                <div class="evaluation-grid">
+                    <div class="evaluation-cell">
+                        <div class="model-name">Original Transcript</div>
+                        <div class="rating">
+                            <span class="rating-label">Quality:</span>
+                            <span class="rating-badge rating-excellent">REFERENCE</span>
+                            <span class="rating-score">100%</span>
+                        </div>
+                        <div class="eval-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Errors</div>
+                                <div class="stat-value">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Words</div>
+                                <div class="stat-value">~420</div>
+                            </div>
+                        </div>
+                        <div class="error-breakdown">
+                            <div class="breakdown-title">Errors by Type</div>
+                            <div class="breakdown-grid">
+                                <div class="breakdown-item"><span class="breakdown-label">wrong</span><span class="breakdown-value">0</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label">missing</span><span class="breakdown-value">0</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label">extra</span><span class="breakdown-value">0</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label">grammar</span><span class="breakdown-value">0</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label">case</span><span class="breakdown-value">0</span></div>
+                            </div>
+                        </div>
+                        <div class="pros-cons">
+                            <h4 class="pros-title">✓ Strengths</h4>
+                            <ul>
+                                <li class="pro">Official transcript</li>
+                                <li class="pro">100% accurate</li>
+                                <li class="pro">Correct punctuation</li>
+                                <li class="pro">Technical terms correct</li>
+                            </ul>
+                            <h4 class="cons-title">✗ Notes</h4>
+                            <ul>
+                                <li class="con">Serves as reference</li>
+                                <li class="con">Manually created</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="evaluation-cell">
+                        <div class="model-name">OpenAI gpt-4o-mini-transcribe</div>
+                        <div class="rating">
+                            <span class="rating-label">Quality:</span>
+                            <span class="rating-badge rating-fair">SATISFACTORY</span>
+                            <span class="rating-score">75%</span>
+                        </div>
+                        <div class="eval-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Errors</div>
+                                <div class="stat-value error-count">24</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Words</div>
+                                <div class="stat-value">~430</div>
+                            </div>
+                        </div>
+                        <div class="error-breakdown">
+                            <div class="breakdown-title">Errors by Type</div>
+                            <div class="breakdown-grid">
+                                <div class="breakdown-item"><span class="breakdown-label wrong-bg">wrong</span><span class="breakdown-value">9</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label missing-bg">missing</span><span class="breakdown-value">3</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label extra-bg">extra</span><span class="breakdown-value">8</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label grammar-bg">grammar</span><span class="breakdown-value">3</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label case-bg">case</span><span class="breakdown-value">1</span></div>
+                            </div>
+                        </div>
+                        <div class="pros-cons">
+                            <h4 class="pros-title">✓ Strengths</h4>
+                            <ul>
+                                <li class="pro">Complete text captured</li>
+                                <li class="pro">Better than Run 1 (24 vs 28)</li>
+                                <li class="pro">Most structure preserved</li>
+                                <li class="pro">Fewer missing words</li>
+                            </ul>
+                            <h4 class="cons-title">✗ Weaknesses</h4>
+                            <ul>
+                                <li class="con">Duplications persist (8×)</li>
+                                <li class="con">"Mera, Tipsy" vs "Meta, DeepSeek"</li>
+                                <li class="con">"future" vs "feature"</li>
+                                <li class="con">"app?" vs "apparel"</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="evaluation-cell">
+                        <div class="model-name">Azure gpt-4o-mini-transcribe</div>
+                        <div class="rating">
+                            <span class="rating-label">Quality:</span>
+                            <span class="rating-badge rating-poor">POOR</span>
+                            <span class="rating-score">50%</span>
+                        </div>
+                        <div class="eval-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Errors</div>
+                                <div class="stat-value error-count">42</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Words</div>
+                                <div class="stat-value">~445</div>
+                            </div>
+                        </div>
+                        <div class="error-breakdown">
+                            <div class="breakdown-title">Errors by Type</div>
+                            <div class="breakdown-grid">
+                                <div class="breakdown-item"><span class="breakdown-label wrong-bg">wrong</span><span class="breakdown-value">10</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label missing-bg">missing</span><span class="breakdown-value">4</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label extra-bg">extra</span><span class="breakdown-value">10</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label grammar-bg">grammar</span><span class="breakdown-value">14</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label case-bg">case</span><span class="breakdown-value">4</span></div>
+                            </div>
+                        </div>
+                        <div class="pros-cons">
+                            <h4 class="pros-title">✓ Strengths</h4>
+                            <ul>
+                                <li class="pro">Most content captured</li>
+                                <li class="pro">Correct: Grok, Meta, DeepSeek</li>
+                                <li class="pro">Better than Run 1 (42 vs 48)</li>
+                            </ul>
+                            <h4 class="cons-title">✗ Weaknesses</h4>
+                            <ul>
+                                <li class="con">Many sentence breaks (14×)</li>
+                                <li class="con">"MTP" vs "MCP"</li>
+                                <li class="con">"HDL and types" vs "agent types"</li>
+                                <li class="con">"a month? Must-have"</li>
+                                <li class="con">"customizable code samples"</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="evaluation-cell">
+                        <div class="model-name">Azure gpt-4o-transcribe</div>
+                        <div class="rating">
+                            <span class="rating-label">Quality:</span>
+                            <span class="rating-badge rating-poor">POOR</span>
+                            <span class="rating-score">48%</span>
+                        </div>
+                        <div class="eval-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Errors</div>
+                                <div class="stat-value error-count">38</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Words</div>
+                                <div class="stat-value">~350</div>
+                            </div>
+                        </div>
+                        <div class="error-breakdown">
+                            <div class="breakdown-title">Errors by Type</div>
+                            <div class="breakdown-grid">
+                                <div class="breakdown-item"><span class="breakdown-label wrong-bg">wrong</span><span class="breakdown-value">9</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label missing-bg">missing</span><span class="breakdown-value">18</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label extra-bg">extra</span><span class="breakdown-value">0</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label grammar-bg">grammar</span><span class="breakdown-value">6</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label case-bg">case</span><span class="breakdown-value">5</span></div>
+                            </div>
+                        </div>
+                        <div class="pros-cons">
+                            <h4 class="pros-title">✓ Strengths</h4>
+                            <ul>
+                                <li class="pro">No duplications (0 extra)</li>
+                                <li class="pro">Good when text captured</li>
+                                <li class="pro">Less errors than Run 1 (38 vs 42)</li>
+                            </ul>
+                            <h4 class="cons-title">✗ Weaknesses</h4>
+                            <ul>
+                                <li class="con">~17% content lost (18 missing)</li>
+                                <li class="con">"AI. Asher.com" (severe)</li>
+                                <li class="con">"Deep Mistroll AI"</li>
+                                <li class="con">"Thousands" vs "dozens"</li>
+                                <li class="con">"Our experience" vs "A simple..."</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="summary-section">
+            <div class="summary-header">
+                <span style="font-size: 1.5rem;">📈</span>
+                <h2>Overall Transcription Quality Summary</h2>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>Original (Reference)</h3>
+                    <div class="summary-score">100%</div>
+                    <div class="summary-label">0 Errors · Perfect</div>
+                </div>
+                <div class="summary-card">
+                    <h3>OpenAI gpt-4o-mini</h3>
+                    <div class="summary-score">75%</div>
+                    <div class="summary-label">24 Errors · Satisfactory</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Azure gpt-4o-mini</h3>
+                    <div class="summary-score">50%</div>
+                    <div class="summary-label">42 Errors · Poor</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Azure gpt-4o</h3>
+                    <div class="summary-score">48%</div>
+                    <div class="summary-label">38 Errors · Poor</div>
+                </div>
+            </div>
+            
+            <div class="conclusion-box">
+                <h3>💡 Run 2 Conclusion & Comparison with Run 1</h3>
+                <p>
+                    <strong>Consistency Analysis:</strong> All models show slight improvement in Run 2, suggesting some variability between runs but consistent relative performance.
+                    <br><br>
+                    <strong>OpenAI gpt-4o-mini:</strong> Improved from 72% → 75% (28 → 24 errors). Still the best performer. Different wrong words this run: "Mera, Tipsy" instead of "Rock, Mera" — neither correct, but shows inconsistency in proper noun recognition.
+                    <br><br>
+                    <strong>Azure gpt-4o-mini:</strong> Improved from 52% → 50% (48 → 42 errors). Same core issues persist: severe sentence fragmentation and wrong technical terms. "MTP" error consistent across runs.
+                    <br><br>
+                    <strong>Azure gpt-4o:</strong> Slightly worse: 58% → 48% (42 → 38 errors but more missing content). New critical error: "AI. Asher.com" instead of "ai.azure.com" — completely unintelligible. ~17% content still missing.
+                    <br><br>
+                    <strong>Key Finding:</strong> OpenAI's direct API consistently outperforms Azure OpenAI. The variability between runs is 3-10%, suggesting transcription results are non-deterministic. Multiple runs recommended for critical applications.
+                </p>
+            </div>
+        </section>
+
+        <!-- Raw Transcripts for Easy Copying -->
+        <section class="raw-transcripts-section">
+            <div class="raw-transcripts-header">
+                <span style="font-size: 1.5rem;">📋</span>
+                <h2>Raw Transcription Texts (for copying)</h2>
+            </div>
+
+            <!-- Original Transcript -->
+            <div class="transcript-block">
+                <div class="transcript-block-header original">
+                    <div>
+                        <div class="transcript-block-title">✓ Original Transcript</div>
+                        <div class="transcript-block-subtitle">Reference (Microsoft Tech Community)</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyTranscript(this, 'original-text')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="transcript-content" id="original-text">If you are building AI apps and agents and want to move faster with more control, the newly expounded Foundry helps you do exactly that, while integrating directly with your code. It works like a unified AI app and agent factory, with rich tooling and observability. A simple developer experience helps you and your team find the right components you need to start building your agents and move seamlessly from idea all the way to production. It is augmented by powerful new capabilities, such as an agent framework for multi-agentic apps and workflow automation, or multisource knowledge-based creation to support deep reasoning. New levels of observability across your fleet of agents then help you evaluate how well they're operating. And it is easier than ever to ensure security and safety controls are in place to support the right level of trust and much more.
+
+-Let's tour the new Microsoft Foundry portal while we build an agentic app. We'll play the role of a clothing company using AI to research new market opportunities. The homepage at ai.azure.com guides you right through a build experience. It's simple to start building, to create an agent, design a workflow, and browse available AI models right from here. Alternatively, you can quickly copy the project endpoint, the key, and the region to use it directly in your code with the Microsoft Foundry SDK. One of the most notable improvements is how everything you need to do is aligned to the development lifecycle.
+
+-If you are just getting started, the Discovery tab makes it simple to find everything you need. Feature models are front and center, from OpenAI, Grok, Meta, DeepSeek, Mistral AI, and now for the first time, Anthropic. You can also browse model collections, including models that you can run from your local device from Foundry Local. Model Leaderboard then helps you reference how the top models compare across quality, safety, throughput, and cost. And you'll see the feature tools, including MCP servers, that you can connect to. Then moving to the left nav, in Agents, you can find samples for different standalone agent types to quickly get you up and running.
+
+-In Models, you can browse a massive industry-leading catalog of thousand of foundational open source and specialized models. Click any model to see its capabilities, like this one for GPT-5 Chat. Then clicking into Deploy, we can try it out from here. I'll add a prompt: "What is a must-have apparel for the fall in the Pacific Northwest?" Now, looking at its generated response with recommendations for outerwear, it looks like GPT-5 Chat knows that it rains quite a bit here. If I move back to the catalog view, we can also see the new model router that automatically routes prompts to the most efficient models in real time, ensuring high-quality results while minimizing costs. I already have it deployed here and ready to use.
+
+-Under Tools, you'll find all of the available tools that you can use to connect your agents and apps. You can easily find MCP servers and more than a thousand connectors to add to your workflows. You can add them from here or right as you're building your agent. Next, to accelerate your efforts, you can access dozens of curated solution templates with step-by-step instructions for coding AI right into your apps.</div>
+            </div>
+
+            <!-- OpenAI gpt-4o-mini-transcribe -->
+            <div class="transcript-block">
+                <div class="transcript-block-header openai">
+                    <div>
+                        <div class="transcript-block-title">OpenAI gpt-4o-mini-transcribe</div>
+                        <div class="transcript-block-subtitle">gpt-4o-mini-transcribe-2025-12-15</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyTranscript(this, 'openai-text')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="transcript-content" id="openai-text">If you're building AI apps and agents and want to move faster with more control... The newly expounded foundry helps you do exactly that. while integrating directly with your code. It works like a unified AI app and agent. With rich tooling and observability. A simple developer experience helps you and your team. Find the right components you need to start building your app. agents and move seamlessly from idea all the way. way to production. It is augmented by powerful new capabilities, such as an agent framework for mobile. Multi-agentic apps and workflow automation, or multi-agentic... Multi-source knowledge base creation to support deep reasoning. New levels of observability across your fleet of agents, then help you evaluate how well they're doing. operating, and it is easier than ever to ensure. ensure security and safety controls are in place to support the right level of trust and much more. Let's tour the new Microsoft Foundry portal while we build. We'll play the role of a clothing company. Using AI to research new market opportunities. Homepage at AI.azure.com guides you. You'd write through a build experience. It's simple to see. Start building to create an agent, design a workflow. and browse available AI models right from here. Alternatively, you can quickly copy the project. the endpoint, the key, and the region to use it directly in your code with the Microsoft Foundry SDK. One of the most notable improvements is how everything... The first thing you need to do is align to the development lifecycle. If you're just getting started, the Discovery tab... makes it simple to find everything you need. Feature Models are front and center from OpenAI, Mera, Tipsy, Mistral AI. And now for the first time, Anthropic. You can also browse model collections, including models that you can... run from your local device, from Foundry Local. Model leaderboard then helps you reference how the top models compare across quality, safety. throughput and cost, and you'll see the future. tools, including MCP servers that you can connect to. Then moving to the left nav in Agents. You can find samples for different standalone agent types. to quickly get you up and running. In models... You can browse a massive industry-leading catalog. of thousands of foundational open source and specialized models. Click any model to see its... capabilities, like this one for GPT-5 Chat. Then clicking into deploy, we can try it out from here. I'll add a prompt. What is a must-have app? for the fall in the Pacific Northwest. Now, looking at its generated response with recommendations for outerwear, it looks like GPT-5 chat knows that it rains quite a bit here. If I move back to the catalog view, we can also see the new model router that automatically routes prompts to the... the most efficient models in real time, ensuring high high-quality results while minimizing costs. I already have it deployed here and ready to use. Under Tools, you'll find all of the available tools. Tools that you can use to connect your agents and apps. You can easily find MCP servers, and more than... a thousand connectors to add to your workflows. You can add them from here, or right as you're building. Next, to accelerate your efforts, you can access dozens of curated solution templates. with step-by-step instructions for coding AI.</div>
+            </div>
+
+            <!-- Azure OpenAI gpt-4o-mini-transcribe -->
+            <div class="transcript-block">
+                <div class="transcript-block-header azure-mini">
+                    <div>
+                        <div class="transcript-block-title">Azure OpenAI gpt-4o-mini-transcribe</div>
+                        <div class="transcript-block-subtitle">gpt-4o-mini-transcribe (Azure)</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyTranscript(this, 'azure-mini-text')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="transcript-content" id="azure-mini-text">If you're building... Building AI apps and agents and want to move faster with more control, the newly expounded foundry helps you to Exactly that. While integrating directly with... Your code. It works like a unified AI app. and agent factory, with rich tooling and observability. A simple developer experience helps you You and your team find the right components you need to start. Building your agents and move seamlessly from idea all the way to production. It is augmented by powerful new capabilities, such as an agent framework. for multi-agentic apps and workflow automation. or multi-source knowledge base creation to support team. reasoning. New levels of observability across your fleet of agents, then help you evaluate how... how well they're operating, and it is easier than ever. to ensure security and safety controls are in place. to support the right level of trust, and much more. Let's tour the new Microsoft Foundry portal while we... We build an agentic app. We'll play the role of a clothing company. Using AI to research new market opportunities. the homepage at ai.azure.com. guides you right through a build experience. It's... simple to start building, to create an agent, design a... workflow and browse available AI models right now. from here. Alternatively, you can quickly copy. Copy the project endpoint, the key, and the region. to use it directly in your code with the Microsoft Foundry. One of the most notable improvements is... How everything you need to do is aligned to the development life cycle. If you're just getting started, the discovery... Every tab makes it simple to find everything you need. Feature models are front and center from OpenAI. Grok, Meta, DeepSeek, Mistral AI. And now for the first time, Anthropic. You can also browse model collections, including models. models that you can run from your local device, from Foundry Local. Model leaderboard then helps you reference how the top models compare across quality, safety, throughput, and cost. See the feature tools, including MTP servers that you can connect. Then move to the left nav in H... You can find samples for different standalone HDL. and types to quickly get you up and running. In models, you can browse a massive industry-leading. reading catalog of thousands of foundational open source and specialized models. Click any model to see its capabilities, like this one for GPT-5 chat. Then clicking into deploy, we can try it out from here. I'll add a prompt. What is a month? Must-have apparel for the fall in the Pacific Northwest. Now, looking at its generated response with... recommendations for outerwear, it looks like GPT-5 Chat. knows that it rains quite a bit here. If I move back to the catalog view, we can also see... the new model router that automatically routes. Prompts to the most efficient models in real time. Ensuring high-quality results while minimizing costs. I already have it deployed here and ready to use. Under tools, you'll find all of the available... available tools that you can use to connect your agents and apps. You can easily find MCP servers. and more than a thousand connectors to add to your workflows. You can add them from here or right as... You're building your agent. Next, to accelerate... Accelerate your efforts. You can access dozens of curated solutions. Solution templates with step-by-step instructions for customizable code samples.</div>
+            </div>
+
+            <!-- Azure OpenAI gpt-4o-transcribe -->
+            <div class="transcript-block">
+                <div class="transcript-block-header azure-full">
+                    <div>
+                        <div class="transcript-block-title">Azure OpenAI gpt-4o-transcribe</div>
+                        <div class="transcript-block-subtitle">gpt-4o-transcribe (Azure)</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyTranscript(this, 'azure-full-text')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="transcript-content" id="azure-full-text">If you're building AI apps and agents and want to move faster with more control, the newly expounded Foundry helps you do exactly that. Integrating directly with your code. unified AI app and agent factory, with rich and observability. Our experience helps you and your team find the right components you need to start building your agents and move seamlessly. from idea all the way to production. It is augmented by powerful new capabilities, such as an agent framework for multi-agentic apps and workflows. automation or multi-source knowledge base to support deep reasoning. If you lack observability across your fleet of agents help you evaluate how well they're operating. It is easier than ever to ensure security and safety. Controls are in place to support the right level of trust. The role of a clothing company using AI to research. Let's tour the new Microsoft Foundry portal while we build an agentic app. The homepage at AI. Asher.com guides you right through a build experience. It's simple to start building, to create an agent, design a workflow, and browse available AI models right from here. Alternatively, you can quickly copy the project endpoint, and the region to use it directly in your code with the Microsoft Foundry SDK. notable improvements is how everything you need to do is aligned ...to the development lifecycle. The Discovery Tab makes it simple to find everything you need. from OpenAI, Grok, Meta, Deep Mistroll AI and now for the first time Anthropic. You can also browse model Collections including models that you can run from your local device from Foundry Local. Model leaderboard then helps you reference how the top models compare across quality, safety, throughput, and cost. and you'll see the future tools including MCP servers that you can connect to. in agents. You can find samples Different standalone agent types to quickly get you up. In models, you can browse industry-leading catalog of thousand ...foundational, open source, and specialized models. Click any model to see its capabilities, like this one for GPT5 chat. Then clicking into deploy We can try it out from here. What is a must-have apparel for the fall in the Pacific? Now looking at its generate With recommendations for outerwear, it looks like GPT-5 Chat knows that it rains quite a bit here. If I move back to the catalog view, We can also see the new model router that automatically routes prompts to the most efficient models in real time, ensuring high quality results while minimizing costs. I already have it deployed here. and ready to use. You will find all of the available tools that you can use to connect. your agents and apps. You can easily find and more than a thousand connectors to add to your workflows. You can add them from here or right as you're building your agent. To accelerate your efforts, you can access Thousands of curated solution templates with step-by-step ...have instructions for coding AI right into your apps.</div>
+            </div>
+        </section>
+
+        <script>
+            function copyTranscript(button, textId) {
+                const textElement = document.getElementById(textId);
+                const text = textElement.innerText;
+                
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalHTML = button.innerHTML;
+                    button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+                    button.classList.add('copied');
+                    
+                    setTimeout(() => {
+                        button.innerHTML = originalHTML;
+                        button.classList.remove('copied');
+                    }, 2000);
+                });
+            }
+        </script>
+
+        <footer>
+            <p>Created on December 27, 2025 · Transcription Quality Analysis — Run 2</p>
+            <p style="margin-top: 0.5rem; font-size: 0.8rem;">Sources: <a href="https://youtu.be/C6rxEGJay70" target="_blank">YouTube Video</a> · <a href="https://techcommunity.microsoft.com/blog/microsoftmechanicsblog/microsoft-foundry---everything-you-need-to-build-ai-apps--agents/4475619" target="_blank">Microsoft Tech Community</a></p>
+        </footer>
+    </div>
+</body>
+</html>
