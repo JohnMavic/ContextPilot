@@ -6,7 +6,6 @@ export type SpeakerSource = "none" | "device" | "tab";
 type Props = {
   onSelect: (micId?: string, speakerId?: string) => void;
   onSpeakerSourceChange: (source: SpeakerSource) => void;
-  tabCaptureActive?: boolean;
   tabCaptureError?: string | null;
   // Volume levels and mute controls
   micLevel?: number;
@@ -21,7 +20,6 @@ type Props = {
 export function DeviceSelector({ 
   onSelect, 
   onSpeakerSourceChange,
-  tabCaptureActive = false,
   tabCaptureError = null,
   micLevel = 0,
   spkLevel = 0,

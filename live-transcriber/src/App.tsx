@@ -1477,7 +1477,6 @@ ${customPrompt}`, useWebSearch);
             <DeviceSelector 
               onSelect={handleDeviceSelect} 
               onSpeakerSourceChange={handleSpeakerSourceChange}
-              tabCaptureActive={tabCapture.state === "capturing"}
               tabCaptureError={tabCapture.error}
               micLevel={volumeLevels.mic}
               spkLevel={volumeLevels.speaker}
