@@ -600,6 +600,72 @@
             margin-top: 2rem;
         }
 
+        /* Run Comparison Table */
+        .run-comparison-section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-top: 2rem;
+        }
+
+        .run-comparison-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .run-comparison-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .run-comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .run-comparison-table th {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text);
+            border-bottom: 2px solid var(--border);
+        }
+
+        .run-comparison-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .run-comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .run-comparison-table .model-col {
+            font-weight: 600;
+        }
+
+        .run-comparison-table .score-col {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .run-comparison-table .change-positive {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .run-comparison-table .change-negative {
+            color: var(--warning);
+            font-weight: 600;
+        }
+
         .raw-transcripts-header {
             display: flex;
             align-items: center;
@@ -1246,6 +1312,44 @@
                     <strong>Key Finding:</strong> OpenAI's direct API consistently outperforms Azure OpenAI. The variability between runs is 3-10%, suggesting transcription results are non-deterministic. Multiple runs recommended for critical applications.
                 </p>
             </div>
+        </section>
+
+        <!-- Run 1 vs Run 2 Comparison -->
+        <section class="run-comparison-section">
+            <div class="run-comparison-header">
+                <span style="font-size: 1.5rem;">📊</span>
+                <h2>Run 1 vs Run 2 Comparison</h2>
+            </div>
+            <table class="run-comparison-table">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Run 1</th>
+                        <th>Run 2</th>
+                        <th>Δ Change</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="model-col">OpenAI gpt-4o-mini</td>
+                        <td class="score-col">72% (28 errors)</td>
+                        <td class="score-col">75% (24 errors)</td>
+                        <td class="change-positive">✅ +3% better</td>
+                    </tr>
+                    <tr>
+                        <td class="model-col">Azure gpt-4o-mini</td>
+                        <td class="score-col">52% (48 errors)</td>
+                        <td class="score-col">50% (42 errors)</td>
+                        <td class="change-positive">✅ +6 fewer errors</td>
+                    </tr>
+                    <tr>
+                        <td class="model-col">Azure gpt-4o</td>
+                        <td class="score-col">58% (42 errors)</td>
+                        <td class="score-col">48% (38 errors)</td>
+                        <td class="change-negative">⚠️ -10% worse (more missing)</td>
+                    </tr>
+                </tbody>
+            </table>
         </section>
 
         <!-- Raw Transcripts for Easy Copying -->
