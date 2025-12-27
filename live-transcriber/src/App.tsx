@@ -36,7 +36,7 @@ interface TranscriptionModel {
 const TRANSCRIPTION_MODELS: TranscriptionModel[] = [
   { 
     id: "openai", 
-    name: "gpt-4o-mini-transcribe", 
+    name: "gpt-4o-mini-transcribe-2025-12-15", 
     provider: "openai", 
     providerLabel: "OpenAI" 
   },
