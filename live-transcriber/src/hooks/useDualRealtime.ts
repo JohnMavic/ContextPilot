@@ -72,6 +72,7 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
   const [activeServerModelReason, setActiveServerModelReason] = useState<string | null>(null);
   const [volumeLevels, setVolumeLevels] = useState({ mic: 0, speaker: 0 });
   const [micMuted, setMicMutedState] = useState(false); // Mic mute state
+  const [spkMuted, setSpkMutedState] = useState(false); // Speaker mute state
   const [stats, setStats] = useState({
     micFrames: 0,
     speakerFrames: 0,
@@ -705,6 +706,7 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
     stopSession(speakerSession);
     setVolumeLevels({ mic: 0, speaker: 0 });
     setMicMutedState(false); // Reset mute state on stop
+    setSpkMutedState(false); // Reset speaker mute state on stop
     setStatus("idle");
   };
 
@@ -718,6 +720,18 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
       });
     }
     setMicMutedState(muted);
+  }, []);
+
+  // Speaker muten/unmuten (enabled/disabled auf dem Track)
+  const setSpkMuted = useCallback((muted: boolean) => {
+    const session = speakerSession.current;
+    if (session.stream) {
+      session.stream.getAudioTracks().forEach(track => {
+        track.enabled = !muted;
+        console.log(`[SPK] Track ${track.label} ${muted ? 'muted' : 'unmuted'}`);
+      });
+    }
+    setSpkMutedState(muted);
   }, []);
 
   // Text aus Segmenten löschen - robuste Version mit mehreren Matching-Strategien
@@ -933,6 +947,8 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai") {
     volumeLevels,
     micMuted,
     setMicMuted,
+    spkMuted,
+    setSpkMuted,
     start,
     stop: stopAll,
     resetTranscript: () => setSegments([]),

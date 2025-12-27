@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { VolumeMeter } from "./VolumeMeter";
 
 export type SpeakerSource = "none" | "device" | "tab";
 
@@ -7,6 +8,14 @@ type Props = {
   onSpeakerSourceChange: (source: SpeakerSource) => void;
   tabCaptureActive?: boolean;
   tabCaptureError?: string | null;
+  // Volume levels and mute controls
+  micLevel?: number;
+  spkLevel?: number;
+  micMuted?: boolean;
+  spkMuted?: boolean;
+  onMicMuteToggle?: () => void;
+  onSpkMuteToggle?: () => void;
+  isRunning?: boolean;
 };
 
 export function DeviceSelector({ 
@@ -14,6 +23,13 @@ export function DeviceSelector({
   onSpeakerSourceChange,
   tabCaptureActive = false,
   tabCaptureError = null,
+  micLevel = 0,
+  spkLevel = 0,
+  micMuted = false,
+  spkMuted = false,
+  onMicMuteToggle,
+  onSpkMuteToggle,
+  isRunning = false,
 }: Props) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [micId, setMicId] = useState<string>("default"); // Default: Windows Standard-Gerät
@@ -138,6 +154,36 @@ export function DeviceSelector({
         </select>
       </label>
 
+      {/* MIC Volume Meter with Mute Button */}
+      <div className="volume-meter-row">
+        <VolumeMeter level={micMuted ? 0 : micLevel} label="MIC" />
+        <button 
+          className={`mic-mute-btn ${micMuted ? 'muted' : 'recording'}`}
+          onClick={onMicMuteToggle}
+          title={micMuted ? "Start recording" : "Stop recording"}
+          disabled={!isRunning}
+        >
+          <div className="mic-icon-wrapper">
+            {micMuted ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="mic-icon-svg">
+                <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M12 7v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="12" cy="14" r="1" fill="currentColor"/>
+                <line x1="7" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="mic-icon-svg">
+                <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.25" stroke="currentColor" strokeWidth="1.5"/>
+                <circle cx="12" cy="12" r="5" fill="currentColor" fillOpacity="0.4"/>
+                <rect x="10" y="6" width="4" height="8" rx="2" fill="currentColor"/>
+                <path d="M8 12a4 4 0 0 0 8 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <line x1="12" y1="16" x2="12" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            )}
+          </div>
+        </button>
+      </div>
+
       <div className="field">
         <h4 className="field-header">System Audio Source</h4>
         <div className="speaker-source-selector">
@@ -177,21 +223,39 @@ export function DeviceSelector({
         </div>
       </div>
 
-      {speakerSource === "tab" && (
-        <div className="tab-capture-info">
-          {tabCaptureActive ? (
-            <p className="success">Tab audio is being captured</p>
-          ) : (
-            <p className="hint">
-              When you start, you will be asked to choose a browser tab.
-              <br />
-              <strong>Important:</strong> enable "Share tab audio" in the dialog.
-            </p>
-          )}
-          {tabCaptureError && (
-            <p className="error">{tabCaptureError}</p>
-          )}
+      {/* SPK Volume Meter with Mute Button */}
+      {speakerSource !== "none" && (
+        <div className="volume-meter-row">
+          <VolumeMeter level={spkMuted ? 0 : spkLevel} label="SPK" />
+          <button 
+            className={`spk-mute-btn ${spkMuted ? 'muted' : 'active'}`}
+            onClick={onSpkMuteToggle}
+            title={spkMuted ? "Unmute speaker" : "Mute speaker"}
+            disabled={!isRunning}
+          >
+            <div className="spk-icon-wrapper">
+              {spkMuted ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="spk-icon-svg">
+                  <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.5"/>
+                  <path d="M8 9.5v5l4 3v-11l-4 3z" fill="currentColor"/>
+                  <line x1="7" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="spk-icon-svg">
+                  <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.25" stroke="currentColor" strokeWidth="1.5"/>
+                  <circle cx="12" cy="12" r="5" fill="currentColor" fillOpacity="0.4"/>
+                  <path d="M8 9.5v5l4 3v-11l-4 3z" fill="currentColor"/>
+                  <path d="M14 9.5c1 .5 1.5 1.5 1.5 2.5s-.5 2-1.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M15.5 7.5c1.5 1 2.5 2.5 2.5 4.5s-1 3.5-2.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              )}
+            </div>
+          </button>
         </div>
+      )}
+
+      {speakerSource === "tab" && tabCaptureError && (
+        <p className="error">{tabCaptureError}</p>
       )}
 
       {speakerSource === "device" && (

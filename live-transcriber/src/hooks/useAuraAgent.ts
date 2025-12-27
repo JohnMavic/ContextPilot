@@ -10,6 +10,7 @@ export interface AuraFollowUp {
   error: string | null;
   timestamp: number;
   prompt: string;
+  agentsUsed?: string[];  // MFA Routing-Metadaten
 }
 
 export interface AuraRouting {
@@ -334,6 +335,7 @@ export function useAuraAgent() {
 
         const decoder = new TextDecoder();
         let fullText = "";
+        let streamAgentsUsed: string[] | undefined;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -349,6 +351,8 @@ export function useAuraAgent() {
               const event = JSON.parse(data);
               if (event.done) {
                 fullText = event.output_text || fullText;
+                // Extract MFA metadata from final streaming event
+                if (event.agents_used) streamAgentsUsed = event.agents_used;
               } else if (event.partial) {
                 fullText = event.partial;
               }
@@ -359,7 +363,13 @@ export function useAuraAgent() {
                     ? {
                         ...r,
                         followUps: r.followUps.map(fu =>
-                          fu.id === followUpId ? { ...fu, answer: fullText } : fu
+                          fu.id === followUpId 
+                            ? { 
+                                ...fu, 
+                                answer: fullText,
+                                ...(streamAgentsUsed && { agentsUsed: streamAgentsUsed }),
+                              } 
+                            : fu
                         ),
                       }
                     : r
@@ -373,13 +383,16 @@ export function useAuraAgent() {
       } else {
         const json = await resp.json();
         const output = json.output_text || JSON.stringify(json);
+        const fuAgentsUsed = json.agents_used as string[] | undefined;
         setResponses(prev =>
           prev.map(r =>
             r.id === responseId
               ? {
                   ...r,
                   followUps: r.followUps.map(fu =>
-                    fu.id === followUpId ? { ...fu, answer: output } : fu
+                    fu.id === followUpId 
+                      ? { ...fu, answer: output, agentsUsed: fuAgentsUsed } 
+                      : fu
                   ),
                 }
               : r

@@ -377,6 +377,101 @@ h2 {
   animation: none;
 }
 
+/* Speaker Mute Button - Same Style as Mic */
+.spk-mute-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: rgba(15, 23, 42, 0.9);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.spk-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spk-icon-svg {
+  transition: all 0.2s ease;
+}
+
+/* Active State - BLUE NEON GLOW */
+.spk-mute-btn.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  box-shadow: 
+    0 0 10px rgba(59, 130, 246, 0.4),
+    0 0 20px rgba(59, 130, 246, 0.2),
+    0 0 30px rgba(59, 130, 246, 0.1),
+    inset 0 0 10px rgba(59, 130, 246, 0.1);
+  animation: spk-active-pulse 2s ease-in-out infinite;
+}
+
+.spk-mute-btn.active:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.25);
+  box-shadow: 
+    0 0 15px rgba(59, 130, 246, 0.5),
+    0 0 30px rgba(59, 130, 246, 0.3),
+    0 0 45px rgba(59, 130, 246, 0.15),
+    inset 0 0 15px rgba(59, 130, 246, 0.15);
+}
+
+@keyframes spk-active-pulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 10px rgba(59, 130, 246, 0.4),
+      0 0 20px rgba(59, 130, 246, 0.2),
+      0 0 30px rgba(59, 130, 246, 0.1),
+      inset 0 0 10px rgba(59, 130, 246, 0.1);
+  }
+  50% {
+    box-shadow: 
+      0 0 15px rgba(59, 130, 246, 0.6),
+      0 0 30px rgba(59, 130, 246, 0.35),
+      0 0 45px rgba(59, 130, 246, 0.2),
+      inset 0 0 15px rgba(59, 130, 246, 0.2);
+  }
+}
+
+/* Muted State - RED NEON GLOW */
+.spk-mute-btn.muted {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  box-shadow: 
+    0 0 10px rgba(239, 68, 68, 0.4),
+    0 0 20px rgba(239, 68, 68, 0.2),
+    inset 0 0 8px rgba(239, 68, 68, 0.1);
+}
+
+.spk-mute-btn.muted:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+  box-shadow: 
+    0 0 15px rgba(239, 68, 68, 0.5),
+    0 0 30px rgba(239, 68, 68, 0.3),
+    inset 0 0 12px rgba(239, 68, 68, 0.15);
+}
+
+/* Disabled State */
+.spk-mute-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  box-shadow: none;
+  border-color: #334155;
+  background: rgba(15, 23, 42, 0.5);
+  color: #64748b;
+  animation: none;
+}
+
 .volume-meter {
   display: flex;
   align-items: center;
@@ -1651,10 +1746,17 @@ pre {
 
 .aura-loading {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
   color: #64748b;
   font-size: 11px;
+  width: 100%;
+}
+
+.aura-loading-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .aura-spinner {
@@ -1666,6 +1768,76 @@ pre {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Knight Rider LED Effect */
+.knight-rider-track {
+  width: 100%;
+  height: 3px;
+  position: relative;
+  background: transparent;
+  border-radius: 2px;
+  overflow: visible; /* Allow glow to extend beyond track */
+}
+
+.knight-rider-led {
+  position: absolute;
+  width: 50px;
+  height: 100%;
+  border-radius: 2px;
+  animation: 
+    knight-rider 4s ease-in-out infinite,
+    knight-rider-pulse 1.5s ease-in-out infinite;
+}
+
+/* Glow trail effect - follows the LED */
+.knight-rider-led::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 20px;
+  background: inherit;
+  border-radius: 50%;
+  opacity: 0.3;
+  filter: blur(12px);
+  animation: knight-rider-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes knight-rider {
+  0% {
+    left: 0;
+  }
+  50% {
+    left: calc(100% - 50px);
+  }
+  100% {
+    left: 0;
+  }
+}
+
+@keyframes knight-rider-pulse {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scaleX(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes knight-rider-glow {
+  0%, 100% {
+    opacity: 0.2;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  50% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
 }
 
 .aura-error {

@@ -12,6 +12,44 @@ const colorMap: Record<HighlightColor, string> = {
   5: "#3b82f6", // blau
 };
 
+// Hilfsfunktion: Agent-Icon und Kurzname ermitteln
+function getAgentInfo(agent: string): { icon: string; shortName: string } {
+  if (agent.includes("Triage")) return { icon: "🎯", shortName: "Triage" };
+  if (agent.includes("Quick")) return { icon: "⚡", shortName: "Quick" };
+  if (agent.includes("Web")) return { icon: "🌐", shortName: "Web" };
+  if (agent.includes("Synthesizer")) return { icon: "🔗", shortName: "Synthesizer" };
+  if (agent.includes("ContextPilot")) return { icon: "📑", shortName: "Context" };
+  return { icon: "⚙️", shortName: agent };
+}
+
+// Wiederverwendbare Routing-Info Komponente
+function RoutingInfoDisplay({ agentsUsed }: { agentsUsed: string[] }) {
+  if (!agentsUsed || agentsUsed.length === 0) return null;
+  
+  return (
+    <div className="aura-routing-info">
+      <div className="routing-icons-row">
+        <span className="routing-label">🔀</span>
+        <span className="routing-agents">
+          {agentsUsed.map((agent, i) => {
+            const { icon, shortName } = getAgentInfo(agent);
+            return (
+              <span key={agent} className="agent-badge">
+                <span className="agent-icon">{icon}</span>
+                <span className="agent-name">{shortName}</span>
+                {i < agentsUsed.length - 1 && <span className="agent-arrow">→</span>}
+              </span>
+            );
+          })}
+        </span>
+      </div>
+      <div className="routing-names-row">
+        {agentsUsed.join(" → ")}
+      </div>
+    </div>
+  );
+}
+
 // Formatiert eine einzelne Zeile: Bold, Links, Quellenangaben, Sub-Tags
 const normalizeInlineTags = (value: string) =>
   value
@@ -346,53 +384,17 @@ export function AuraResponsePanel({
         )}
         
         {/* MFA Routing Info - dezente Anzeige */}
-        {agentsUsed && agentsUsed.length > 0 && (
-          <div className="aura-routing-info">
-            <div className="routing-icons-row">
-              <span className="routing-label">🔀</span>
-              <span className="routing-agents">
-                {agentsUsed.map((agent, i) => {
-                  // Icon für jeden Agent
-                  let icon = "⚙️";
-                  let shortName = agent;
-                  
-                  if (agent.includes("Triage")) {
-                    icon = "🎯";
-                    shortName = "Triage";
-                  } else if (agent.includes("Quick")) {
-                    icon = "⚡";
-                    shortName = "Quick";
-                  } else if (agent.includes("Web")) {
-                    icon = "🌐";
-                    shortName = "Web";
-                  } else if (agent.includes("Synthesizer")) {
-                    icon = "🔗";
-                    shortName = "Synthesizer";
-                  } else if (agent.includes("ContextPilot")) {
-                    icon = "📑";
-                    shortName = "Context";
-                  }
-                  
-                  return (
-                    <span key={agent} className="agent-badge">
-                      <span className="agent-icon">{icon}</span>
-                      <span className="agent-name">{shortName}</span>
-                      {i < agentsUsed.length - 1 && <span className="agent-arrow">→</span>}
-                    </span>
-                  );
-                })}
-              </span>
-            </div>
-            <div className="routing-names-row">
-              {agentsUsed.join(" → ")}
-            </div>
-          </div>
-        )}
+        {agentsUsed && <RoutingInfoDisplay agentsUsed={agentsUsed} />}
         
         {loading && (
           <div className="aura-loading">
-            <span className="aura-spinner" style={{ color: borderColor }}>◌</span>
-            <span>{statusNote || "Analysiert..."}</span>
+            <div className="aura-loading-text">
+              <span className="aura-spinner" style={{ color: borderColor }}>◌</span>
+              <span>{statusNote || "Analysiert..."}</span>
+            </div>
+            <div className="knight-rider-track">
+              <div className="knight-rider-led" style={{ background: borderColor, boxShadow: `0 0 8px ${borderColor}, 0 0 16px ${borderColor}` }} />
+            </div>
           </div>
         )}
         
@@ -434,10 +436,22 @@ export function AuraResponsePanel({
                   <span className="aura-followup-badge">A{idx + 1}</span>
                   {fu.error ? (
                     <span className="aura-followup-error">{fu.error}</span>
+                  ) : fu.loading ? (
+                    <div className="aura-loading">
+                      <div className="aura-loading-text">
+                        <span className="aura-spinner" style={{ color: borderColor }}>◌</span>
+                        <span>Thinking...</span>
+                      </div>
+                      <div className="knight-rider-track">
+                        <div className="knight-rider-led" style={{ background: borderColor, boxShadow: `0 0 8px ${borderColor}, 0 0 16px ${borderColor}` }} />
+                      </div>
+                    </div>
                   ) : (
                     <div className="aura-followup-answer">
+                      {/* MFA Routing Info für Follow-up */}
+                      {fu.agentsUsed && <RoutingInfoDisplay agentsUsed={fu.agentsUsed} />}
                       {renderFormattedResult(
-                        fu.answer || (fu.loading ? "Thinking..." : ""),
+                        fu.answer || "",
                         `aura-fu-a-${id}-${fu.id}`,
                       )}
                     </div>

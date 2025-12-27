@@ -1,7 +1,6 @@
 ﻿import { useMemo, useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { DeviceSelector } from "./components/DeviceSelector";
-import { VolumeMeter } from "./components/VolumeMeter";
 import { HighlightedText } from "./components/HighlightedText";
 import { HighlightMenu } from "./components/HighlightMenu";
 import { AuraResponsePanel } from "./components/AuraResponsePanel";
@@ -256,6 +255,8 @@ export default function App() {
     volumeLevels,
     micMuted,
     setMicMuted,
+    spkMuted,
+    setSpkMuted,
     start,
     stop,
     resetTranscript,
@@ -1478,6 +1479,13 @@ ${customPrompt}`, useWebSearch);
               onSpeakerSourceChange={handleSpeakerSourceChange}
               tabCaptureActive={tabCapture.state === "capturing"}
               tabCaptureError={tabCapture.error}
+              micLevel={volumeLevels.mic}
+              spkLevel={volumeLevels.speaker}
+              micMuted={micMuted}
+              spkMuted={spkMuted}
+              onMicMuteToggle={() => setMicMuted(!micMuted)}
+              onSpkMuteToggle={() => setSpkMuted(!spkMuted)}
+              isRunning={status === "running"}
             />
 
             <div className="buttons">
@@ -1504,42 +1512,6 @@ ${customPrompt}`, useWebSearch);
           </div>
         </div>
         
-        <div className="panel sidebar-panel">
-          <h3>Audio Levels</h3>
-          <div className="volume-meters">
-            <div className="volume-meter-row">
-              <VolumeMeter level={micMuted ? 0 : volumeLevels.mic} label="MIC" />
-              <button 
-                className={`mic-mute-btn ${micMuted ? 'muted' : 'recording'}`}
-                onClick={() => setMicMuted(!micMuted)}
-                title={micMuted ? "Start recording" : "Stop recording"}
-                disabled={status !== "running"}
-              >
-                <div className="mic-icon-wrapper">
-                  {micMuted ? (
-                    /* Muted - Red circle with mic-off */
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="mic-icon-svg">
-                      <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M12 7v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                      <circle cx="12" cy="14" r="1" fill="currentColor"/>
-                      <line x1="7" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                  ) : (
-                    /* Recording - Green pulsing circle with mic */
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="mic-icon-svg">
-                      <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.25" stroke="currentColor" strokeWidth="1.5"/>
-                      <circle cx="12" cy="12" r="5" fill="currentColor" fillOpacity="0.4"/>
-                      <rect x="10" y="6" width="4" height="8" rx="2" fill="currentColor"/>
-                      <path d="M8 12a4 4 0 0 0 8 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                      <line x1="12" y1="16" x2="12" y2="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  )}
-                </div>
-              </button>
-            </div>
-            <VolumeMeter level={volumeLevels.speaker} label="SPK" />
-          </div>
-        </div>
         <div className="panel sidebar-panel">
           <h3>Stats</h3>
           <div className="muted" style={{ fontSize: 12 }}>
