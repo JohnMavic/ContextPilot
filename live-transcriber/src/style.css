@@ -161,10 +161,11 @@ h2 {
 
 .eyebrow {
   margin: 0;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 12px;
+  letter-spacing: 0.08em;
+  font-size: 14px;
+  font-weight: 600;
   color: #7dd3fc;
 }
 
@@ -528,6 +529,7 @@ h2 {
 .panel.sidebar-panel h3 {
   margin: 0 0 12px;
   font-size: 14px;
+  font-weight: 600;
   color: #7dd3fc;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -985,6 +987,10 @@ details {
 details summary {
   cursor: pointer;
   color: #7dd3fc;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 /* Error Log Styling */
@@ -999,8 +1005,11 @@ details summary {
   align-items: center;
   gap: 8px;
   padding: 4px 0;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
+  color: #7dd3fc;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .error-log summary .error-count {
