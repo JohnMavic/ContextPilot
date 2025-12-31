@@ -7,6 +7,7 @@ type Source = "mic" | "speaker";
 
 export type TranscriptSegment = {
   itemId: string;
+  contentIndex: number; // NEU: für korrekte Segment-Identifikation (Protocol correctness)
   text: string;
   isFinal: boolean;
   source: Source;
@@ -112,11 +113,11 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
 
   const stopRequestedRef = useRef(false);
 
-  // Delta zu einem Segment hinzufügen (mit Source-Tag und optionaler Speaker-ID)
-  const addDelta = useCallback((itemId: string, delta: string, source: Source, speakerId?: string) => {
+  // Delta zu einem Segment hinzufügen (mit Source-Tag, contentIndex und optionaler Speaker-ID)
+  const addDelta = useCallback((itemId: string, contentIndex: number, delta: string, source: Source, speakerId?: string) => {
     setSegments((prev) => {
-      // Suche Segment mit gleicher itemId UND source
-      const idx = prev.findIndex((s) => s.itemId === itemId && s.source === source);
+      // Suche Segment mit gleicher itemId, contentIndex UND source (Protocol correctness)
+      const idx = prev.findIndex((s) => s.itemId === itemId && s.contentIndex === contentIndex && s.source === source);
       if (idx >= 0) {
         const updated = [...prev];
         updated[idx] = { 
@@ -127,7 +128,8 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
         return updated;
       } else {
         return [...prev, { 
-          itemId, 
+          itemId,
+          contentIndex,
           text: delta, 
           isFinal: false, 
           source,
@@ -139,9 +141,10 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
   }, []);
 
   // Segment finalisieren
-  const finalize = useCallback((itemId: string, finalText: string, source: Source, speakerId?: string) => {
+  const finalize = useCallback((itemId: string, contentIndex: number, finalText: string, source: Source, speakerId?: string) => {
     setSegments((prev) => {
-      const idx = prev.findIndex((s) => s.itemId === itemId && s.source === source);
+      // Suche Segment mit gleicher itemId, contentIndex UND source (Protocol correctness)
+      const idx = prev.findIndex((s) => s.itemId === itemId && s.contentIndex === contentIndex && s.source === source);
       if (idx >= 0) {
         const updated = [...prev];
         updated[idx] = { 
@@ -153,7 +156,8 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
         return updated;
       } else {
         return [...prev, { 
-          itemId, 
+          itemId,
+          contentIndex,
           text: finalText, 
           isFinal: true, 
           source,
@@ -197,6 +201,13 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
         }
         if (msg.type === "input_audio_buffer.committed") {
           session.current.lastCommitAckAt = Date.now();
+          // LOGGING: previous_item_id für Reihenfolge-Analyse (Phase 1)
+          console.log(`[TRANSCRIPT_LOG] committed`, JSON.stringify({
+            source,
+            item_id: msg.item_id,
+            previous_item_id: msg.previous_item_id ?? null,
+            timestamp: Date.now(),
+          }));
         }
         session.current.hasAudioSinceCommit = false;
         session.current.framesSinceCommit = 0;
@@ -212,7 +223,16 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
         msg.delta &&
         msg.item_id
       ) {
-        addDelta(msg.item_id, msg.delta, source, speakerId);
+        const contentIndex = msg.content_index ?? 0;
+        // LOGGING: content_index für Protokoll-Analyse (Phase 1)
+        console.log(`[TRANSCRIPT_LOG] delta`, JSON.stringify({
+          source,
+          item_id: msg.item_id,
+          content_index: contentIndex,
+          delta_length: msg.delta.length,
+          timestamp: Date.now(),
+        }));
+        addDelta(msg.item_id, contentIndex, msg.delta, source, speakerId);
         return;
       }
 
@@ -221,7 +241,16 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
         msg.transcript &&
         msg.item_id
       ) {
-        finalize(msg.item_id, msg.transcript, source, speakerId);
+        const contentIndex = msg.content_index ?? 0;
+        // LOGGING: content_index für Protokoll-Analyse (Phase 1)
+        console.log(`[TRANSCRIPT_LOG] completed`, JSON.stringify({
+          source,
+          item_id: msg.item_id,
+          content_index: contentIndex,
+          transcript_length: msg.transcript.length,
+          timestamp: Date.now(),
+        }));
+        finalize(msg.item_id, contentIndex, msg.transcript, source, speakerId);
         return;
       }
 

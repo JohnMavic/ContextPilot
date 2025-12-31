@@ -37,7 +37,7 @@ function loadEnvFileRelative(filename) {
   console.log(`Loaded ${filename} from:`, envPath);
 }
 
-// Lade .env.local (optional) und danach .env.local.maf (optional) als Override
+// Lade .env.local ZUERST (vor Application Insights Initialisierung!)
 try {
   loadEnvFileRelative(".env.local");
 } catch (e) {
@@ -48,6 +48,39 @@ try {
   loadEnvFileRelative(".env.local.maf");
 } catch (e) {
   // optional
+}
+
+// Application Insights für strukturiertes Logging (Phase 1)
+// WICHTIG: Muss NACH dem Laden von .env.local erfolgen!
+let appInsights = null;
+try {
+  const ai = await import("applicationinsights");
+  const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
+  if (connectionString && !connectionString.includes("REPLACE_WITH")) {
+    ai.default.setup(connectionString)
+      .setAutoDependencyCorrelation(true)
+      .setAutoCollectRequests(true)
+      .setAutoCollectPerformance(true, true)
+      .setAutoCollectExceptions(true)
+      .setAutoCollectDependencies(true)
+      .setAutoCollectConsole(true, true)
+      .start();
+    appInsights = ai.default.defaultClient;
+    console.log("[AppInsights] Initialized successfully");
+  } else {
+    console.log("[AppInsights] No valid connection string, logging to console only");
+  }
+} catch (e) {
+  console.log("[AppInsights] Module not available, logging to console only:", e.message);
+}
+
+// Helper: Log to Application Insights (or console fallback)
+function trackTranscriptEvent(name, properties) {
+  const logData = { event: name, ...properties, timestamp: Date.now() };
+  console.log(`[TRANSCRIPT_LOG] ${name}`, JSON.stringify(logData));
+  if (appInsights) {
+    appInsights.trackEvent({ name: `transcript.${name}`, properties: logData });
+  }
 }
 
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
@@ -1010,7 +1043,17 @@ wss.on("connection", (clientWs, req) => {
   // For Azure, the model parameter specifies which deployment to use
   const requestedModel = url.searchParams.get("model") || "gpt-4o-transcribe";
   
-  console.log(`[PROXY] Client verbunden, Provider: ${provider}, Model: ${requestedModel}`);
+  // Generate unique session ID for this WebSocket connection (for log analysis)
+  const sessionId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+  
+  console.log(`[PROXY] Client verbunden, Provider: ${provider}, Model: ${requestedModel}, Session: ${sessionId}`);
+  
+  // Log session start to Application Insights
+  trackTranscriptEvent("session_start", {
+    session_id: sessionId,
+    provider: provider,
+    model: requestedModel,
+  });
 
   // Message-Buffer bis Backend verbunden ist
   let backendReady = false;
@@ -1169,9 +1212,41 @@ wss.on("connection", (clientWs, req) => {
       }
     }
 
+    // PHASE 1: Strukturiertes Logging für Transkription-Events (Application Insights)
+    try {
+      const parsed = JSON.parse(msg);
+      if (parsed?.type === "conversation.item.input_audio_transcription.delta") {
+        trackTranscriptEvent("delta", {
+          session_id: sessionId,
+          provider: providerLabel,
+          item_id: parsed.item_id,
+          content_index: parsed.content_index ?? 0,
+          delta_length: parsed.delta?.length ?? 0,
+        });
+      } else if (parsed?.type === "conversation.item.input_audio_transcription.completed") {
+        trackTranscriptEvent("completed", {
+          session_id: sessionId,
+          provider: providerLabel,
+          item_id: parsed.item_id,
+          content_index: parsed.content_index ?? 0,
+          transcript_length: parsed.transcript?.length ?? 0,
+        });
+      } else if (parsed?.type === "input_audio_buffer.committed") {
+        trackTranscriptEvent("committed", {
+          session_id: sessionId,
+          provider: providerLabel,
+          item_id: parsed.item_id,
+          previous_item_id: parsed.previous_item_id ?? null,
+        });
+      }
+    } catch {
+      // ignore non-JSON payloads
+    }
+
     // Log full message for transcription failures to see the error details
     if (msg.includes('transcription.failed')) {
       console.log(`[PROXY] ${providerLabel} TRANSCRIPTION FAILED:`, msg);
+      trackTranscriptEvent("failed", { session_id: sessionId, provider: providerLabel, raw: msg.substring(0, 500) });
     }
     // Only log non-audio events (skip verbose audio buffer responses)
     else if (!msg.includes('"type":"input_audio_buffer')) {
