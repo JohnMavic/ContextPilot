@@ -1230,6 +1230,9 @@ wss.on("connection", (clientWs, req) => {
           item_id: parsed.item_id,
           content_index: parsed.content_index ?? 0,
           transcript_length: parsed.transcript?.length ?? 0,
+          // Log first/last 50 chars for duplication analysis (truncated for privacy/size)
+          transcript_start: (parsed.transcript ?? "").substring(0, 50),
+          transcript_end: (parsed.transcript ?? "").slice(-50),
         });
       } else if (parsed?.type === "input_audio_buffer.committed") {
         trackTranscriptEvent("committed", {
