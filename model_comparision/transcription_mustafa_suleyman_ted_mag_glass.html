@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcription Quality Comparison | Mustafa Suleyman TED Talk "What is an AI anyway?"</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0078d4;
+            --primary-dark: #005a9e;
+            --success: #107c10;
+            --warning: #ffb900;
+            --error: #d13438;
+            --error-light: #fde7e9;
+            --bg: #f5f5f5;
+            --card-bg: #ffffff;
+            --text: #323130;
+            --text-light: #605e5c;
+            --border: #e1dfdd;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #e53935 0%, #d32f2f 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1900px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem 3rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        h1::before {
+            content: "🎤";
+            font-size: 1.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-light);
+            margin-top: 0.5rem;
+        }
+
+        .speaker-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+            border-radius: 8px;
+            border-left: 4px solid #e53935;
+        }
+
+        .speaker-info img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .speaker-details h3 {
+            font-size: 1rem;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+        }
+
+        .speaker-details p {
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+
+        .source-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .source-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .source-item a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .source-item a:hover {
+            text-decoration: underline;
+        }
+
+        .legend {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.25rem 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .legend-title {
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        .legend-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .legend-marker {
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+
+        .legend-marker.missing { background: #fff3cd; border-bottom: 2px dashed #856404; }
+        .legend-marker.wrong { background: var(--error-light); border-bottom: 2px wavy var(--error); }
+        .legend-marker.extra { background: #e7f3ff; border-bottom: 2px dotted #0078d4; }
+        .legend-marker.grammar { background: #f3e5f5; border-bottom: 2px solid #7b1fa2; }
+        .legend-marker.case { background: #e8f5e9; border-bottom: 2px double #2e7d32; }
+
+        /* Main Comparison Table */
+        .comparison-wrapper {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .run-label {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .run-badge {
+            background: linear-gradient(135deg, #e53935 0%, #d32f2f 100%);
+            color: white;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .run-description {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .column-headers {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .column-header {
+            padding: 1.25rem 1.5rem;
+            color: white;
+            text-align: center;
+        }
+
+        .column-header:nth-child(1) { background: linear-gradient(135deg, #107c10 0%, #0b5c0b 100%); }
+        .column-header:nth-child(2) { background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%); }
+        .column-header:nth-child(3) { background: linear-gradient(135deg, #106ebe 0%, #0d5aa7 100%); }
+        .column-header:nth-child(4) { background: linear-gradient(135deg, #00a4ef 0%, #0078d4 100%); }
+        .column-header:nth-child(5) { background: linear-gradient(135deg, #5c2d91 0%, #4a2272 100%); }
+
+        .column-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .column-subtitle {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+
+        /* Sentence Alignment Table */
+        .sentence-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .sentence-table tr {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .sentence-table tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        .sentence-table tr:hover {
+            background: #f5f7ff;
+        }
+
+        .sentence-table td {
+            padding: 1rem 1.25rem;
+            vertical-align: top;
+            font-size: 0.88rem;
+            line-height: 1.7;
+            width: 20%;
+            border-right: 1px solid #f0f0f0;
+        }
+
+        .sentence-table td:last-child {
+            border-right: none;
+        }
+
+        .sentence-table td:first-child {
+            background: rgba(16, 124, 16, 0.03);
+            font-weight: 450;
+        }
+
+        .row-number {
+            display: inline-block;
+            background: #e9ecef;
+            color: #6c757d;
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-right: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+
+        /* Error Markings */
+        .error-wrong {
+            background: var(--error-light);
+            border-bottom: 2px wavy var(--error);
+            padding: 0 2px;
+        }
+
+        .error-missing {
+            background: #fff3cd;
+            border-bottom: 2px dashed #856404;
+            padding: 0 2px;
+        }
+
+        .error-extra {
+            background: #e7f3ff;
+            border-bottom: 2px dotted #0078d4;
+            padding: 0 2px;
+            text-decoration: line-through;
+            text-decoration-color: var(--primary);
+        }
+
+        .error-grammar {
+            background: #f3e5f5;
+            border-bottom: 2px solid #7b1fa2;
+            padding: 0 2px;
+        }
+
+        .error-case {
+            background: #e8f5e9;
+            border-bottom: 2px double #2e7d32;
+            padding: 0 2px;
+        }
+
+        .inline-note {
+            display: inline-block;
+            font-size: 0.6rem;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-left: 2px;
+            font-weight: 600;
+            vertical-align: middle;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .note-wrong { background: var(--error-light); color: var(--error); }
+        .note-missing { background: #fff3cd; color: #856404; }
+        .note-extra { background: #e7f3ff; color: #0078d4; }
+        .note-grammar { background: #f3e5f5; color: #7b1fa2; }
+        .note-case { background: #e8f5e9; color: #2e7d32; }
+
+        .ellipsis {
+            color: var(--text-light);
+            font-style: italic;
+        }
+
+        .missing-text {
+            color: #856404;
+            font-style: italic;
+            background: #fff3cd;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }
+
+        /* Evaluation Section */
+        .evaluation-section {
+            background: #f8f9fa;
+            border-top: 2px solid var(--border);
+        }
+
+        .evaluation-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1.5rem 2rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .evaluation-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .evaluation-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+        }
+
+        .evaluation-cell {
+            padding: 1.25rem;
+            border-right: 1px solid var(--border);
+        }
+
+        .evaluation-cell:last-child {
+            border-right: none;
+        }
+
+        .model-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .rating {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .rating-label {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .rating-badge {
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        .rating-excellent { background: #d4edda; color: #155724; }
+        .rating-good { background: #cce5ff; color: #004085; }
+        .rating-fair { background: #fff3cd; color: #856404; }
+        .rating-poor { background: var(--error-light); color: var(--error); }
+
+        .rating-score {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .eval-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 0.6rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.15rem;
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-value.error-count { color: var(--error); }
+
+        .error-breakdown {
+            margin: 1rem 0;
+            padding: 0.75rem;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .breakdown-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .breakdown-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.4rem;
+        }
+
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 0.72rem;
+        }
+
+        .breakdown-label {
+            font-weight: 500;
+            color: var(--text-light);
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+
+        .breakdown-label.wrong-bg { background: var(--error-light); color: var(--error); }
+        .breakdown-label.missing-bg { background: #fff3cd; color: #856404; }
+        .breakdown-label.extra-bg { background: #e7f3ff; color: #0078d4; }
+        .breakdown-label.grammar-bg { background: #f3e5f5; color: #7b1fa2; }
+        .breakdown-label.case-bg { background: #e8f5e9; color: #2e7d32; }
+
+        .breakdown-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .pros-cons h4 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            margin-top: 0.75rem;
+        }
+
+        .pros-cons h4.pros-title { color: var(--success); }
+        .pros-cons h4.cons-title { color: var(--error); }
+
+        .pros-cons ul {
+            list-style: none;
+            font-size: 0.72rem;
+            color: var(--text-light);
+        }
+
+        .pros-cons li {
+            margin-bottom: 0.25rem;
+            line-height: 1.4;
+            padding-left: 1rem;
+            position: relative;
+        }
+
+        .pros-cons li.pro::before { content: "✓"; position: absolute; left: 0; color: var(--success); font-weight: bold; }
+        .pros-cons li.con::before { content: "✗"; position: absolute; left: 0; color: var(--error); font-weight: bold; }
+
+        /* Technical Analysis Section */
+        .technical-section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .technical-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .technical-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .technical-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .technical-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1.25rem;
+            border: 1px solid var(--border);
+        }
+
+        .technical-card h3 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .technical-card table {
+            width: 100%;
+            font-size: 0.8rem;
+        }
+
+        .technical-card td {
+            padding: 0.4rem 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .technical-card td:first-child {
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        .technical-card td:last-child {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+
+        /* Summary Section */
+        .summary-section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .summary-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1.5rem;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .summary-card h3 {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        .summary-score {
+            font-size: 2.5rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-card:nth-child(1) .summary-score { color: var(--success); }
+        .summary-card:nth-child(2) .summary-score { color: var(--primary); }
+        .summary-card:nth-child(3) .summary-score { color: #106ebe; }
+        .summary-card:nth-child(4) .summary-score { color: #00a4ef; }
+        .summary-card:nth-child(5) .summary-score { color: #5c2d91; }
+
+        .summary-label {
+            font-size: 0.75rem;
+            color: var(--text-light);
+        }
+
+        .conclusion-box {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #e53935;
+        }
+
+        .conclusion-box h3 {
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        .conclusion-box p {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            line-height: 1.7;
+        }
+
+        /* Raw Transcripts Section */
+        .raw-transcripts-section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-top: 2rem;
+        }
+
+        .raw-transcripts-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .raw-transcripts-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .transcript-block {
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .transcript-block:last-child {
+            margin-bottom: 0;
+        }
+
+        .transcript-block-header {
+            padding: 1rem 1.5rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .transcript-block-header.original { background: linear-gradient(135deg, rgba(16, 124, 16, 0.1) 0%, rgba(11, 92, 11, 0.1) 100%); }
+        .transcript-block-header.openai { background: linear-gradient(135deg, rgba(0, 120, 212, 0.1) 0%, rgba(0, 90, 158, 0.1) 100%); }
+        .transcript-block-header.azure-mini { background: linear-gradient(135deg, rgba(0, 164, 239, 0.1) 0%, rgba(0, 120, 212, 0.1) 100%); }
+        .transcript-block-header.azure-full { background: linear-gradient(135deg, rgba(92, 45, 145, 0.1) 0%, rgba(74, 34, 114, 0.1) 100%); }
+
+        .transcript-block-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+
+        .transcript-block-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-top: 0.25rem;
+        }
+
+        /* ===== MAGNIFYING GLASS (LUPE) FEATURE ===== */
+        
+        /* Toggle Button in Header */
+        .magnifier-toggle {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #e53935;
+            border-radius: 50%;
+            width: 56px;
+            height: 56px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(229, 57, 53, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .magnifier-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(229, 57, 53, 0.4);
+        }
+
+        .magnifier-toggle.active {
+            background: #e53935;
+            border-color: #fff;
+        }
+
+        .magnifier-toggle.active .magnifier-icon {
+            filter: brightness(0) invert(1);
+        }
+
+        .magnifier-icon {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+        }
+
+        /* Fallback SVG wenn kein Bild vorhanden */
+        .magnifier-svg {
+            width: 28px;
+            height: 28px;
+            stroke: #e53935;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .magnifier-toggle.active .magnifier-svg {
+            stroke: white;
+        }
+
+        /* SVG-basierte Lupe mit exaktem clipPath */
+        .magnifier-svg-container {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9998;
+            display: none;
+            width: 600px;
+            height: 600px;
+            /* SVG viewBox ist 1024x1024, skaliert auf 600x600 */
+        }
+
+        .magnifier-svg-container.active {
+            display: block;
+        }
+
+        .magnifier-svg-container svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Tooltip für Toggle */
+        .magnifier-tooltip {
+            position: fixed;
+            top: 4.5rem;
+            right: 1rem;
+            background: rgba(50, 49, 48, 0.95);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .magnifier-tooltip.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .magnifier-tooltip::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            right: 20px;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 6px solid rgba(50, 49, 48, 0.95);
+        }
+
+        /* ===== END MAGNIFYING GLASS ===== */
+
+        .copy-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: background 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .copy-btn.copied {
+            background: var(--success);
+        }
+
+        .transcript-content {
+            padding: 1.5rem;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: var(--text);
+            background: white;
+            white-space: pre-wrap;
+            font-family: 'Inter', sans-serif;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .transcript-content::selection {
+            background: rgba(0, 120, 212, 0.2);
+        }
+
+        .pending-badge {
+            background: #ffc107;
+            color: #000;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: rgba(255,255,255,0.8);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: white;
+        }
+
+        @media (max-width: 1200px) {
+            .comparison-wrapper {
+                overflow-x: auto;
+            }
+            
+            .sentence-table {
+                min-width: 1400px;
+            }
+            
+            .column-headers {
+                min-width: 1400px;
+            }
+
+            .evaluation-grid {
+                min-width: 1400px;
+            }
+            
+            .evaluation-section {
+                overflow-x: auto;
+            }
+            
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .technical-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Magnifying Glass Toggle Button -->
+    <button class="magnifier-toggle" id="magnifierToggle" title="Lupe aktivieren/deaktivieren (Taste M)">
+        <svg class="magnifier-svg" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7"></circle>
+            <line x1="16.5" y1="16.5" x2="22" y2="22"></line>
+        </svg>
+    </button>
+    <div class="magnifier-tooltip" id="magnifierTooltip">🔍 Lupe: Klicken zum Aktivieren (3× Zoom)</div>
+    
+    <!-- SVG-basierte Lupe mit exaktem clipPath für Brennglas -->
+    <div class="magnifier-svg-container" id="magnifierContainer">
+        <svg xmlns="http://www.w3.org/2000/svg" 
+             xmlns:xlink="http://www.w3.org/1999/xlink"
+             viewBox="0 0 1024 1024" 
+             preserveAspectRatio="xMidYMid meet">
+            <defs>
+                <!-- Exakter clipPath für die Linse -->
+                <clipPath id="lensClip" clipPathUnits="userSpaceOnUse">
+                    <circle cx="678.6" cy="293.4" r="236.44"/>
+                </clipPath>
+            </defs>
+            
+            <!-- Vergrößerter Inhalt, geclippt auf Linsenbereich -->
+            <g clip-path="url(#lensClip)">
+                <foreignObject id="magnifierForeignObject" x="0" y="0" width="1024" height="1024">
+                    <div xmlns="http://www.w3.org/1999/xhtml" id="magnifierContent" 
+                         style="position: absolute; transform-origin: top left; background: white;">
+                    </div>
+                </foreignObject>
+            </g>
+            
+            <!-- Lupenbild darüber (50% transparent) -->
+            <image id="magnifierImage"
+                   href="images/magnifying-glass.png" 
+                   x="0" y="0" width="1024" height="1024"
+                   opacity="0.5"
+                   preserveAspectRatio="xMidYMid meet"/>
+        </svg>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>Transcription Quality Comparison</h1>
+            <p class="subtitle">Mustafa Suleyman TED Talk: "What is an AI anyway?" (TED 2024)</p>
+            
+            <div class="speaker-info">
+                <div class="speaker-details">
+                    <h3>🎤 Mustafa Suleyman</h3>
+                    <p>Microsoft AI CEO, Co-founder of DeepMind & Inflection AI</p>
+                    <p>Native English Speaker (British accent) · Duration: 3:10 · ~420 words</p>
+                </div>
+            </div>
+
+            <div class="source-info">
+                <div class="source-item">
+                    <span>📹</span>
+                    <strong>Video:</strong>
+                    <a href="https://www.ted.com/talks/mustafa_suleyman_what_is_an_ai_anyway" target="_blank">TED.com: What is an AI anyway?</a>
+                </div>
+                <div class="source-item">
+                    <span>📄</span>
+                    <strong>Official Transcript:</strong>
+                    <a href="https://www.ted.com/talks/mustafa_suleyman_what_is_an_ai_anyway/transcript" target="_blank">TED.com Transcript</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Executive Summary - At the Top -->
+        <section class="summary-section" style="margin-bottom: 2rem;">
+            <div class="summary-header">
+                <span style="font-size: 1.5rem;">📈</span>
+                <h2>Overall Transcription Quality Summary</h2>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>Original (Reference)</h3>
+                    <div class="summary-score">100%</div>
+                    <div class="summary-label">0 Errors · Perfect</div>
+                </div>
+                <div class="summary-card">
+                    <h3>OpenAI gpt-4o-mini (Run 1)</h3>
+                    <div class="summary-score" style="color: #d13438;">48%</div>
+                    <div class="summary-label">47 Errors · Poor</div>
+                </div>
+                <div class="summary-card">
+                    <h3>OpenAI gpt-4o-mini (Run 4)</h3>
+                    <div class="summary-score" style="color: #d13438;">52%</div>
+                    <div class="summary-label">43 Errors · Poor</div>
+                </div>
+                <div class="summary-card" style="border: 2px solid #107c10; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);">
+                    <h3>Azure gpt-4o-mini 🏆</h3>
+                    <div class="summary-score" style="color: #107c10;">58%</div>
+                    <div class="summary-label" style="font-weight: bold;">38 Errors · Fair · BEST</div>
+                </div>
+                <div class="summary-card" style="border: 2px solid #d13438;">
+                    <h3>Azure gpt-4o ⚠️</h3>
+                    <div class="summary-score" style="color: #d13438;">45%</div>
+                    <div class="summary-label" style="font-weight: bold; color: #d13438;">52 Errors · Poor · WORST</div>
+                </div>
+            </div>
+            
+            <div class="conclusion-box" style="margin-top: 1.5rem;">
+                <h3>🔴 Key Findings</h3>
+                <p style="margin-top: 0.5rem;">
+                    <strong>1. gpt-4o performs WORSE than gpt-4o-mini!</strong> The larger Azure gpt-4o model paradoxically produces more errors including hallucinations, a prompt leak, and 28 missing words.<br><br>
+                    <strong>2. Run-to-run variability confirmed:</strong> OpenAI Run 1 (48%) vs Run 4 (52%) shows ~4 percentage point variance with identical model and audio. Same systematic errors persist ("AGI", "Pi", "He'd").<br><br>
+                    <strong>Recommendation:</strong> For British accent real-time transcription, use <strong>Azure gpt-4o-mini-transcribe</strong>.
+                </p>
+            </div>
+        </section>
+
+        <div class="legend">
+            <span class="legend-title">📋 Error Type Legend:</span>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <span class="legend-marker wrong">wrong</span>
+                    <span>Wrong word</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker missing">missing</span>
+                    <span>Missing text</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker extra">extra</span>
+                    <span>Extra/added text</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker extra">extra (dup)</span>
+                    <span>Duplication</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker grammar">grammar</span>
+                    <span>Grammar error</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker grammar">grammar (struct)</span>
+                    <span>Sentence structure</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker case">case</span>
+                    <span>Capitalization</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sentence-by-Sentence Comparison Section -->
+        <section class="comparison-wrapper" style="margin-top: 2rem; background: var(--card-bg); border-radius: 16px; padding: 2rem; box-shadow: var(--shadow);">
+            <div class="summary-header">
+                <span style="font-size: 1.5rem;">🔍</span>
+                <h2>Sentence-by-Sentence Transcription Comparison</h2>
+            </div>
+            <div class="run-label">
+                <span class="run-badge">TED Talk</span>
+                <span class="run-description">Mustafa Suleyman "What is an AI anyway?" (Runs T.1, T.2, T.3, T.4)</span>
+            </div>
+            <div class="column-headers">
+                <div class="column-header">
+                    <div class="column-title">✓ Original Transcript</div>
+                    <div class="column-subtitle">Reference (TED.com Official)</div>
+                </div>
+                <div class="column-header">
+                    <div class="column-title">OpenAI gpt-4o-mini</div>
+                    <div class="column-subtitle">gpt-4o-mini-transcribe-2025-12-15</div>
+                    <div class="model-version">Run ID: <strong>T.1</strong></div>
+                </div>
+                <div class="column-header">
+                    <div class="column-title">OpenAI gpt-4o-mini</div>
+                    <div class="column-subtitle">gpt-4o-mini-transcribe-2025-12-15</div>
+                    <div class="model-version">Run ID: <strong>T.2</strong></div>
+                </div>
+                <div class="column-header" style="background: linear-gradient(135deg, #107c10 0%, #0b5c0b 100%);">
+                    <div class="column-title">Azure gpt-4o-mini 🏆</div>
+                    <div class="column-subtitle">gpt-4o-mini-transcribe (Azure)</div>
+                    <div class="model-version">Run ID: <strong>T.3</strong></div>
+                </div>
+                <div class="column-header">
+                    <div class="column-title">Azure gpt-4o ⚠️</div>
+                    <div class="column-subtitle">gpt-4o-transcribe (Azure)</div>
+                    <div class="model-version">Run ID: <strong>T.4</strong></div>
+                </div>
+            </div>
+
+            <table class="sentence-table">
+                <tbody>
+                    <!-- Sentence 1 -->
+                    <tr>
+                        <td><span class="row-number">1</span>I want to tell you what I see coming.</td>
+                        <td><span class="row-number">1</span>I want to... <span class="error-wrong">I'll</span><span class="inline-note note-wrong">wrong</span> tell you what I see coming.</td>
+                        <td><span class="row-number">1</span>I <span class="error-wrong">wanted</span><span class="inline-note note-wrong">wrong</span> to... <span class="error-wrong">I'll</span><span class="inline-note note-wrong">wrong</span> tell you what I see coming.</td>
+                        <td><span class="row-number">1</span><span class="error-extra">A</span><span class="inline-note note-extra">extra</span> I want to tell you what I see coming.</td>
+                        <td><span class="row-number">1</span>I want to tell you what I see coming.</td>
+                    </tr>
+                    <!-- Sentence 2 -->
+                    <tr>
+                        <td><span class="row-number">2</span>I've been lucky enough to be working on AI for almost 15 years now.</td>
+                        <td><span class="row-number">2</span>I've been lucky enough to be working on AI for almost 15 years <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "now"</span>.</td>
+                        <td><span class="row-number">2</span>I've been lucky enough to be working on AI for almost 15 years. <span class="error-extra">15 years now.</span><span class="inline-note note-extra">extra (dup)</span></td>
+                        <td><span class="row-number">2</span>I've been lucky enough to be working on AI for almost... 15 years now.</td>
+                        <td><span class="row-number">2</span>I've been lucky enough to be working on AI for almost 15 <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "years now"</span></td>
+                    </tr>
+                    <!-- Sentence 3 -->
+                    <tr>
+                        <td><span class="row-number">3</span>Back when I started, to describe it as fringe would be an understatement.</td>
+                        <td><span class="row-number">3</span>Back when I <span class="error-grammar">started... To describe</span><span class="inline-note note-grammar">struct</span> it as fringe would be an understatement. <span class="error-extra">Statement.</span><span class="inline-note note-extra">dup</span></td>
+                        <td><span class="row-number">3</span>Back when I started... To describe it as fringe would be an understatement. <span class="error-extra">statement,</span><span class="inline-note note-extra">extra (dup)</span></td>
+                        <td><span class="row-number">3</span>Back when I started... to describe it as fringe would be an understatement.</td>
+                        <td><span class="row-number">3</span>Back when I started <span class="error-case">To</span><span class="inline-note note-case">case</span> describe it as fringe would be an understatement.</td>
+                    </tr>
+                    <!-- Sentence 4 -->
+                    <tr>
+                        <td><span class="row-number">4</span>Researchers would say, "No, no, we're only working on machine learning."</td>
+                        <td><span class="row-number">4</span>Researchers would say, no, no, we're only... <span class="error-wrong">Why are you working</span><span class="inline-note note-wrong">wrong</span> on machine learning?</td>
+                        <td><span class="row-number">4</span><span class="error-grammar">researchers</span><span class="inline-note note-grammar">case</span> would say, no, no, we're only... <span class="error-wrong">When are you working</span><span class="inline-note note-wrong">wrong</span> on machine learning?</td>
+                        <td><span class="row-number">4</span>Researchers would say, no, no, we're... <span class="error-wrong">You're</span><span class="inline-note note-wrong">wrong</span> only working on machine learning</td>
+                        <td><span class="row-number">4</span>Researchers would say, no, no, we're only <span class="error-case">Working</span><span class="inline-note note-case">case</span> on machine learning<span class="error-wrong">?</span><span class="inline-note note-wrong">wrong</span></td>
+                    </tr>
+                    <!-- Sentence 5 -->
+                    <tr>
+                        <td><span class="row-number">5</span>Because working on AI was seen as way too out there.</td>
+                        <td><span class="row-number">5</span>Because working on AI... <span class="error-wrong">I was</span><span class="inline-note note-wrong">wrong</span> seen as way too out there.</td>
+                        <td><span class="row-number">5</span>Because working on <span class="error-extra">AI... AI</span><span class="inline-note note-extra">extra (dup)</span> was seen as way too out there.</td>
+                        <td><span class="row-number">5</span>because <span class="error-extra">working... Working</span><span class="inline-note note-extra">dup</span> on AI was seen as way too out there.</td>
+                        <td><span class="row-number">5</span><span class="error-missing">⌀</span><span class="inline-note note-missing">missing "Because working on AI"</span> It was seen as way too out there.</td>
+                    </tr>
+                    <!-- Sentence 6 -->
+                    <tr>
+                        <td><span class="row-number">6</span>In 2010, just the very mention of the phrase "AGI," artificial general intelligence, would get you some seriously strange looks and even a cold shoulder.</td>
+                        <td><span class="row-number">6</span>In 2010... Just the very mention of the phrase <span class="error-wrong">aging. AI,</span><span class="inline-note note-wrong">wrong</span> artificial general intelligence, would <span class="error-grammar">be... get</span><span class="inline-note note-grammar">struct</span> you some seriously strange looks. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "and even"</span> a cold shoulder.</td>
+                        <td><span class="row-number">6</span>In 2010... Just the very mention of the phrase <span class="error-wrong">aging AGI,</span><span class="inline-note note-wrong">wrong</span> artificial general intelligence, would <span class="error-wrong">be... It's get</span><span class="inline-note note-wrong">wrong</span> you some seriously strange looks. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "and even"</span> a cold shoulder.</td>
+                        <td><span class="row-number">6</span>In <span class="error-wrong">20... Then,</span><span class="inline-note note-wrong">wrong</span> just the very mention of the phrase... AGI, Artificial General Intelligence. would get you some seriously strange looks. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "and"</span> Even a cold shoulder</td>
+                        <td><span class="row-number">6</span>In 2010 Just the very mention of the phrase <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "AGI,"</span> artificial general intelligence <span class="error-wrong">use</span><span class="inline-note note-wrong">wrong</span> some seriously strange looks. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "and even a"</span> cold shoulder.</td>
+                    </tr>
+                    <!-- Sentence 7 -->
+                    <tr>
+                        <td><span class="row-number">7</span>"You're actually building AGI?" people would say. "Isn't that something out of science fiction?"</td>
+                        <td><span class="row-number">7</span>You're actually <span class="error-grammar">building... AGI,</span><span class="inline-note note-grammar">struct</span> people would say, <span class="error-wrong">isn't that something else? Now, science fiction</span><span class="inline-note note-wrong">wrong</span></td>
+                        <td><span class="row-number">7</span>You're actually building... AGI, people would say, isn't that something... <span class="error-wrong">hunting out of</span><span class="inline-note note-wrong">wrong</span> science fiction,</td>
+                        <td><span class="row-number">7</span>you're actually building... AGI, people would say, isn't that... Something out of science fiction.</td>
+                        <td><span class="row-number">7</span>You're actually building <span class="error-wrong">CGI</span><span class="inline-note note-wrong">CRITICAL</span>, people would say. Isn't that <span class="error-wrong">something? Coming out of</span><span class="inline-note note-wrong">wrong</span> science fiction</td>
+                    </tr>
+                    <!-- Sentence 8 -->
+                    <tr>
+                        <td><span class="row-number">8</span>People thought it was 50 years away or 100 years away, if it was even possible at all.</td>
+                        <td><span class="row-number">8</span><span class="error-wrong">people thought it was fiction. 50</span><span class="inline-note note-wrong">wrong</span> years away or 100 years away if it was even possible at all.</td>
+                        <td><span class="row-number">8</span>people thought it was... 50 years away or 100 years away, if it was even possible. <span class="error-grammar">At all.</span><span class="inline-note note-grammar">grammar (struct)</span></td>
+                        <td><span class="row-number">8</span>People thought it was... 50 years away or 100 years away if it was even possible. <span class="error-grammar">At all.</span><span class="inline-note note-grammar">struct</span></td>
+                        <td><span class="row-number">8</span>people thought it was 50 years <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "away"</span> or a hundred years away if it was even possible at all.</td>
+                    </tr>
+                    <!-- Sentence 9 -->
+                    <tr>
+                        <td><span class="row-number">9</span>Talk of AI was, I guess, kind of embarrassing.</td>
+                        <td><span class="row-number">9</span>Talk of AI was, I guess... <span class="error-grammar">Kind of</span><span class="inline-note note-grammar">struct</span> embarrassing.</td>
+                        <td><span class="row-number">9</span>Talk of AI was, I guess... <span class="error-grammar">Kind</span><span class="inline-note note-grammar">case</span> of embarrassing.</td>
+                        <td><span class="row-number">9</span>Talk of AI was, I guess... <span class="error-case">Kind</span><span class="inline-note note-case">case</span> of embarrassing.</td>
+                        <td><span class="row-number">9</span>Talk of AI was, I guess, <span class="error-case">Kind</span><span class="inline-note note-case">case</span> of embarrassing.</td>
+                    </tr>
+                    <!-- Sentence 10 -->
+                    <tr>
+                        <td><span class="row-number">10</span>People generally thought we were weird. And I guess in some ways we kind of were.</td>
+                        <td><span class="row-number">10</span>People generally thought we were weird. And I guess in some ways, we kind of were.</td>
+                        <td><span class="row-number">10</span>People generally thought we... <span class="error-extra">We were</span><span class="inline-note note-extra">extra (dup)</span> weird. And I guess in some ways, we kind of were.</td>
+                        <td><span class="row-number">10</span>People generally... <span class="error-case">Thought</span><span class="inline-note note-case">case</span> we were weird, and I guess in some ways we kind of were.</td>
+                        <td><span class="row-number">10</span>People generally thought we were <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "weird"</span> And I guess in some ways we kind of were.</td>
+                    </tr>
+                    <!-- Sentence 11 -->
+                    <tr>
+                        <td><span class="row-number">11</span>It wasn't long, though, before AI started beating humans at a whole range of tasks that people previously thought were way out of reach.</td>
+                        <td><span class="row-number">11</span>It wasn't long, though, before AI <span class="error-grammar">started... beating</span><span class="inline-note note-grammar">struct</span> humans at a whole range of tasks that <span class="error-extra">people... people</span><span class="inline-note note-extra">dup</span> previously thought were way out of reach.</td>
+                        <td><span class="row-number">11</span>It wasn't long, though, before AI started... <span class="error-extra">started</span><span class="inline-note note-extra">extra (dup)</span> beating humans at a whole range of tasks. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "that"</span> People previously thought were way out of reach.</td>
+                        <td><span class="row-number">11</span>It wasn't long, though, before AI... <span class="error-wrong">I</span><span class="inline-note note-wrong">wrong</span> started beating humans at a whole range of tasks. <span class="error-grammar">People previously thought</span><span class="inline-note note-grammar">struct</span> were way out of reach.</td>
+                        <td><span class="row-number">11</span>It wasn't long though before AI started beating humans at a whole range of tasks. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "that people"</span> ...previously thought were way out of reach.</td>
+                    </tr>
+                    <!-- Sentence 12 -->
+                    <tr>
+                        <td><span class="row-number">12</span>Understanding images, translating languages, transcribing speech, playing Go and chess and even diagnosing diseases.</td>
+                        <td><span class="row-number">12</span>Understanding images, translating Languages, transcribing speech, playing Go and chess, and even <span class="error-grammar">diagnosing. diseases.</span><span class="inline-note note-grammar">struct</span></td>
+                        <td><span class="row-number">12</span>Understanding images, translating... <span class="error-grammar">Languages,</span><span class="inline-note note-grammar">case</span> transcribing speech. playing Go and chess, and even diagnosing <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "diseases"</span></td>
+                        <td><span class="row-number">12</span>Understanding images. <span class="error-wrong">Translate.</span><span class="inline-note note-wrong">wrong</span> languages, transcribing speech. playing Go and chess, and even diagnosing... <span class="error-case">Diseases.</span><span class="inline-note note-case">case</span></td>
+                        <td><span class="row-number">12</span>Understanding images. <span class="error-case">Translating Languages. Transcribing</span><span class="inline-note note-case">case</span> speech. playing Go and chess, and even diagnosing <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "diseases"</span></td>
+                    </tr>
+                    <!-- Sentence 13 -->
+                    <tr>
+                        <td><span class="row-number">13</span>People started waking up to the fact that AI was going to have an enormous impact, and they were rightly asking technologists like me some pretty tough questions.</td>
+                        <td><span class="row-number">13</span>People started waking up <span class="error-extra">to... to</span><span class="inline-note note-extra">dup</span> the fact that AI was going to have an enormous impact. And they were rightly asking technologists... <span class="error-wrong">Just like me,</span><span class="inline-note note-wrong">wrong</span> some pretty tough questions.</td>
+                        <td><span class="row-number">13</span>People started <span class="error-wrong">waiting. Up</span><span class="inline-note note-wrong">wrong</span> to the fact that AI was going to have an enormous <span class="error-extra">impact. impact,</span><span class="inline-note note-extra">extra (dup)</span> and they were rightly asking <span class="error-wrong">technology... Just like me,</span><span class="inline-note note-wrong">wrong</span> some pretty tough questions.</td>
+                        <td><span class="row-number">13</span>People started <span class="error-wrong">waking... leading up</span><span class="inline-note note-wrong">wrong</span> to the fact that AI was going to have an enormous... <span class="error-case">Impact.</span><span class="inline-note note-case">case</span> And they were rightly asking... technologists like me some pretty tough questions.</td>
+                        <td><span class="row-number">13</span>People started waking up to <span class="error-wrong">the The</span><span class="inline-note note-wrong">wrong</span> AI was going to have an enormous impact. And they were rightly asking technologists like me some pretty tough questions.</td>
+                    </tr>
+                    <!-- Sentence 14 -->
+                    <tr>
+                        <td><span class="row-number">14</span>Is it true that AI is going to solve the climate crisis? Will it make personalized education available to everyone?</td>
+                        <td><span class="row-number">14</span>Is it true that AI is going to solve the climate crisis? Will it make personalized education available to everyone?</td>
+                        <td><span class="row-number">14</span>Is it true that AI is <span class="error-grammar">gonna</span><span class="inline-note note-grammar">grammar</span> solve the climate crisis? Will it make personalized education available to everyone?</td>
+                        <td><span class="row-number">14</span>Is it true that AI is going to solve the climate crisis? Will it make personalized education available to everyone?</td>
+                        <td><span class="row-number">14</span>Is it true that AI is going to solve the climate crisis? Will it make personalized education available to everyone?</td>
+                    </tr>
+                    <!-- Sentence 15 -->
+                    <tr>
+                        <td><span class="row-number">15</span>Does it mean we'll all get universal basic income and we won't have to work anymore?</td>
+                        <td><span class="row-number">15</span>Does it mean we'll all get universal basic income and we... <span class="error-wrong">You won't</span><span class="inline-note note-wrong">wrong</span> have to work anymore.</td>
+                        <td><span class="row-number">15</span>Does it mean we'll all get universal basic income? <span class="error-wrong">Come and</span><span class="inline-note note-wrong">wrong</span> we won't have to work anymore.</td>
+                        <td><span class="row-number">15</span>Does it mean we'll all get universal basic income? <span class="error-extra">Basic income</span><span class="inline-note note-extra">dup</span> and we won't have to work anymore.</td>
+                        <td><span class="row-number">15</span>Does it mean we'll all get universal basic income? <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "and"</span> we won't have to work anymore.</td>
+                    </tr>
+                    <!-- Sentence 16 -->
+                    <tr>
+                        <td><span class="row-number">16</span>Should I be afraid? What does it mean for weapons and war?</td>
+                        <td><span class="row-number">16</span>Should I be afraid? <span class="error-wrong">Trade,</span><span class="inline-note note-wrong">wrong</span> what does it mean for weapons and war?</td>
+                        <td><span class="row-number">16</span>Should I be <span class="error-missing">a...</span><span class="inline-note note-missing">missing "afraid"</span> What does it mean for weapons and war?</td>
+                        <td><span class="row-number">16</span>Should I be... <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "afraid"</span> What does it mean for weapons and war?</td>
+                        <td><span class="row-number">16</span><span class="error-missing">⌀</span><span class="inline-note note-missing">MISSING "Should I be afraid?"</span> What does it mean for weapons and war?</td>
+                    </tr>
+                    <!-- Sentence 17 -->
+                    <tr>
+                        <td><span class="row-number">17</span>And of course, will China win? Are we in a race? Are we headed for a mass misinformation apocalypse? All good questions.</td>
+                        <td><span class="row-number">17</span>And of course, will China win? Are we in a race? Are we headed for a mass misinformation apocalypse? All good questions.</td>
+                        <td><span class="row-number">17</span>And of course, will China win? Are we in a race? Are we headed for a mass misinformation apocalypse? All good questions.</td>
+                        <td><span class="row-number">17</span>And of course, will China win? Are we in a race? Are we headed for a mass misinformation apocalypse? All good questions. <span class="error-extra">Questions.</span><span class="inline-note note-extra">dup</span></td>
+                        <td><span class="row-number">17</span>And of course, will China win? Are we in a race? <span class="error-extra">That's what I thought.</span><span class="inline-note note-extra">HALLUCINATION</span> Are we headed for a mass misinformation apocalypse? All good questions</td>
+                    </tr>
+                    <!-- Sentence 18 -->
+                    <tr>
+                        <td><span class="row-number">18</span>But it was actually a simpler and much more kind of fundamental question that left me puzzled.</td>
+                        <td><span class="row-number">18</span>But it was actually a simpler <span class="error-grammar">and... A much more kind of</span><span class="inline-note note-grammar">struct</span> fundamental question... left me puzzled.</td>
+                        <td><span class="row-number">18</span>But it was actually a <span class="error-wrong">simple...</span><span class="inline-note note-wrong">wrong</span> and much more kind of fundamental question <span class="error-grammar">that... Left</span><span class="inline-note note-grammar">grammar</span> me puzzled.</td>
+                        <td><span class="row-number">18</span>But it was actually a <span class="error-case">Simpler</span><span class="inline-note note-case">case</span> and much more kind of fundamental question. that left me puzzled.</td>
+                        <td><span class="row-number">18</span>But it was actually a simpler <span class="error-case">Much</span><span class="inline-note note-case">case</span> more kind of fundamental question <span class="error-wrong">that. puzzled.</span><span class="inline-note note-wrong">wrong</span></td>
+                    </tr>
+                    <!-- Sentence 19 -->
+                    <tr>
+                        <td><span class="row-number">19</span>One that actually gets to the very heart of my work every day.</td>
+                        <td><span class="row-number">19</span>One that actually gets <span class="error-wrong">the... to</span><span class="inline-note note-wrong">wrong</span> the very heart of my work every day.</td>
+                        <td><span class="row-number">19</span>One that actually gets to the very heart of my work every day.</td>
+                        <td><span class="row-number">19</span>One that actually... <span class="error-extra">It</span><span class="inline-note note-extra">extra</span> actually gets to the very heart of my work every day.</td>
+                        <td><span class="row-number">19</span>One that actually <span class="error-case">To</span><span class="inline-note note-case">case</span> the very heart of my work every day. <span class="error-extra">Auto-detect language.</span><span class="inline-note note-extra">PROMPT LEAK!</span></td>
+                    </tr>
+                    <!-- Sentence 20 -->
+                    <tr>
+                        <td><span class="row-number">20</span>One morning over breakfast, my six-year-old nephew Caspian was playing with Pi, the AI I created at my last company, Inflection.</td>
+                        <td><span class="row-number">20</span>One morning over breakfast, my six-year-old nephew Caspian was <span class="error-case">Playing</span><span class="inline-note note-case">case</span> with Pi, the AI I created at my last company. <span class="error-wrong">Company inflection.</span><span class="inline-note note-wrong">wrong+case</span></td>
+                        <td><span class="row-number">20</span>One morning over breakfast, my six-year-old nephew Caspian was... playing with Pi, the AI I created at my last company <span class="error-grammar">inflection.</span><span class="inline-note note-grammar">case</span></td>
+                        <td><span class="row-number">20</span>One morning over breakfast, my six-year-old nephew Caspian was... playing with Pi, the AI I created at my last... <span class="error-wrong">Company inflection.</span><span class="inline-note note-wrong">wrong+case</span></td>
+                        <td><span class="row-number">20</span>One morning over breakfast, my six-year-old nephew Caspian was playing with Pi, the AI I created at my last company <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "Inflection"</span></td>
+                    </tr>
+                    <!-- Sentence 21 -->
+                    <tr>
+                        <td><span class="row-number">21</span>With a mouthful of scrambled eggs, he looked at me plain in the face and said, "But Mustafa, what is an AI anyway?"</td>
+                        <td><span class="row-number">21</span>With a mouthful of scrambled <span class="error-grammar">eggs... He looked</span><span class="inline-note note-grammar">struct</span> at me plain in the face and... <span class="error-wrong">I said,</span><span class="inline-note note-wrong">wrong</span> but Mustafa, what is... <span class="error-extra">What is</span><span class="inline-note note-extra">dup</span> an AI anyway?</td>
+                        <td><span class="row-number">21</span>With a mouthful of scrambled eggs... He looked at me plain in the face. and said, But Mustafa, <span class="error-wrong">what if... What</span><span class="inline-note note-wrong">wrong</span> is an AI anyway?</td>
+                        <td><span class="row-number">21</span>With a mouthful of scrambled <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "eggs,"</span> he looked at me plain in the face. and said, But Mustafa, <span class="error-wrong">what if...</span><span class="inline-note note-wrong">wrong</span> What is an AI anyway?</td>
+                        <td><span class="row-number">21</span>With a mouthful of scrambled eggs He looked at me plain in the face <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "and said,"</span> But Mustafa, what is an AI anyway.</td>
+                    </tr>
+                    <!-- Sentence 22 -->
+                    <tr>
+                        <td><span class="row-number">22</span>He's such a sincere and curious and optimistic little guy.</td>
+                        <td><span class="row-number">22</span>He's such a <span class="error-grammar">sincere... and curious</span><span class="inline-note note-grammar">struct</span> and optimistic little guy.</td>
+                        <td><span class="row-number">22</span>He's such a <span class="error-wrong">since... see</span><span class="inline-note note-wrong">wrong</span> and curious and optimistic little guy.</td>
+                        <td><span class="row-number">22</span>He's such a <span class="error-case">Sincere</span><span class="inline-note note-case">case</span> and curious and optimistic little guy.</td>
+                        <td><span class="row-number">22</span>He's such a sincere and curious and optimistic little guy.</td>
+                    </tr>
+                    <!-- Sentence 23 -->
+                    <tr>
+                        <td><span class="row-number">23</span>He'd been talking to Pi about how cool it would be if one day in the future, he could visit dinosaurs at the zoo.</td>
+                        <td><span class="row-number">23</span><span class="error-wrong">I've</span><span class="inline-note note-wrong">wrong</span> been talking to <span class="error-wrong">Bai</span><span class="inline-note note-wrong">wrong</span> about how cool it would be if one day in the future... he could visit dinosaurs at the zoo.</td>
+                        <td><span class="row-number">23</span><span class="error-wrong">We've</span><span class="inline-note note-wrong">wrong</span> been talking to <span class="error-wrong">Bi</span><span class="inline-note note-wrong">wrong</span> about how cool it would be if one day <span class="error-extra">in the... In the</span><span class="inline-note note-extra">extra (dup)</span> future, he could visit dinosaurs at the zoo.</td>
+                        <td><span class="row-number">23</span><span class="error-wrong">We've</span><span class="inline-note note-wrong">wrong</span> been talking to <span class="error-wrong">Vi</span><span class="inline-note note-wrong">wrong</span> about how cool it would be if one day... <span class="error-case">In</span><span class="inline-note note-case">case</span> the future, he could visit dinosaurs at the zoo.</td>
+                        <td><span class="row-number">23</span>He'd been talking <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "to Pi"</span> about how cool it would be if one day in the future <span class="error-case">He</span><span class="inline-note note-case">case</span> could visit dinosaurs at the zoo.</td>
+                    </tr>
+                    <!-- Sentence 24 -->
+                    <tr>
+                        <td><span class="row-number">24</span>And how he could make infinite amounts of chocolate at home. And why Pi couldn't yet play I Spy.</td>
+                        <td><span class="row-number">24</span>and how he could make infinite amounts of chocolate at home. <span class="error-extra">Home,</span><span class="inline-note note-extra">dup</span> and why Pi couldn't yet play <span class="error-wrong">iPhone. They spy.</span><span class="inline-note note-wrong">wrong</span></td>
+                        <td><span class="row-number">24</span>And how he could make infinite amounts of chocolate. <span class="error-wrong">Home, and</span><span class="inline-note note-wrong">wrong</span> why Pi couldn't yet play <span class="error-wrong">on... I</span><span class="inline-note note-wrong">wrong</span> spy.</td>
+                        <td><span class="row-number">24</span>And how he could make infinite amounts of chocolate. <span class="error-case">At home.</span><span class="inline-note note-case">struct</span> And why Pi couldn't yet play... I spy.</td>
+                        <td><span class="row-number">24</span>and how he could make infinite amounts of chocolate <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "at home"</span> and why Pi couldn't yet play<span class="error-wrong">?</span><span class="inline-note note-wrong">wrong</span> Spy.</td>
+                    </tr>
+                    <!-- Sentence 25 -->
+                    <tr>
+                        <td><span class="row-number">25</span>"Well," I said, "it's a clever piece of software that's read most of the text on the open internet, and it can talk to you about anything you want."</td>
+                        <td><span class="row-number">25</span>Well, I said, <span class="error-extra">it's a... It's</span><span class="inline-note note-extra">dup</span> a clever piece of software that's read most of the text on <span class="error-extra">the... on the</span><span class="inline-note note-extra">dup</span> open internet, and it can talk to you about anything you want.</td>
+                        <td><span class="row-number">25</span>Well, I said... It's a clever piece of software that's read most of the text. <span class="error-grammar">⌀</span><span class="inline-note note-grammar">grammar (struct)</span> on the open internet, and it can talk to you about anything you want.</td>
+                        <td><span class="row-number">25</span>Well, I said, <span class="error-extra">it's... It's</span><span class="inline-note note-extra">dup</span> a clever piece of software that's read most of the text. <span class="error-wrong">It's</span><span class="inline-note note-wrong">wrong</span> on the open internet and it can talk to you about anything you want.</td>
+                        <td><span class="row-number">25</span>Well, I said... <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "it's a"</span> clever piece of software that's read most of the text on the open internet and it can talk to you about anything you want. <span class="error-extra">Some people</span><span class="inline-note note-extra">HALLUCINATION</span></td>
+                    </tr>
+                    <!-- Sentence 26 -->
+                    <tr>
+                        <td><span class="row-number">26</span>"Right. So like a person then?"</td>
+                        <td><span class="row-number">26</span>Right, so like a person, then.</td>
+                        <td><span class="row-number">26</span>Right, so like a person, then.</td>
+                        <td><span class="row-number">26</span>Right, so like a person, then.</td>
+                        <td><span class="row-number">26</span>Right, so like a person then?</td>
+                    </tr>
+                    <!-- Sentence 27 -->
+                    <tr>
+                        <td><span class="row-number">27</span>I was stumped. Genuinely left scratching my head.</td>
+                        <td><span class="row-number">27</span>I was stumped. Genuinely left scratching my head.</td>
+                        <td><span class="row-number">27</span>I was stumped. Genuinely left scratching my head.</td>
+                        <td><span class="row-number">27</span>I was stumped. Genuinely left scratching my head.</td>
+                        <td><span class="row-number">27</span>I was stumped. Genuinely left scratching my head.</td>
+                    </tr>
+                    <!-- Sentence 28 -->
+                    <tr>
+                        <td><span class="row-number">28</span>All my boring stock answers came rushing through my mind. "No, but AI is just another general-purpose technology, like printing or steam."</td>
+                        <td><span class="row-number">28</span>All my boring <span class="error-grammar">stock... Answers</span><span class="inline-note note-grammar">struct</span> came rushing through my mind. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "No, but"</span> AI is just another general-purpose technology, like printing <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "or steam"</span>.</td>
+                        <td><span class="row-number">28</span>All my boring stock... <span class="error-grammar">Answers</span><span class="inline-note note-grammar">grammar</span> came rushing through my mind. No, but AI is just another general-purpose technology, like printing. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "or steam"</span></td>
+                        <td><span class="row-number">28</span>All my boring <span class="error-grammar">stock... Answers</span><span class="inline-note note-grammar">struct</span> came rushing through my mind. No, but AI is just another general-purpose technology, like... <span class="error-case">Printing</span><span class="inline-note note-case">case</span> or steam.</td>
+                        <td><span class="row-number">28</span>All my boring stock <span class="error-case">Answers</span><span class="inline-note note-case">case</span> came rushing through my mind. <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "No,"</span> But AI is just another general-purpose technology, like printing <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "or steam"</span></td>
+                    </tr>
+                    <!-- Sentence 29 -->
+                    <tr>
+                        <td><span class="row-number">29</span>It will be a tool that will augment us and make us smarter and more productive.</td>
+                        <td><span class="row-number">29</span>It'll be a tool that <span class="error-grammar">will... mentors</span><span class="inline-note note-wrong">wrong</span> and make us smarter and more productive.</td>
+                        <td><span class="row-number">29</span>It'll be a tool that will... augment us and make us smarter and more productive.</td>
+                        <td><span class="row-number">29</span>It'll be a tool that will... augment us and make us smarter and more productive.</td>
+                        <td><span class="row-number">29</span>It'll be a tool that will augment <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "us"</span> and make us smarter and more productive</td>
+                    </tr>
+                    <!-- Sentence 30 -->
+                    <tr>
+                        <td><span class="row-number">30</span>And when it gets better over time, it'll be like an all-knowing oracle that will help us solve grand scientific challenges."</td>
+                        <td><span class="row-number">30</span>And when it gets better over time, <span class="error-grammar">it'll... It will</span><span class="inline-note note-grammar">struct</span> be like an all-knowing oracle that will help us solve <span class="error-wrong">ground... unscientific</span><span class="inline-note note-wrong">wrong ×2</span> challenges.</td>
+                        <td><span class="row-number">30</span>And when it gets better over time, It'll be like an all-knowing oracle that will help us solve grand scientific challenges.</td>
+                        <td><span class="row-number">30</span>And when it gets better over time... It'll be like an all-knowing oracle that will help us solve... <span class="error-case">Grand</span><span class="inline-note note-case">case</span> scientific challenges.</td>
+                        <td><span class="row-number">30</span>And when it gets better over time, <span class="error-case">Be</span><span class="inline-note note-case">case</span> like an all-knowing oracle that will help us solve grand <span class="error-case">Scientific</span><span class="inline-note note-case">case</span> challenges.</td>
+                    </tr>
+                    <!-- Sentence 31 -->
+                    <tr>
+                        <td><span class="row-number">31</span>You know, all of these responses started to feel, I guess, a little bit defensive. And actually better suited to a policy seminar than breakfast with a no-nonsense six-year-old.</td>
+                        <td><span class="row-number">31</span>You know, all of <span class="error-extra">these... These</span><span class="inline-note note-extra">dup</span> responses started to feel, I guess... a little bit defensive, and actually <span class="error-grammar">better... Suited</span><span class="inline-note note-grammar">struct</span> to a policy seminar than breakfast with a no-nonsense <span class="error-case">Six-year-old</span><span class="inline-note note-case">case</span></td>
+                        <td><span class="row-number">31</span>You know, all of these... <span class="error-extra">These</span><span class="inline-note note-extra">extra (dup)</span> responses started to feel, I guess... a little bit defensive. And actually... better suited to a policy seminar than breakfast with a no-nonsense... <span class="error-missing">⌀</span><span class="inline-note note-missing">missing "six-year-old"</span></td>
+                        <td><span class="row-number">31</span>You know, <span class="error-case">All</span><span class="inline-note note-case">case</span> of these responses started to feel, I guess... <span class="error-case">A</span><span class="inline-note note-case">case</span> little bit defensive. And actually... <span class="error-extra">Be</span><span class="inline-note note-extra">extra</span> better suited to a policy seminar than breakfast with a no-nonsense. <span class="error-wrong">one and six-year-old.</span><span class="inline-note note-wrong">wrong</span></td>
+                        <td><span class="row-number">31</span><span class="error-missing">⌀</span><span class="inline-note note-missing">MISSING entire phrase</span> Responses started to feel, I guess a little bit defensive. <span class="error-missing">⌀</span><span class="inline-note note-missing">MISSING "And actually better suited to a policy seminar"</span> Then breakfast with a no-nonsense six-year-old</td>
+                    </tr>
+                    <!-- Sentence 32 -->
+                    <tr>
+                        <td><span class="row-number">32</span>"Why am I hesitating?" I thought to myself.</td>
+                        <td><span class="row-number">32</span>why am I hesitating? I thought. <span class="error-wrong">I talked</span><span class="inline-note note-wrong">wrong</span> to myself.</td>
+                        <td><span class="row-number">32</span>Why am I hesitating? I thought to myself...</td>
+                        <td><span class="row-number">32</span>Why am I hesitating? I thought to myself.</td>
+                        <td><span class="row-number">32</span>Why am I hesitating? I thought to myself.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Evaluation Section -->
+            <div class="evaluation-section">
+                <div class="evaluation-header">
+                    <span>📊</span>
+                    <h2>Evaluation</h2>
+                </div>
+                <div class="evaluation-grid">
+                    <div class="evaluation-cell">
+                        <div class="model-name">Original Transcript</div>
+                        <div class="rating">
+                            <span class="rating-label">Quality:</span>
+                            <span class="rating-badge rating-excellent">REFERENCE</span>
+                            <span class="rating-score">100%</span>
+                        </div>
+                        <div class="eval-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Errors</div>
+                                <div class="stat-value">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Words</div>
+                                <div class="stat-value">~420</div>
+                            </div>
+                        </div>
+                        <div class="error-breakdown">
+                            <div class="breakdown-title">Errors by Type</div>
+                            <div class="breakdown-grid">
+                                <div class="breakdown-item"><span class="breakdown-label">wrong</span><span class="breakdown-value">0</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label">missing</span><span class="breakdown-value">0</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label">extra</span><span class="breakdown-value">0</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label">grammar</span><span class="breakdown-value">0</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label">case</span><span class="breakdown-value">0</span></div>
+                            </div>
+                        </div>
+                        <div class="pros-cons">
+                            <h4 class="pros-title">✓ Strengths</h4>
+                            <ul>
+                                <li class="pro">Official TED transcript</li>
+                                <li class="pro">100% accurate</li>
+                                <li class="pro">Correct punctuation</li>
+                                <li class="pro">Names verified</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="evaluation-cell">
+                        <div class="model-name">OpenAI gpt-4o-mini (Run 1)</div>
+                        <div class="rating">
+                            <span class="rating-label">Quality:</span>
+                            <span class="rating-badge rating-poor">POOR</span>
+                            <span class="rating-score">48%</span>
+                        </div>
+                        <div class="eval-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Errors</div>
+                                <div class="stat-value error-count">47</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Words</div>
+                                <div class="stat-value">~430</div>
+                            </div>
+                        </div>
+                        <div class="error-breakdown">
+                            <div class="breakdown-title">Errors by Type</div>
+                            <div class="breakdown-grid">
+                                <div class="breakdown-item"><span class="breakdown-label wrong-bg">wrong</span><span class="breakdown-value">18</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label missing-bg">missing</span><span class="breakdown-value">5</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label extra-bg">extra (dup)</span><span class="breakdown-value">10</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label grammar-bg">grammar</span><span class="breakdown-value">11</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label case-bg">case</span><span class="breakdown-value">3</span></div>
+                            </div>
+                        </div>
+                        <div class="pros-cons">
+                            <h4 class="pros-title">✓ Strengths</h4>
+                            <ul>
+                                <li class="pro">Complete text captured</li>
+                                <li class="pro">"Caspian" correct</li>
+                                <li class="pro">"Mustafa" correct</li>
+                            </ul>
+                            <h4 class="cons-title">✗ Critical Errors</h4>
+                            <ul>
+                                <li class="con">"aging" instead of "AGI"</li>
+                                <li class="con">"Bai" instead of "Pi"</li>
+                                <li class="con">"I've" instead of "He'd"</li>
+                                <li class="con">"iPhone. They spy" instead of "I Spy"</li>
+                                <li class="con">"mentors" instead of "augment us"</li>
+                                <li class="con">"unscientific" instead of "scientific"</li>
+                                <li class="con">"Trade" (hallucination)</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="evaluation-cell">
+                        <div class="model-name">OpenAI gpt-4o-mini (Run 4)</div>
+                        <div class="rating">
+                            <span class="rating-label">Quality:</span>
+                            <span class="rating-badge rating-poor">POOR</span>
+                            <span class="rating-score">52%</span>
+                        </div>
+                        <div class="eval-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Errors</div>
+                                <div class="stat-value error-count">43</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Words</div>
+                                <div class="stat-value">~425</div>
+                            </div>
+                        </div>
+                        <div class="error-breakdown">
+                            <div class="breakdown-title">Errors by Type</div>
+                            <div class="breakdown-grid">
+                                <div class="breakdown-item"><span class="breakdown-label wrong-bg">wrong</span><span class="breakdown-value">14</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label missing-bg">missing</span><span class="breakdown-value">6</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label extra-bg">extra (dup)</span><span class="breakdown-value">10</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label grammar-bg">grammar</span><span class="breakdown-value">9</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label case-bg">case</span><span class="breakdown-value">4</span></div>
+                            </div>
+                        </div>
+                        <div class="pros-cons">
+                            <h4 class="pros-title">✓ Improvements vs Run 1</h4>
+                            <ul>
+                                <li class="pro">"augment us" correct ✅</li>
+                                <li class="pro">"scientific" correct ✅</li>
+                                <li class="pro">-4 errors overall</li>
+                                <li class="pro">+4 percentage points</li>
+                            </ul>
+                            <h4 class="cons-title">✗ Persistent/New Errors</h4>
+                            <ul>
+                                <li class="con">"aging AGI" still wrong</li>
+                                <li class="con">"Bi" instead of "Pi"</li>
+                                <li class="con">"We've" instead of "He'd"</li>
+                                <li class="con">"since...see" instead of "sincere"</li>
+                                <li class="con">"waiting. Up" instead of "waking up"</li>
+                                <li class="con">"hunting out of" (new)</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="evaluation-cell" style="border: 2px solid #107c10; background: linear-gradient(135deg, #f8fff8 0%, #e8f5e9 100%);">
+                        <div class="model-name" style="color: #107c10;">Azure gpt-4o-mini 🏆</div>
+                        <div class="rating">
+                            <span class="rating-label">Quality:</span>
+                            <span class="rating-badge rating-fair">FAIR</span>
+                            <span class="rating-score">58%</span>
+                        </div>
+                        <div class="eval-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Errors</div>
+                                <div class="stat-value error-count">38</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Words</div>
+                                <div class="stat-value">~420</div>
+                            </div>
+                        </div>
+                        <div class="error-breakdown">
+                            <div class="breakdown-title">Errors by Type</div>
+                            <div class="breakdown-grid">
+                                <div class="breakdown-item"><span class="breakdown-label wrong-bg">wrong</span><span class="breakdown-value">13</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label missing-bg">missing</span><span class="breakdown-value">4</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label extra-bg">extra (dup)</span><span class="breakdown-value">7</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label grammar-bg">grammar</span><span class="breakdown-value">10</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label case-bg">case</span><span class="breakdown-value">4</span></div>
+                            </div>
+                        </div>
+                        <div class="pros-cons">
+                            <h4 class="pros-title">✓ Strengths vs OpenAI</h4>
+                            <ul>
+                                <li class="pro">"AGI" correct ✅</li>
+                                <li class="pro">"I Spy" correct ✅</li>
+                                <li class="pro">"scientific" correct ✅</li>
+                                <li class="pro">"augment us" correct ✅</li>
+                                <li class="pro">Fewer duplications</li>
+                            </ul>
+                            <h4 class="cons-title">✗ New Errors</h4>
+                            <ul>
+                                <li class="con">"Vi" instead of "Pi"</li>
+                                <li class="con">"We've" instead of "He'd"</li>
+                                <li class="con">"eggs" completely missing</li>
+                                <li class="con">"one and six-year-old"</li>
+                                <li class="con">"leading up" instead of "waking up"</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="evaluation-cell">
+                        <div class="model-name">Azure gpt-4o-transcribe</div>
+                        <div class="rating">
+                            <span class="rating-label">Quality:</span>
+                            <span class="rating-badge rating-poor">POOR</span>
+                            <span class="rating-score">45%</span>
+                        </div>
+                        <div class="eval-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">Total Errors</div>
+                                <div class="stat-value error-count">52</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Words</div>
+                                <div class="stat-value">~380</div>
+                            </div>
+                        </div>
+                        <div class="error-breakdown">
+                            <div class="breakdown-title">Errors by Type</div>
+                            <div class="breakdown-grid">
+                                <div class="breakdown-item"><span class="breakdown-label wrong-bg">wrong</span><span class="breakdown-value">8</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label missing-bg">missing</span><span class="breakdown-value" style="color:#d13438;font-weight:bold;">28 🔴</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label extra-bg">extra/halluc</span><span class="breakdown-value">4</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label grammar-bg">grammar</span><span class="breakdown-value">8</span></div>
+                                <div class="breakdown-item"><span class="breakdown-label case-bg">case</span><span class="breakdown-value">4</span></div>
+                            </div>
+                        </div>
+                        <div class="pros-cons">
+                            <h4 class="pros-title">✓ Correct</h4>
+                            <ul>
+                                <li class="pro">"He'd" ✅ (not "I've"/"We've")</li>
+                                <li class="pro">"eggs" present ✅</li>
+                                <li class="pro">"six-year-old" correct</li>
+                                <li class="pro">No duplications</li>
+                            </ul>
+                            <h4 class="cons-title">✗ CRITICAL Errors</h4>
+                            <ul>
+                                <li class="con" style="color:#d13438;font-weight:bold;">"CGI" instead of "AGI" 🔴🔴🔴</li>
+                                <li class="con" style="color:#d13438;font-weight:bold;">"Auto-detect language" PROMPT LEAK!</li>
+                                <li class="con">"That's what I thought" hallucination</li>
+                                <li class="con">"Some people" hallucination</li>
+                                <li class="con">"Should I be afraid?" completely missing</li>
+                                <li class="con">28 missing words/phrases</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Consolidated Technical Analysis - 5 Column Layout matching other sections -->
+        <section class="technical-section">
+            <div class="technical-header">
+                <span style="font-size: 1.5rem;">⚙️</span>
+                <h2>Technical Analysis — All 4 Runs Side-by-Side</h2>
+            </div>
+            
+            <!-- 5-Column Headers matching Sentence Comparison -->
+            <div class="column-headers">
+                <div class="column-header">
+                    <div class="column-title">📋 Test Configuration</div>
+                    <div class="column-subtitle">Session & Event Parameters</div>
+                </div>
+                <div class="column-header">
+                    <div class="column-title">OpenAI gpt-4o-mini (Run 1)</div>
+                    <div class="column-subtitle">gpt-4o-mini-transcribe-2025-12-15</div>
+                </div>
+                <div class="column-header">
+                    <div class="column-title">OpenAI gpt-4o-mini (Run 4)</div>
+                    <div class="column-subtitle">gpt-4o-mini-transcribe-2025-12-15</div>
+                </div>
+                <div class="column-header" style="background: linear-gradient(135deg, #107c10 0%, #0b5c0b 100%);">
+                    <div class="column-title">Azure gpt-4o-mini 🏆</div>
+                    <div class="column-subtitle">gpt-4o-mini-transcribe (Azure)</div>
+                </div>
+                <div class="column-header" style="border: 2px solid #d13438;">
+                    <div class="column-title" style="color: #d13438;">Azure gpt-4o ⚠️</div>
+                    <div class="column-subtitle">gpt-4o-transcribe (Azure)</div>
+                </div>
+            </div>
+            
+            <!-- Technical Data Table -->
+            <table class="sentence-table" style="margin-top: 0;">
+                <tbody>
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa;">Provider</td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">OpenAI</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">OpenAI</code></td>
+                        <td style="background: #f0fff0;"><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">Azure OpenAI</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">Azure OpenAI</code></td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa;">Session ID</td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">1767199133489-n98h61</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">1767203048728-cx9olx</code></td>
+                        <td style="background: #f0fff0;"><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">1767199814164-20iv8r</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">1767200309946-mcsruu</code></td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa;">Timestamp</td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">2025-12-31T16:38:53Z</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">2025-12-31T17:44:08Z</code></td>
+                        <td style="background: #f0fff0;"><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">2025-12-31T16:50:14Z</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">2025-12-31T16:58:29Z</code></td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa;">Chunks</td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace;">74</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace;">74</code></td>
+                        <td style="background: #f0fff0;"><code style="font-family: 'JetBrains Mono', monospace;">73</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace;">73</code></td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa;">Delta Events</td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; color: #107c10;">726</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; color: #107c10;">759</code></td>
+                        <td style="background: #f0fff0;"><code style="font-family: 'JetBrains Mono', monospace; color: #d13438;">0</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; color: #d13438;">0</code></td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa;">Deltas/Chunk</td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace;">~9.8</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace;">~10.3</code></td>
+                        <td style="background: #f0fff0;"><code style="font-family: 'JetBrains Mono', monospace;">0</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace;">0</code></td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa;">Real-time Streaming</td>
+                        <td><span style="color: #107c10; font-weight: bold;">✅ Yes</span></td>
+                        <td><span style="color: #107c10; font-weight: bold;">✅ Yes</span></td>
+                        <td style="background: #f0fff0;"><span style="color: #d13438;">❌ No</span></td>
+                        <td><span style="color: #d13438;">❌ No</span></td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa;">content_index > 0</td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; color: #107c10;">0 ✅</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; color: #107c10;">0 ✅</code></td>
+                        <td style="background: #f0fff0;"><code style="font-family: 'JetBrains Mono', monospace; color: #107c10;">0 ✅</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace; color: #107c10;">0 ✅</code></td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa;">Overlap Patterns</td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace;">—</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace;">44 chunks</code></td>
+                        <td style="background: #f0fff0;"><code style="font-family: 'JetBrains Mono', monospace;">—</code></td>
+                        <td><code style="font-family: 'JetBrains Mono', monospace;">—</code></td>
+                    </tr>
+                    <!-- Key Observations Row -->
+                    <tr>
+                        <td style="font-weight: 600; background: #f8f9fa; vertical-align: top;">🔍 Key Observation</td>
+                        <td style="vertical-align: top;">
+                            <div style="padding: 0.75rem; background: #fff3cd; border-radius: 6px; border-left: 3px solid #ffc107;">
+                                <strong style="color: #856404;">⚠️ Chunk Boundary Issue</strong><br>
+                                <span style="font-size: 0.8rem;">
+                                    Duplications at boundaries due to streaming delta architecture.
+                                </span>
+                            </div>
+                        </td>
+                        <td style="vertical-align: top;">
+                            <div style="padding: 0.75rem; background: #e7f3ff; border-radius: 6px; border-left: 3px solid #0078d4;">
+                                <strong style="color: #004085;">🔄 Same Model, +4 pts</strong><br>
+                                <span style="font-size: 0.8rem;">
+                                    Run-to-run variability confirmed:<br>
+                                    • +33 delta events vs Run 1<br>
+                                    • Same systematic errors<br>
+                                    • Slight quality improvement
+                                </span>
+                            </div>
+                        </td>
+                        <td style="vertical-align: top; background: #f0fff0;">
+                            <div style="padding: 0.75rem; background: #d4edda; border-radius: 6px; border-left: 3px solid #28a745;">
+                                <strong style="color: #155724;">✅ No Delta = Clean</strong><br>
+                                <span style="font-size: 0.8rem;">
+                                    Azure sends only final chunks:<br>
+                                    • No boundary duplications<br>
+                                    • Microsoft design choice
+                                </span>
+                            </div>
+                        </td>
+                        <td style="vertical-align: top;">
+                            <div style="padding: 0.75rem; background: #fde7e9; border-radius: 6px; border-left: 3px solid #d13438;">
+                                <strong style="color: #721c24;">🔴 CRITICAL: Prompt Leak!</strong><br>
+                                <span style="font-size: 0.8rem;">
+                                    System prompt in output:<br>
+                                    <code style="font-size: 0.7rem; background: #f8d7da; padding: 0.1rem 0.3rem; border-radius: 3px;">"Auto-detect language"</code><br>
+                                    + 4 hallucinations
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <!-- Run Comparison Summary -->
+            <div style="margin-top: 1.5rem; padding: 1rem; background: #e7f3ff; border-radius: 8px; border-left: 4px solid #0078d4;">
+                <strong>🔄 OpenAI Run 1 vs Run 4 — Same Model Comparison:</strong><br>
+                <span style="font-size: 0.9rem;">
+                    Both runs used identical model (<code>gpt-4o-mini-transcribe-2025-12-15</code>) on same audio.<br>
+                    <strong>Findings:</strong> Consistent chunk count (74), similar delta events (726 vs 759 = +4.5%), same systematic errors ("aging/AGI", "Pi" misheard), slight quality variance (48% → 52% = +4 points).<br>
+                    <strong>Conclusion:</strong> Transcription results are reproducible but not identical. Same model shows ~4 percentage point variance between runs.
+                </span>
+            </div>
+        </section>
+
+        <!-- Detailed Findings Section -->
+        <section class="summary-section">
+            <div class="summary-header">
+                <span style="font-size: 1.5rem;">💡</span>
+                <h2>Detailed Findings & Recommendations</h2>
+            </div>
+            
+            <div class="conclusion-box">
+                <h3>🏆 WINNER: Azure gpt-4o-mini-transcribe (58%)</h3>
+                <p style="margin-top: 0.5rem;">
+                    Best result despite being "only" a mini model. Correctly transcribes critical terms like "AGI", "I Spy", "scientific", and "augment us".
+                </p>
+            </div>
+            
+            <div class="conclusion-box" style="border-left-color: #0078d4; background: #f0f7ff;">
+                <h3 style="color: #0078d4;">🔄 OpenAI Run-to-Run Variability (48% → 52%)</h3>
+                <p style="margin-top: 0.5rem;">
+                    Same model, same audio, different results:
+                </p>
+                <ul style="margin: 0.5rem 0 0 1.5rem; font-size: 0.9rem;">
+                    <li><strong>Run 1:</strong> 48% quality, 47 errors</li>
+                    <li><strong>Run 4:</strong> 52% quality, 43 errors (+4 points improvement)</li>
+                    <li><strong>Improvements:</strong> "augment us" ✅, "scientific" ✅ now correct</li>
+                    <li><strong>Persistent errors:</strong> "AGI" still wrong, "Pi" still wrong, "He'd" still wrong</li>
+                    <li><strong>New errors:</strong> "hunting out of", "since...see", "waiting. Up"</li>
+                </ul>
+                <p style="margin-top: 0.5rem; font-style: italic;">
+                    This confirms ~4 percentage point variance between identical runs. Results are reproducible but not identical.
+                </p>
+            </div>
+            
+            <div class="conclusion-box" style="border-left-color: #d13438; background: #fef5f5;">
+                <h3 style="color: #d13438;">⚠️ WORST: Azure gpt-4o-transcribe (45%)</h3>
+                <p style="margin-top: 0.5rem;">
+                    Surprisingly, the larger model performs WORSE! Critical problems:
+                </p>
+                <ul style="margin: 0.5rem 0 0 1.5rem; font-size: 0.9rem;">
+                    <li><strong>"CGI" instead of "AGI"</strong> — Core technical term completely wrong!</li>
+                    <li><strong>"Auto-detect language"</strong> — PROMPT LEAK! System prompt in output!</li>
+                    <li><strong>28 missing words</strong> — Entire sentence "Should I be afraid?" missing</li>
+                    <li><strong>4 hallucinations</strong> — "That's what I thought", "Some people"</li>
+                </ul>
+            </div>
+            
+            <div class="conclusion-box" style="border-left-color: #107c10; background: #f5fef5;">
+                <h3 style="color: #107c10;">📋 Recommendation for CONTEXTPILOT</h3>
+                <p style="margin-top: 0.5rem;">
+                    For <strong>British accent</strong> real-time transcription:<br><br>
+                    1. Use <strong>Azure gpt-4o-mini-transcribe</strong> (NOT gpt-4o!)<br>
+                    2. Set <code>language: "en"</code> explicitly<br>
+                    3. Add technical terms to the prompt<br>
+                    4. Monitor chunk boundaries for duplications<br>
+                    5. Expect ~4% variance between runs<br><br>
+                    The larger gpt-4o model paradoxically has more problems — possibly due to different prompt configuration or suboptimal fine-tuning for the Realtime API.
+                </p>
+            </div>
+        </section>
+
+        <!-- Consolidated Technical Comparison -->
+        <section class="technical-section">
+            <div class="technical-header">
+                <span style="font-size: 1.5rem;">📊</span>
+                <h2>Technical Comparison — All 4 Runs</h2>
+            </div>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; background: white; border-radius: 8px;">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #e53935 0%, #d32f2f 100%); color: white;">
+                            <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #ddd;">Metric</th>
+                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #ddd;">OpenAI Run 1</th>
+                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #ddd;">OpenAI Run 4</th>
+                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #ddd; background: rgba(255,255,255,0.2);">Azure mini 🏆</th>
+                            <th style="padding: 0.75rem; text-align: center; border-bottom: 2px solid #ddd;">Azure gpt-4o</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.6rem; border-bottom: 1px solid #eee; font-weight: 600;">Quality Score</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; color: #d13438;">48%</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; color: #d13438;">52%</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9; color: #107c10; font-weight: bold;">58% ✅</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; color: #d13438;">45%</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.6rem; border-bottom: 1px solid #eee; font-weight: 600;">Total Errors</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">47</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">43</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9; font-weight: bold;">38 ✅</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; color: #d13438;">52</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.6rem; border-bottom: 1px solid #eee; font-weight: 600;">Wrong Words</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">18</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">14</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">13</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">8</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.6rem; border-bottom: 1px solid #eee; font-weight: 600;">Missing Words</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">5</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">6</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">4</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; color: #d13438; font-weight: bold;">28 🔴</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.6rem; border-bottom: 1px solid #eee; font-weight: 600;">Duplications</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; color: #d13438;">10</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; color: #d13438;">10</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">7</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; color: #107c10;">0 ✅</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.6rem; border-bottom: 1px solid #eee; font-weight: 600;">Hallucinations</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">1</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">0</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">0 ✅</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; color: #d13438; font-weight: bold;">4 🔴</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td style="padding: 0.6rem; border-bottom: 1px solid #eee; font-weight: 600;">Chunks</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">74</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">74</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">73</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">73</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td style="padding: 0.6rem; border-bottom: 1px solid #eee; font-weight: 600;">Delta Events</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">726</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">759</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">0</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">0</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td style="padding: 0.6rem; border-bottom: 1px solid #eee; font-weight: 600;">Streaming</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">✅ Yes</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">✅ Yes</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee; background: #e8f5e9;">❌ No</td>
+                            <td style="padding: 0.6rem; text-align: center; border-bottom: 1px solid #eee;">❌ No</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.6rem; font-weight: 600;">"AGI" correct?</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438;">❌ "aging"</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438;">❌ "aging AGI"</td>
+                            <td style="padding: 0.6rem; text-align: center; background: #e8f5e9; color: #107c10;">✅ "AGI"</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438;">❌ "CGI"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.6rem; font-weight: 600;">"Pi" correct?</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438;">❌ "Bai"</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438;">❌ "Bi"</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438;">❌ "Vi"</td>
+                            <td style="padding: 0.6rem; text-align: center; background: #e8f5e9; color: #107c10;">✅ "Pi"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.6rem; font-weight: 600;">"He'd" correct?</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438;">❌ "I've"</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438;">❌ "We've"</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438;">❌ "We've"</td>
+                            <td style="padding: 0.6rem; text-align: center; background: #e8f5e9; color: #107c10;">✅ "He'd"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.6rem; font-weight: 600;">Prompt Leak?</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #107c10;">❌ No</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #107c10;">❌ No</td>
+                            <td style="padding: 0.6rem; text-align: center; background: #e8f5e9; color: #107c10;">❌ No</td>
+                            <td style="padding: 0.6rem; text-align: center; color: #d13438; font-weight: bold;">⚠️ YES!</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Raw Transcripts for Easy Copying -->
+        <section class="raw-transcripts-section">
+            <div class="raw-transcripts-header">
+                <span style="font-size: 1.5rem;">📋</span>
+                <h2>Raw Transcription Texts (for copying)</h2>
+            </div>
+
+            <!-- Original Transcript -->
+            <div class="transcript-block">
+                <div class="transcript-block-header original">
+                    <div>
+                        <div class="transcript-block-title">✓ Original Transcript</div>
+                        <div class="transcript-block-subtitle">Reference (TED.com Official) — 0:00 to 3:10</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyTranscript(this, 'original-text')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="transcript-content" id="original-text">I want to tell you what I see coming. I've been lucky enough to be working on AI for almost 15 years now. Back when I started, to describe it as fringe would be an understatement. Researchers would say, "No, no, we're only working on machine learning." Because working on AI was seen as way too out there. In 2010, just the very mention of the phrase "AGI," artificial general intelligence, would get you some seriously strange looks and even a cold shoulder. "You're actually building AGI?" people would say. "Isn't that something out of science fiction?" People thought it was 50 years away or 100 years away, if it was even possible at all. Talk of AI was, I guess, kind of embarrassing. People generally thought we were weird. And I guess in some ways we kind of were.
+
+It wasn't long, though, before AI started beating humans at a whole range of tasks that people previously thought were way out of reach. Understanding images, translating languages, transcribing speech, playing Go and chess and even diagnosing diseases. People started waking up to the fact that AI was going to have an enormous impact, and they were rightly asking technologists like me some pretty tough questions. Is it true that AI is going to solve the climate crisis? Will it make personalized education available to everyone? Does it mean we'll all get universal basic income and we won't have to work anymore? Should I be afraid? What does it mean for weapons and war? And of course, will China win? Are we in a race? Are we headed for a mass misinformation apocalypse? All good questions.
+
+But it was actually a simpler and much more kind of fundamental question that left me puzzled. One that actually gets to the very heart of my work every day. One morning over breakfast, my six-year-old nephew Caspian was playing with Pi, the AI I created at my last company, Inflection. With a mouthful of scrambled eggs, he looked at me plain in the face and said, "But Mustafa, what is an AI anyway?"
+
+He's such a sincere and curious and optimistic little guy. He'd been talking to Pi about how cool it would be if one day in the future, he could visit dinosaurs at the zoo. And how he could make infinite amounts of chocolate at home. And why Pi couldn't yet play I Spy. "Well," I said, "it's a clever piece of software that's read most of the text on the open internet, and it can talk to you about anything you want."
+
+"Right. So like a person then?"
+
+I was stumped. Genuinely left scratching my head. All my boring stock answers came rushing through my mind. "No, but AI is just another general-purpose technology, like printing or steam." It will be a tool that will augment us and make us smarter and more productive. And when it gets better over time, it'll be like an all-knowing oracle that will help us solve grand scientific challenges." You know, all of these responses started to feel, I guess, a little bit defensive. And actually better suited to a policy seminar than breakfast with a no-nonsense six-year-old. "Why am I hesitating?" I thought to myself.</div>
+            </div>
+
+            <!-- OpenAI gpt-4o-mini-transcribe -->
+            <div class="transcript-block">
+                <div class="transcript-block-header openai">
+                    <div>
+                        <div class="transcript-block-title">OpenAI gpt-4o-mini-transcribe</div>
+                        <div class="transcript-block-subtitle">gpt-4o-mini-transcribe-2025-12-15 — Run 1</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyTranscript(this, 'openai-text')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="transcript-content" id="openai-text">I want to... I'll tell you what I see coming. I've been lucky enough to be working on AI for almost 15 years. Back when I started... To describe it as fringe would be an understatement. Statement. Researchers would say, no, no, we're only... Why are you working on machine learning? Because working on AI... I was seen as way too out there. In 2010... Just the very mention of the phrase aging. AI, artificial general intelligence, would be... get you some seriously strange looks. a cold shoulder. You're actually building... AGI, people would say, isn't that something else? Now, science fiction, people thought it was fiction. 50 years away or 100 years away if it was even possible at all. Talk of AI was, I guess... Kind of embarrassing. People generally thought we were weird. And I guess in some ways, we kind of were. It wasn't long, though, before AI started... beating humans at a whole range of tasks that people... people previously thought were way out of reach. Understanding images, translating Languages, transcribing speech, playing Go and chess, and even diagnosing. diseases. People started waking up to... to the fact that AI was going to have an enormous impact. And they were rightly asking technologists... Just like me, some pretty tough questions. Is it true that AI is going to solve the climate crisis? Will it make personalized education available to everyone? Does it mean we'll all get universal basic income and we... You won't have to work anymore. Should I be afraid? Trade, what does it mean for weapons and war? And of course, will China win? Are we in a race? Are we headed for a mass misinformation apocalypse? All good questions. But it was actually a simpler and... A much more kind of fundamental question... left me puzzled. One that actually gets the... to the very heart of my work every day. One morning over breakfast, my six-year-old nephew Caspian was Playing with Pi, the AI I created at my last company. Company inflection. With a mouthful of scrambled eggs... He looked at me plain in the face and... I said, but Mustafa, what is... What is an AI anyway? He's such a sincere... and curious and optimistic little guy. I've been talking to Bai about how cool it would be if one day in the future... he could visit dinosaurs at the zoo. and how he could make infinite amounts of chocolate at home. Home, and why Pi couldn't yet play iPhone. They spy. Well, I said, it's a... It's a clever piece of software that's read most of the text on the... on the open internet, and it can talk to you about anything you want. Right, so like a person, then. I was stumped. Genuinely left scratching my head. All my boring stock... Answers came rushing through my mind. AI is just another general-purpose technology, like printing. It'll be a tool that will... mentors and make us smarter and more productive. And when it gets better over time, it'll... It will be like an all-knowing oracle that will help us solve ground... unscientific challenges. You know, all of these... These responses started to feel, I guess... a little bit defensive, and actually better... Suited to a policy seminar than breakfast with a no-nonsense Six-year-old, why am I hesitating? I thought. I talked to myself.</div>
+            </div>
+
+            <!-- Azure OpenAI gpt-4o-mini-transcribe -->
+            <div class="transcript-block">
+                <div class="transcript-block-header azure-mini">
+                    <div>
+                        <div class="transcript-block-title">Azure OpenAI gpt-4o-mini-transcribe</div>
+                        <div class="transcript-block-subtitle">gpt-4o-mini-transcribe (Azure) — Run 2</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyTranscript(this, 'azure-mini-text')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="transcript-content" id="azure-mini-text">A I want to tell you what I see coming. I've been lucky enough to be working on AI for almost... 15 years now. Back when I started... to describe it as fringe would be an understatement. Researchers would say, no, no, we're... You're only working on machine learning, because working... Working on AI was seen as way too out there. In 20... Then, just the very mention of the phrase... AGI, Artificial General Intelligence. would get you some seriously strange looks. Even a cold shoulder, you're actually building... AGI, people would say, isn't that... Something out of science fiction. People thought it was... 50 years away or 100 years away if it was even possible. At all. Talk of AI was, I guess... Kind of embarrassing. People generally... Thought we were weird, and I guess in some ways we kind of were. It wasn't long, though, before AI... I started beating humans at a whole range of tasks. People previously thought were way out of reach. Understanding images. Translate. languages, transcribing speech. playing Go and chess, and even diagnosing... Diseases. People started waking... leading up to the fact that AI was going to have an enormous... Impact. And they were rightly asking... technologists like me some pretty tough questions. Is it true that AI is going to solve the climate crisis? Will it make personalized education available to everyone? Does it mean we'll all get universal basic income? Basic income and we won't have to work anymore. Should I be... What does it mean for weapons and war? And of course, will China win? Are we in a race? Are we headed for a mass misinformation apocalypse? All good questions. Questions. But it was actually a Simpler and much more kind of fundamental question. that left me puzzled. One that actually... It actually gets to the very heart of my work every day. One morning over breakfast, my six-year-old nephew Caspian was... playing with Pi, the AI I created at my last... Company inflection. With a mouthful of scrambled he looked at me plain in the face. and said, But Mustafa, what if... What is an AI anyway? He's such a Sincere and curious and optimistic little guy. We've been talking to Vi about how cool it would be if one day... In the future, he could visit dinosaurs at the zoo. And how he could make infinite amounts of chocolate. At home. And why Pi couldn't yet play... I spy. Well, I said, it's... It's a clever piece of software that's read most of the text. It's on the open internet and it can talk to you about anything you want. Right, so like a person, then. I was stumped. Genuinely left scratching my head. All my boring stock... Answers came rushing through my mind. No, but AI is just another general-purpose technology, like... Printing or steam. It'll be a tool that will... augment us and make us smarter and more productive. And when it gets better over time... It'll be like an all-knowing oracle that will help us solve... Grand scientific challenges. You know, All of these responses started to feel, I guess... A little bit defensive. And actually... Be better suited to a policy seminar than breakfast with a no-nonsense. one and six-year-old. Why am I hesitating? I thought to myself.</div>
+            </div>
+
+            <!-- Azure OpenAI gpt-4o-transcribe -->
+            <div class="transcript-block">
+                <div class="transcript-block-header azure-full">
+                    <div>
+                        <div class="transcript-block-title">Azure OpenAI gpt-4o-transcribe</div>
+                        <div class="transcript-block-subtitle">gpt-4o-transcribe (Azure) — Run 3</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyTranscript(this, 'azure-full-text')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="transcript-content" id="azure-full-text">I want to tell you what I see coming. I've been lucky enough to be working on AI for almost 15 Back when I started To describe it as fringe would be an understatement. Researchers would say, no, no, we're only Working on machine learning? It was seen as way too out there. In 2010 Just the very mention of the phrase artificial general intelligence use some seriously strange looks. cold shoulder. You're actually building CGI, people would say. Isn't that something? Coming out of science fiction, people thought it was 50 years or a hundred years away if it was even possible at all. Talk of AI was, I guess, Kind of embarrassing. People generally thought we were And I guess in some ways we kind of were. It wasn't long though before AI started beating humans at a whole range of tasks. ...previously thought were way out of reach. Understanding images. Translating Languages. Transcribing speech. playing Go and chess, and even diagnosing People started waking up to the The AI was going to have an enormous impact. And they were rightly asking technologists like me some pretty tough questions. Is it true that AI is going to solve the climate crisis? Will it make personalized education available to everyone? Does it mean we'll all get universal basic income? we won't have to work anymore. What does it mean for weapons and war? And of course, will China win? Are we in a race? That's what I thought. Are we headed for a mass misinformation apocalypse? All good questions But it was actually a simpler Much more kind of fundamental question that. puzzled. One that actually To the very heart of my work every day. Auto-detect language. One morning over breakfast, my six-year-old nephew Caspian was playing with Pi, the AI I created at my last company With a mouthful of scrambled eggs He looked at me plain in the face and But Mustafa, what is an AI anyway. He's such a sincere and curious and optimistic little guy. He'd been talking about how cool it would be if one day in the future He could visit dinosaurs at the zoo. and how he could make infinite amounts of chocolate and why Pi couldn't yet play? Spy. Well, I said... clever piece of software that's read most of the text on the open internet and it can talk to you about anything you want. Some people Right, so like a person then? I was stumped. Genuinely left scratching my head. All my boring stock Answers came rushing through my mind. But AI is just another general-purpose technology, like printing It'll be a tool that will augment and make us smarter and more productive And when it gets better over time, Be like an all-knowing oracle that will help us solve grand Scientific challenges. Responses started to feel, I guess a little bit defensive. Then breakfast with a no-nonsense six-year-old Why am I hesitating? I thought to myself.</div>
+            </div>
+        </section>
+
+        <script>
+            function copyTranscript(button, textId) {
+                const textElement = document.getElementById(textId);
+                const text = textElement.innerText;
+                
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalHTML = button.innerHTML;
+                    button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+                    button.classList.add('copied');
+                    
+                    setTimeout(() => {
+                        button.innerHTML = originalHTML;
+                        button.classList.remove('copied');
+                    }, 2000);
+                });
+            }
+        </script>
+
+        <footer>
+            <p>Created on December 31, 2025 · Transcription Quality Analysis — Mustafa Suleyman TED Talk</p>
+            <p style="margin-top: 0.5rem; font-size: 0.8rem;">Sources: <a href="https://www.ted.com/talks/mustafa_suleyman_what_is_an_ai_anyway" target="_blank">TED Video</a> · <a href="https://www.ted.com/talks/mustafa_suleyman_what_is_an_ai_anyway/transcript" target="_blank">TED.com Transcript</a></p>
+        </footer>
+    </div>
+
+    <!-- ===== MAGNIFYING GLASS JAVASCRIPT ===== -->
+    <script>
+        (function() {
+            'use strict';
+            
+            // ==========================================
+            // KONFIGURATION - Basierend auf SVG clipPath
+            // ==========================================
+            const ZOOM_FACTOR = 3;           // 3x Vergrößerung
+            const CONTAINER_SIZE = 600;      // Display-Größe in px (50% größer)
+            const SVG_SIZE = 1024;           // SVG viewBox Größe
+            const SCALE = CONTAINER_SIZE / SVG_SIZE;  // 600/1024 ≈ 0.586
+            
+            // Linsen-Zentrum aus clipPath: cx="678.6" cy="293.4" r="236.44"
+            const LENS_CENTER = {
+                x: 678.6,   // SVG-Koordinaten
+                y: 293.4
+            };
+            const LENS_RADIUS = 236.44;
+            
+            // Umrechnung auf Display-Koordinaten
+            const LENS_CENTER_DISPLAY = {
+                x: LENS_CENTER.x * SCALE,  // ≈ 265px
+                y: LENS_CENTER.y * SCALE   // ≈ 115px
+            };
+            
+            // ==========================================
+            // DOM Elements
+            // ==========================================
+            const toggle = document.getElementById('magnifierToggle');
+            const container = document.getElementById('magnifierContainer');
+            const content = document.getElementById('magnifierContent');
+            const tooltip = document.getElementById('magnifierTooltip');
+            
+            // State
+            let isActive = false;
+            let hasShownTooltip = false;
+            
+            // ==========================================
+            // Button Icon Loading
+            // ==========================================
+            const magnifierImg = new Image();
+            magnifierImg.onload = function() {
+                const svg = toggle.querySelector('.magnifier-svg');
+                if (svg) {
+                    const img = document.createElement('img');
+                    img.src = 'images/magnifying-glass.png';
+                    img.className = 'magnifier-icon';
+                    img.alt = 'Lupe';
+                    toggle.replaceChild(img, svg);
+                }
+            };
+            magnifierImg.onerror = function() {
+                console.log('Magnifier image not found, using SVG fallback');
+            };
+            magnifierImg.src = 'images/magnifying-glass.png';
+            
+            // ==========================================
+            // Tooltip
+            // ==========================================
+            toggle.addEventListener('mouseenter', function() {
+                if (!hasShownTooltip) {
+                    tooltip.classList.add('show');
+                    setTimeout(() => tooltip.classList.remove('show'), 3000);
+                    hasShownTooltip = true;
+                }
+            });
+            
+            // ==========================================
+            // Toggle Magnifier On/Off
+            // ==========================================
+            toggle.addEventListener('click', function() {
+                isActive = !isActive;
+                toggle.classList.toggle('active', isActive);
+                container.classList.toggle('active', isActive);
+                
+                tooltip.textContent = isActive 
+                    ? '🔍 Lupe aktiv! Bewege die Maus über den Inhalt'
+                    : '🔍 Lupe: Klicken zum Aktivieren (3× Zoom)';
+                
+                if (isActive) {
+                    tooltip.classList.add('show');
+                    setTimeout(() => tooltip.classList.remove('show'), 2000);
+                    document.body.style.cursor = 'none';
+                    updateMagnifierContent();
+                } else {
+                    document.body.style.cursor = 'default';
+                }
+            });
+            
+            // ==========================================
+            // Content Cloning for Magnification
+            // ==========================================
+            function updateMagnifierContent() {
+                const clone = document.body.cloneNode(true);
+                
+                // Remove magnifier elements from clone
+                const elementsToRemove = clone.querySelectorAll(
+                    '.magnifier-toggle, .magnifier-svg-container, .magnifier-tooltip'
+                );
+                elementsToRemove.forEach(el => el.remove());
+                
+                // Style the clone for zooming
+                clone.style.position = 'absolute';
+                clone.style.width = document.body.scrollWidth + 'px';
+                clone.style.height = document.body.scrollHeight + 'px';
+                clone.style.margin = '0';
+                clone.style.padding = '2rem';
+                clone.style.transform = `scale(${ZOOM_FACTOR})`;
+                clone.style.transformOrigin = 'top left';
+                clone.style.pointerEvents = 'none';
+                
+                content.innerHTML = '';
+                content.appendChild(clone);
+            }
+            
+            // ==========================================
+            // Mouse Movement - Position Lens
+            // ==========================================
+            document.addEventListener('mousemove', function(e) {
+                if (!isActive) return;
+                
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+                const scrollX = window.scrollX;
+                const scrollY = window.scrollY;
+                
+                // Position container so lens center is at cursor
+                // Lens center in display coords is at LENS_CENTER_DISPLAY
+                const containerX = mouseX - LENS_CENTER_DISPLAY.x;
+                const containerY = mouseY - LENS_CENTER_DISPLAY.y;
+                
+                container.style.left = containerX + 'px';
+                container.style.top = containerY + 'px';
+                
+                // Calculate content offset for the zoomed view
+                // The point under cursor should appear at lens center in SVG coords
+                // foreignObject is 1024x1024, content is scaled by ZOOM_FACTOR
+                const lensRadiusDisplay = LENS_RADIUS * SCALE;
+                
+                // Offset so that (mouseX + scrollX) * ZOOM appears at lens center
+                const contentX = LENS_CENTER.x - (mouseX + scrollX) * ZOOM_FACTOR;
+                const contentY = LENS_CENTER.y - (mouseY + scrollY) * ZOOM_FACTOR;
+                
+                content.style.left = contentX + 'px';
+                content.style.top = contentY + 'px';
+            });
+            
+            // ==========================================
+            // Scroll Handler - Update content on scroll
+            // ==========================================
+            let scrollTimeout;
+            window.addEventListener('scroll', function() {
+                if (isActive) {
+                    clearTimeout(scrollTimeout);
+                    scrollTimeout = setTimeout(updateMagnifierContent, 100);
+                }
+            });
+            
+            // ==========================================
+            // Keyboard Shortcut (M key)
+            // ==========================================
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'm' || e.key === 'M') {
+                    toggle.click();
+                }
+            });
+            
+            // ==========================================
+            // Hide/Show when leaving/entering window
+            // ==========================================
+            document.addEventListener('mouseleave', function() {
+                if (isActive) container.style.visibility = 'hidden';
+            });
+            
+            document.addEventListener('mouseenter', function() {
+                if (isActive) container.style.visibility = 'visible';
+            });
+            
+        })();
+    </script>
+</body>
+</html>
