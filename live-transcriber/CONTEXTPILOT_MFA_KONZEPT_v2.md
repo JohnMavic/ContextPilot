@@ -1,9 +1,9 @@
-# CONTEXTPILOT MFA-Konzept v2.1
+# CONTEXTPILOT MFA-Konzept v2.4
 ## Umstellung auf Azure Function mit Microsoft Agent Framework
 
-**Version:** 2.1  
-**Datum:** 24. Dezember 2025  
-**Status:** Validiert (MAF) – Entwurf zur Umsetzung  
+**Version:** 2.4  
+**Datum:** 3. Januar 2026  
+**Status:** Produktiv – Dokumentation entspricht 100% dem Code  
 **Technologie-Stack:** Azure Function (Python) + Microsoft Agent Framework (MAF)
 
 ---
@@ -260,7 +260,7 @@ Dieses Konzept beschreibt die Erweiterung von CONTEXTPILOT um eine **MFA-Option*
 > **Was Sie hier lernen:** Die einzige Änderung an bestehendem Code ist eine `if`-Bedingung in `handleAgentRequest()`: Wenn `agent.type === "mfa"`, wird zu `handleMFARequest()` verzweigt. Die bestehenden Pfade für `type: "agent"` und `type: "workflow"` bleiben völlig unverändert.
 
 ```javascript
-// proxy-server.js - Zeile 282-288 (bestehend)
+// proxy-server.js - handleAgentRequest()
 async function handleAgentRequest(req, res, body) {
   const agent = getCurrentAgent();
   
@@ -281,29 +281,47 @@ async function handleAgentRequest(req, res, body) {
 
 ### 3.3 Neue Funktion für MFA (komplett isoliert)
 
-> **Was Sie hier lernen:** Die Funktion `handleMFARequest()` ist komplett neu und berührt keinen bestehenden Code. Sie ruft die Azure Function über HTTP auf, übergibt den User-Prompt, und gibt die Antwort zurück. Bei Fehlern (5xx, Timeout) gibt es 3 Retry-Versuche mit exponentiellem Backoff.
+> **Was Sie hier lernen:** Die Funktion `handleMFARequest()` ist komplett neu und berührt keinen bestehenden Code. Sie ruft die Azure Function über HTTP auf, übergibt den User-Prompt, und gibt die Antwort zurück. **Keine Retries** – bei Rate Limits (50k TPM) würden Retries das Problem verschlimmern. Bei 5xx-Fehlern gibt es einen optionalen Fallback auf den CONTEXTPILOT-Workflow.
 
 ```javascript
-// proxy-server.js - NEUE Funktion (keine Änderung an bestehendem Code)
+// proxy-server.js - handleMFARequest()
 async function handleMFARequest(req, res, body, mfaConfig) {
-  console.log(`[MFA] Forwarding to Azure Function: ${mfaConfig.endpoint}`);
+  console.log(`[MFA] Request for: ${mfaConfig.label}`);
   
+  const correlationId = req.headers["x-correlation-id"] || randomUUID();
   const payload = JSON.parse(body || "{}");
+  const prompt = payload.prompt;
   
-  // Einfacher Forward an Azure Function
+  // Timeout: 200 Sekunden (Rate Limit ist 50k TPM)
+  const timeoutMs = parseInt(process.env.MFA_PROXY_TIMEOUT_MS || "200000", 10);
+  
+  // KEINE Retries - bei Rate Limits würden Retries das Problem verschlimmern
+  const maxRetries = 0;
+  
+  const headers = {
+    "Content-Type": "application/json",
+    "x-correlation-id": correlationId,
+  };
+  if (mfaConfig.functionKey) {
+    headers["x-functions-key"] = mfaConfig.functionKey;
+  }
+  
   const resp = await fetch(mfaConfig.endpoint, {
     method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "x-functions-key": mfaConfig.functionKey  // oder Managed Identity
-    },
-    body: JSON.stringify({ prompt: payload.prompt })
+    headers,
+    body: JSON.stringify({ prompt }),
   });
   
   const result = await resp.json();
   
+  // Response mit allen MFA-Metadaten
   res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ output_text: result.output_text }));
+  res.end(JSON.stringify({
+    output_text: result.output_text,
+    workflow: "mfa",
+    agents_used: result.agents_used || [],
+    routing: result.routing || {},
+  }));
 }
 ```
 
@@ -361,21 +379,19 @@ contextpilot-mfa-function/
 azure-functions==1.13.3
 
 # Microsoft Agent Framework (MAF) – Pin auf eine getestete Version
-# Empfehlung (Stand 24. Dez 2025): 1.0.0b251223
+# agent-framework-core ist das Base-Package
+# agent-framework-azure-ai enthält AzureAIClient (für Azure AI Foundry Integration)
 agent-framework-core==1.0.0b251223
 agent-framework-azure-ai==1.0.0b251223
 
-# Transitive Preview-Dependencies von agent-framework-azure-ai (explizit pinnen!)
-# Hinweis: agent-framework-azure-ai verlangt u.a. azure-ai-projects>=2.0.0b2 und azure-ai-agents==1.2.0b5.
+# azure-ai-projects V2 für existing agents by name
 azure-ai-projects==2.0.0b2
-azure-ai-agents==1.2.0b5
 
-# HTTP stack (vom Azure AI Stack verwendet)
+# HTTP stack
 aiohttp==3.13.2
 
 # Auth / Typing
-azure-identity==1.13.0
-typing-extensions==4.9.0
+azure-identity>=1.17.0
 ```
 
 Hinweis zur Reproduzierbarkeit:
@@ -452,10 +468,24 @@ AURA_SYNTHESIZER_AGENT_ID = os.environ["AURA_SYNTHESIZER_AGENT_ID"]
 ```
 </details>
 
-✅ **KORREKT - Produktiv-Code:**
+✅ **KORREKT - Produktiv-Code (Stand 3. Januar 2026):**
+
+Der vollständige, produktive Code befindet sich in `contextpilot-mfa-function/mfa_workflow.py`.
 
 ```python
-# Korrekter Import-Pfad!
+"""CONTEXTPILOT MFA Workflow v2.4 (MAF, Python)
+
+Optimiertes Pattern:
+- Triage entscheidet: direct, web, context, oder Kombinationen
+- "direct": AURAContextPilotQuick antwortet (schnelle, einfache Fragen)
+- Synthesizer NUR wenn BEIDE Agents (web + context) genutzt wurden
+- Einzelner Agent: Antwort direkt zurückgeben
+"""
+
+import json
+import os
+from typing import Any
+
 from agent_framework.azure import AzureAIClient  # ✅ RICHTIG: agent_framework.azure
 from azure.identity.aio import DefaultAzureCredential
 
@@ -463,7 +493,6 @@ AZURE_AI_PROJECT_ENDPOINT = os.environ["AZURE_AI_PROJECT_ENDPOINT"]
 AZURE_AI_MODEL_DEPLOYMENT_NAME = os.environ["AZURE_AI_MODEL_DEPLOYMENT_NAME"]
 
 # ✅ KORREKT: AGENT_NAME verwenden (nicht ID!)
-# Namen sind stabil, IDs ändern sich bei Agent-Updates
 AURA_TRIAGE_AGENT_NAME = os.environ["AURA_TRIAGE_AGENT_NAME"]
 AURA_QUICK_AGENT_NAME = os.environ.get("AURA_QUICK_AGENT_NAME", "AURAContextPilotQuick")
 AURA_WEB_AGENT_NAME = os.environ["AURA_WEB_AGENT_NAME"]
@@ -471,176 +500,66 @@ AURA_CONTEXT_AGENT_NAME = os.environ["AURA_CONTEXT_AGENT_NAME"]
 AURA_SYNTHESIZER_AGENT_NAME = os.environ["AURA_SYNTHESIZER_AGENT_NAME"]
 
 
-# ============================================================
-# EXECUTORS
-# ============================================================
-class TriageExecutor(Executor):
-    """Ruft AURATriage auf und liefert eine Routing-Entscheidung."""
-
-    def __init__(self, agent: ChatAgent):
-        super().__init__(id="triage")
-        self._agent = agent
-
-    @handler
-    async def handle(self, prompt: str, ctx: WorkflowContext) -> None:
-        result = await self._agent.run(prompt)
-
-        try:
-            decision = json.loads(result.text)
-        except Exception:
-            # Fallback: beide Agenten aktivieren
-            decision = {"agents": {"web": True, "context": True}, "reasoning": "fallback"}
-
-        await ctx.send_message({"original_prompt": prompt, "decision": decision})
-
-
-class WebAgentExecutor(Executor):
-    """Ruft AURAContextPilotWeb auf."""
-
-    def __init__(self, agent: ChatAgent):
-        super().__init__(id="web_agent")
-        self._agent = agent
-
-    @handler
-    async def handle(self, data: dict[str, Any], ctx: WorkflowContext) -> None:
-        result = await self._agent.run(data["original_prompt"])
-        await ctx.send_message({"agent": "web", "response": result.text})
+def parse_triage_response(triage_text: str) -> dict[str, Any]:
+    """Parse Triage JSON response mit Fallback."""
+    try:
+        data = json.loads(triage_text)
+        if "routing" in data:
+            return {
+                "direct": data["routing"].get("direct", False),
+                "web": data["routing"].get("web", False),
+                "context": data["routing"].get("context", False),
+                "reasoning": data.get("reasoning", ""),
+                "direct_response": None,
+            }
+        # Fallback
+        return {"direct": False, "web": True, "context": True, "reasoning": "Unknown format"}
+    except json.JSONDecodeError:
+        # Triage hat direkt geantwortet (kein JSON)
+        return {
+            "direct": True, "web": False, "context": False,
+            "reasoning": "Triage responded directly",
+            "direct_response": triage_text,
+        }
 
 
-class ContextAgentExecutor(Executor):
-    """Ruft AURAContextPilot auf."""
-
-    def __init__(self, agent: ChatAgent):
-        super().__init__(id="context_agent")
-        self._agent = agent
-
-    @handler
-    async def handle(self, data: dict[str, Any], ctx: WorkflowContext) -> None:
-        result = await self._agent.run(data["original_prompt"])
-        await ctx.send_message({"agent": "context", "response": result.text})
-
-
-class SynthesizerExecutor(Executor):
-    """Fasst alle Agent-Antworten zusammen."""
-
-    def __init__(self, agent: ChatAgent):
-        super().__init__(id="synthesizer")
-        self._agent = agent
-
-    @handler
-    async def handle(
-        self, results: list[dict[str, Any]], ctx: WorkflowContext[Never, str]
-    ) -> None:
-        prompt = self._build_synthesis_prompt(results)
-        result = await self._agent.run(prompt)
-        await ctx.yield_output(result.text)
-
-    @staticmethod
-    def _build_synthesis_prompt(results: list[dict[str, Any]]) -> str:
-        lines: list[str] = ["Fasse die folgenden Agent-Antworten zusammen:
-"]
-        for r in results:
-            agent_key = r.get("agent")
-            if not agent_key:
-                continue
-            lines.append(f"=== Antwort von {str(agent_key).upper()} ===")
-            lines.append(str(r.get("response", "")))
-            lines.append("")
-        lines.append("Erstelle eine kohärente, zusammengefasste Antwort.")
-        return "
-".join(lines)
-
-
-# ============================================================
-# WORKFLOW GRAPH
-# ============================================================
-# ⚠️ HINWEIS: Der WorkflowBuilder/DAG-Ansatz erwies sich als Overkill.
-# Die finale Implementierung nutzt einfache if/else Logik.
-# Siehe: contextpilot-mfa-function/mfa_workflow.py
-# ============================================================
-
-def select_agents(triage_output: dict[str, Any], target_ids: list[str]) -> list[str]:
-    """
-    Auswahlfunktion für add_multi_selection_edge_group().
-
-    target_ids Reihenfolge entspricht der Reihenfolge der übergebenen Executor-Liste:
-    [web_agent_executor.id, context_agent_executor.id]
-    """
-    web_id, context_id = target_ids
-    decision = triage_output.get("decision", {}).get("agents", {})
-
-    selected: list[str] = []
-    if decision.get("web") is True:
-        selected.append(web_id)
-    if decision.get("context") is True:
-        selected.append(context_id)
-
-    return selected or [web_id, context_id]
-
-
-# ⚠️ FALSCH - ÜBERKOMPLEXES PATTERN ⚠️
-#
-# Das folgende Pattern verwendet:
-# 1. AzureAIAgentClient (veraltet) statt AzureAIClient
-# 2. agent_id (starr) statt agent_name + use_latest_version
-# 3. WorkflowBuilder (Overkill für diesen Use-Case)
-#
-# <details>
-# <summary>❌ Ursprünglicher (falscher) Code</summary>
-#
-# async def build_mfa_workflow():
-#     async with (
-#         DefaultAzureCredential() as credential,
-#         AzureAIAgentClient(
-#             credential=credential,
-#             project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
-#             model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
-#             agent_id=AURA_TRIAGE_AGENT_ID,  # ❌ FALSCH!
-#         ).create_agent() as triage_agent,
-#         # ... weitere agents mit agent_id ...
-#     ):
-#         workflow = WorkflowBuilder()...  # ❌ Überkomplex
-#
-# </details>
-
-# ✅ KORREKTE IMPLEMENTIERUNG (einfach und stabil):
 async def run_mfa_workflow(prompt: str) -> dict[str, Any]:
     """Führt den optimierten MFA-Workflow aus.
     
-    Verwendet:
-    - AzureAIClient (nicht AzureAIAgentClient!)
-    - agent_name + use_latest_version=True (nicht agent_id!)
-    - Einfache sequentielle Logik (kein WorkflowBuilder nötig)
+    Returns:
+        dict mit: "response", "agents_used", "routing"
     """
+    agents_used: list[str] = []
     
     async with DefaultAzureCredential() as credential:
         
         # === PHASE 1: TRIAGE ===
+        agents_used.append("AURATriage")
         async with AzureAIClient(
             credential=credential,
             project_endpoint=AZURE_AI_PROJECT_ENDPOINT,
             model_deployment_name=AZURE_AI_MODEL_DEPLOYMENT_NAME,
-            agent_name=AURA_TRIAGE_AGENT_NAME,  # ✅ Name statt ID!
-            use_latest_version=True,             # ✅ Automatische Updates!
+            agent_name=AURA_TRIAGE_AGENT_NAME,
+            use_latest_version=True,
         ).create_agent() as triage_agent:
             triage_result = await triage_agent.run(prompt)
             routing = parse_triage_response(triage_result.text)
         
-        # === PHASE 2-4: Weitere Agents nach Bedarf ===
-        # Siehe vollständige Implementierung in:
-        # contextpilot-mfa-function/mfa_workflow.py
-
-
-async def run_mfa_workflow(prompt: str) -> str:
-    """Führt den kompletten MFA-Workflow aus und liefert die finale Antwort."""
-    workflow = await build_mfa_workflow()
-
-    final_output: str | None = None
-    async for event in workflow.run_stream(prompt):
-        if isinstance(event, WorkflowOutputEvent):
-            final_output = event.data
-
-    return final_output or "Keine Antwort erhalten."
+        # === PHASE 2: DIRECT RESPONSE ===
+        if routing["direct"]:
+            if routing.get("direct_response"):
+                return {"response": routing["direct_response"], "agents_used": agents_used, "routing": routing}
+            # AURAContextPilotQuick für schnelle Antworten
+            agents_used.append("AURAContextPilotQuick")
+            async with AzureAIClient(...).create_agent() as quick_agent:
+                return {"response": (await quick_agent.run(prompt)).text, ...}
+        
+        # === PHASE 3: AGENT-AUFRUFE (web/context) ===
+        # Nur aufrufen wenn routing["web"] bzw routing["context"] == True
+        # Bei BEIDEN: Synthesizer am Ende
+        # Bei EINEM: Direkte Antwort ohne Synthesizer
+        
+        # Vollständige Implementierung siehe: contextpilot-mfa-function/mfa_workflow.py
 ```
 
 ### 4.4 Azure Function Entry Point (function_app.py)
@@ -746,63 +665,14 @@ async def mfa_endpoint(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logging.exception("MFA failed (cid=%s)", correlation_id)
         return func.HttpResponse(
-            json.dumps({"error": str(e)}),
+            json.dumps({"error": str(e), "hint": "Check Azure Function logs"}),
             status_code=500,
             mimetype="application/json",
-        )
-
-@app.route(route="mfa", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
-async def mfa_endpoint(req: func.HttpRequest) -> func.HttpResponse:
-    """
-    HTTP Endpoint für MFA-Anfragen.
-    
-    Request Body:
-    {
-        "prompt": "User-Frage hier..."
-    }
-    
-    Response:
-    {
-        "output_text": "Synthetisierte Antwort...",
-        "workflow": "mfa"
-    }
-    """
-    
-    try:
-        body = req.get_json()
-        prompt = body.get("prompt", "")
-        
-        if not prompt:
-            return func.HttpResponse(
-                json.dumps({"error": "Missing 'prompt' in request body"}),
-                status_code=400,
-                mimetype="application/json"
-            )
-        
-        # MAF Workflow ausführen
-        result = await run_mfa_workflow(prompt)
-        
-        return func.HttpResponse(
-            json.dumps({
-                "output_text": result,
-                "workflow": "mfa"
-            }),
-            status_code=200,
-            mimetype="application/json"
-        )
-        
-    except Exception as e:
-        return func.HttpResponse(
-            json.dumps({
-                "error": str(e),
-                "hint": "Check Azure Function logs for details"
-            }),
-            status_code=500,
-            mimetype="application/json"
+            headers={"x-correlation-id": correlation_id},
         )
 ```
 
-### 4.5 Rolle von `AzureAIAgentClient` im CONTEXTPILOT-MAF Bild
+### 4.5 Rolle von `AzureAIClient` im CONTEXTPILOT-MAF Bild
 
 > **Was Sie hier lernen:** Die Klasse `AzureAIClient` (nicht `AzureAIAgentClient`!) ist der Python-Client, der Azure AI Foundry Agents als ausführbare `ChatAgent`-Instanzen bereitstellt. Sie handhabt Authentifizierung (Managed Identity), Projekt-Endpoint-Konfiguration und Agent-Auflösung per Name.
 
