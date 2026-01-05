@@ -756,7 +756,7 @@ export default function App() {
 
   const withWebSearchInstruction = useCallback((prompt: string, useWebSearch: boolean) => {
     if (!useWebSearch) return prompt;
-    return `${prompt}\n\nPerform a web search.`;
+    return `${prompt}\n\nYou MUST perform a web search to answer this question. Do not rely on your training data alone.`;
   }, []);
 
   // Kombinierter Handler: Highlight erstellen UND Expand-Query starten

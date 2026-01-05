@@ -1,9 +1,9 @@
-# CONTEXTPILOT MFA-Konzept v2.4
+# CONTEXTPILOT MFA-Konzept v2.5
 ## Umstellung auf Azure Function mit Microsoft Agent Framework
 
-**Version:** 2.4  
-**Datum:** 3. Januar 2026  
-**Status:** Produktiv – Dokumentation entspricht 100% dem Code  
+**Version:** 2.5  
+**Datum:** 5. Januar 2026  
+**Status:** Produktiv – Zwischenstand (siehe Implementierungsstatus)  
 **Technologie-Stack:** Azure Function (Python) + Microsoft Agent Framework (MAF)
 
 ---
@@ -152,20 +152,59 @@ Invoke-RestMethod -Uri "http://localhost:7071/api/healthz"
 
 ## 1. Zusammenfassung
 
-Dieses Konzept beschreibt die Erweiterung von CONTEXTPILOT um eine **MFA-Option** (Multi-Agent Framework), die echte Parallelisierung mittels Microsoft Agent Framework in einer Azure Function implementiert.
+Dieses Konzept beschreibt die Erweiterung von CONTEXTPILOT um eine **MFA-Option** (Multi-Agent Framework), die Agents über das Microsoft Agent Framework in einer Azure Function orchestriert.
 
-**Kernziele:**
+**Kernziele (Endziel):**
 - ✅ Bestehende Funktionalität (Agent, Workflow) bleibt **unverändert**
 - ✅ Neue MFA-Option nutzt **offizielles Microsoft Agent Framework**
-- ✅ Echte Parallelität via `add_multi_selection_edge_group()` (dynamisch) + `add_fan_in_edges()` (Fan-In)
+- ⏳ Echte Parallelität via `add_multi_selection_edge_group()` (dynamisch) + `add_fan_in_edges()` (Fan-In) *(noch nicht implementiert)*
 - ✅ Dynamische Agent-Auswahl durch **AURATriage**
 - ✅ Stabil durch Version-Pinning + kontrollierte Updates (Upgrade nur nach Test)
 
 ---
 
+## 1.1 Implementierungsstatus (Stand: 5. Januar 2026)
+
+> **Was Sie hier lernen:** Diese Tabelle zeigt transparent, welche Teile des Konzepts bereits produktiv implementiert sind und welche noch ausstehen. Die Kernziele oben beschreiben das **Endziel** der Architektur – der aktuelle Stand ist ein funktionierender **Zwischenstand** mit sequenzieller Agent-Orchestrierung.
+
+| Dokumentiert | Implementiert | Status |
+|--------------|---------------|--------|
+| Microsoft Agent Framework (MAF) | ✅ Ja | agent-framework-core, agent-framework-azure-ai installiert |
+| AzureAIClient für Agent-Aufrufe | ✅ Ja | Wird in mfa_workflow.py verwendet |
+| AURATriage für Routing | ✅ Ja | Funktioniert, gibt direct/web/context zurück |
+| AURAContextPilotQuick | ✅ Ja | Wird bei direct=true aufgerufen |
+| AURAContextPilotWeb | ✅ Ja | Wird bei web=true aufgerufen |
+| AURAContextPilot | ✅ Ja | Wird bei context=true aufgerufen |
+| AURASynthesizer | ✅ Ja | Wird bei web+context aufgerufen |
+| WorkflowBuilder API | ❌ Nein | Nicht verwendet (geplant) |
+| add_multi_selection_edge_group() | ❌ Nein | Nicht verwendet (geplant) |
+| add_fan_in_edges() | ❌ Nein | Nicht verwendet (geplant) |
+| Echte Parallelität (Fan-Out) | ❌ Nein | Agents laufen sequenziell |
+| Deklarativer Graph | ❌ Nein | Imperative if/else Logik |
+
+### Was bedeutet das?
+
+**Aktueller Zwischenstand:**
+- Die MFA-Architektur funktioniert vollständig
+- Triage-basiertes Routing ist produktiv
+- Alle 5 Agents (Triage, Quick, Web, Context, Synthesizer) werden korrekt aufgerufen
+- Bei web=true UND context=true werden beide Agents aufgerufen, **aber nacheinander (sequenziell)**
+
+**Noch nicht implementiert (Endziel):**
+- Parallele Ausführung von Web + Context Agent (Fan-Out)
+- MAF-native WorkflowBuilder API mit deklarativem Graph
+- Latenzreduktion von ~15s auf ~7-10s bei Dual-Agent-Anfragen
+
+**Warum ist das akzeptabel?**
+- Der sequenzielle Ablauf ist **funktional korrekt** – nur langsamer
+- Für die aktuelle Nutzung (0-60 Min/Tag) ist die Latenz akzeptabel
+- Die Architektur ist **vorbereitet** für Parallelisierung (keine strukturellen Änderungen nötig)
+
+---
+
 ## 2. Architektur: Vorher vs. Nachher
 
-> **Was Sie hier lernen:** Die CONTEXTPILOT-Architektur besteht aus drei Komponenten: React-Frontend (SWA), Node.js-Proxy (App Service), und Azure AI Foundry Agents. Die MFA-Erweiterung fügt eine Python-basierte Azure Function hinzu, die parallel mehrere Agents orchestriert – ohne die bestehenden Wege (Agent/Workflow) zu verändern.
+> **Was Sie hier lernen:** Die CONTEXTPILOT-Architektur besteht aus drei Komponenten: React-Frontend (SWA), Node.js-Proxy (App Service), und Azure AI Foundry Agents. Die MFA-Erweiterung fügt eine Python-basierte Azure Function hinzu, die mehrere Agents orchestriert (aktuell sequenziell, Endziel: parallel) – ohne die bestehenden Wege (Agent/Workflow) zu verändern.
 
 ### 2.1 Bestehende Architektur (bleibt erhalten!)
 
@@ -223,15 +262,15 @@ Dieses Konzept beschreibt die Erweiterung von CONTEXTPILOT um eine **MFA-Option*
 │   │ AURATriage  │ ← Entscheidet welche Agenten                      │
 │   └──────┬──────┘                                                   │
 │          │                                                          │
-│          │ add_multi_selection_edge_group()                         │
+│          │ add_multi_selection_edge_group()  (ENDZIEL - noch nicht impl.)│
 │          │                                                          │
 │   ┌──────┴──────┬──────────────┐                                    │
 │   ▼             ▼              ▼                                    │
-│ [Web]       [Context]     [Future...]   ← Parallel!                 │
-│   │             │              │                                    │
+│ [Web]       [Context]     [Future...]   ← Endziel: Parallel!       │
+│   │             │              │            (aktuell: sequenziell)  │
 │   └──────┬──────┴──────────────┘                                    │
 │          │                                                          │
-│          │ add_fan_in_edges()                                       │
+│          │ add_fan_in_edges()  (ENDZIEL - noch nicht implementiert) │
 │          ▼                                                          │
 │   ┌─────────────┐                                                   │
 │   │ Synthesizer │ ← Fasst alles zusammen                            │
@@ -833,8 +872,8 @@ User: "Compare our sales strategy with industry best practices"
 │     └─────────────────────────────────────────────────────────┘     │
 │                                                                     │
 │     ┌─ web: true, context: true ──────────────────────────────┐     │
-│     │  → BEIDE Agents parallel aufrufen                       │     │
-│     │  → Fan-In sammelt Ergebnisse                            │     │
+│     │  → BEIDE Agents aufrufen (aktuell: sequenziell)         │     │
+│     │  → Endziel: parallel mit Fan-In                         │     │
 │     │  → Synthesizer fasst zusammen                           │     │
 │     └─────────────────────────────────────────────────────────┘     │
 │                                                                     │
@@ -1276,7 +1315,7 @@ WORKFLOW_1_ENDPOINT=https://...
 # NEU: MFA KONFIGURATION
 # ============================================================
 MFA_1_NAME=AURA-MFA
-MFA_1_LABEL=Multi-Agent (Parallel with Triage)
+MFA_1_LABEL=Multi-Agent (Triage-Routing)
 MFA_1_ENDPOINT=https://contextpilot-mfa.azurewebsites.net/api/mfa
 MFA_1_FUNCTION_KEY=your-function-key-here
 ```
@@ -1285,17 +1324,18 @@ MFA_1_FUNCTION_KEY=your-function-key-here
 
 ## 8. Vergleich: Foundry Workflow vs. MFA
 
-> **Was Sie hier lernen:** Der bestehende Foundry Workflow führt Agents sequenziell aus (Web → Context → Synthesizer), was 15-20 Sekunden dauert. MFA führt Web und Context parallel aus, wodurch die Latenz auf 7-10 Sekunden sinkt. Zusätzlich kann MFA dynamisch entscheiden, welche Agents überhaupt benötigt werden.
+> **Was Sie hier lernen:** Der bestehende Foundry Workflow führt Agents sequenziell aus (Web → Context → Synthesizer), was 15-20 Sekunden dauert. Das MFA-Endziel ist parallele Ausführung von Web + Context (7-10s). **Aktueller Stand:** MFA läuft ebenfalls sequenziell, bietet aber bereits dynamische Agent-Auswahl via Triage.
 
-| Aspekt | Foundry Workflow | MFA (Azure Function + MAF) |
-|--------|------------------|----------------------------|
-| **Ausführung** | Sequenziell | Parallel |
-| **Latenz (3 Agenten)** | ~15-20s (3x hintereinander) | ~7-10s (parallel + Synthese) |
-| **Dynamische Auswahl** | Nein (fest definiert) | Ja (Triage entscheidet) |
-| **Erweiterbarkeit** | Workflow neu definieren | Agent hinzufügen, fertig |
-| **Microsoft-Support** | Foundry Team | Agent Framework Team |
-| **SDK-Updates** | N/A | Version-Pinning + kontrollierte Upgrades |
-| **Hosting** | Foundry-managed | Azure Function (dein Tenant) |
+| Aspekt | Foundry Workflow | MFA aktuell (Zwischenstand) | MFA Endziel |
+|--------|------------------|----------------------------|-------------|
+| **Ausführung** | Sequenziell | Sequenziell | Parallel (Fan-Out) |
+| **Latenz (3 Agenten)** | ~15-20s | ~15-20s | ~7-10s |
+| **Dynamische Auswahl** | Nein (fest definiert) | ✅ Ja (Triage entscheidet) | ✅ Ja |
+| **Erweiterbarkeit** | Workflow neu definieren | ✅ Agent hinzufügen, fertig | ✅ Agent hinzufügen, fertig |
+| **Microsoft-Support** | Foundry Team | Agent Framework Team | Agent Framework Team |
+| **SDK-Updates** | N/A | ✅ Version-Pinning | ✅ Version-Pinning |
+| **Hosting** | Foundry-managed | ✅ Azure Function (dein Tenant) | ✅ Azure Function (dein Tenant) |
+| **WorkflowBuilder API** | N/A | ❌ Nicht verwendet | Deklarativer Graph |
 
 ---
 
@@ -1424,7 +1464,7 @@ CONTEXTPILOT besitzt heute zwei stabile Ausführungswege:
 - **Workflow** (Foundry Workflow sequenziell)
 
 Neu wird ein **dritter** Weg hinzugefügt:
-- **MFA / MAF** (Azure Function + Microsoft Agent Framework, parallelisiert)
+- **MFA / MAF** (Azure Function + Microsoft Agent Framework, aktuell sequenziell, Endziel: parallelisiert)
 
 Dieser dritte Weg ist **rein additiv**. Nichts Bestehendes wird ersetzt oder verändert.
 
@@ -1434,7 +1474,7 @@ Du musst einen neuen, unabhängigen Ausführungsweg implementieren, der:
 1. **Bestehende Agent- und Workflow-Prozesse nicht zerstört** (Regression-frei).
 2. Lokal als PoC funktioniert.
 3. Danach unverändert (nur Konfig) auf Azure Functions deployt werden kann.
-4. MAF nutzt, um `AURATriage` → (Web/Context parallel oder einzeln) → Synthesizer auszuführen.
+4. MAF nutzt, um `AURATriage` → (Web/Context sequenziell, Endziel: parallel) → Synthesizer auszuführen.
 
 ### 14.3 Plan (3–4 Werktage)
 
@@ -1493,7 +1533,7 @@ Du musst einen neuen, unabhängigen Ausführungsweg implementieren, der:
    - Function startet lokal.
    - `POST /api/mfa` liefert JSON `{ "output_text": "...", "workflow": "mfa" }`.
    - Triage JSON Parsing funktioniert (inkl. Fallback: beide Agents).
-   - Web/Context laufen parallel (nachweisbar über Logs/Timing).
+   - Web/Context werden korrekt aufgerufen (aktuell sequenziell, Endziel: parallel).
 
 5. ~~**MAF Workflow (Pflichtstruktur):**~~ ❌ **KORREKTUR: WorkflowBuilder ist NICHT nötig!**
    

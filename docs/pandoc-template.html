@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>$pagetitle$</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    html, body {
+      height: 100%;
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+    }
+    
+    .container {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .sidebar {
+      width: 320px;
+      min-width: 200px;
+      max-width: 500px;
+      background: #f8f9fa;
+      border-right: 2px solid #0078d4;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .sidebar-header {
+      padding: 20px;
+      background: linear-gradient(135deg, #0078d4, #00a4ef);
+      color: white;
+      font-weight: 700;
+      font-size: 1.1em;
+    }
+    
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+    }
+    
+    .sidebar-content ul { list-style: none; padding-left: 0; }
+    .sidebar-content ul ul { padding-left: 1.2em; margin-top: 5px; border-left: 1px solid #ddd; }
+    .sidebar-content li { margin-bottom: 4px; }
+    .sidebar-content a {
+      display: block;
+      padding: 6px 10px;
+      color: #333;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 0.9em;
+      transition: all 0.15s;
+    }
+    .sidebar-content a:hover {
+      background: #e3f2fd;
+      color: #0078d4;
+      transform: translateX(3px);
+    }
+    .sidebar-content > ul > li > a { font-weight: 600; color: #0078d4; }
+    
+    .resizer {
+      width: 6px;
+      background: #e0e0e0;
+      cursor: col-resize;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .resizer:hover, .resizer.active { background: #0078d4; }
+    
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px 50px;
+    }
+    
+    .content-inner { max-width: 950px; }
+    
+    h1 { font-size: 1.9em; color: #0078d4; border-bottom: 3px solid #0078d4; padding-bottom: 12px; margin: 1.5em 0 0.8em 0; }
+    h2 { font-size: 1.5em; color: #333; margin-top: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; }
+    h3 { font-size: 1.2em; color: #444; margin-top: 1.5em; }
+    h4 { font-size: 1.1em; color: #555; margin-top: 1.2em; }
+    p { margin: 1em 0; }
+    
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.85em;
+      line-height: 1.4;
+      margin: 1em 0;
+      white-space: pre;
+    }
+    
+    code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 0.9em; }
+    :not(pre) > code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; color: #c7254e; }
+    
+    table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
+    th { background: #f0f0f0; font-weight: 600; }
+    tr:nth-child(even) { background: #fafafa; }
+    
+    ul, ol { padding-left: 2em; margin: 1em 0; }
+    li { margin-bottom: 0.5em; }
+    
+    blockquote {
+      border-left: 4px solid #0078d4;
+      background: #f0f7ff;
+      padding: 15px 20px;
+      margin: 1em 0;
+      border-radius: 0 6px 6px 0;
+    }
+    
+    a { color: #0078d4; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    
+    details { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px 15px; margin: 1em 0; background: #fafafa; }
+    summary { cursor: pointer; font-weight: 600; color: #0078d4; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 2em 0; }
+    
+    @media print {
+      .container { display: block; }
+      .sidebar, .resizer { display: none; }
+      .content { padding: 20px; overflow: visible; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-header">📑 Inhaltsverzeichnis</div>
+      <div class="sidebar-content">
+        $toc$
+      </div>
+    </div>
+    <div class="resizer" id="resizer"></div>
+    <div class="content">
+      <div class="content-inner">
+        $body$
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const resizer = document.getElementById('resizer');
+    const sidebar = document.querySelector('.sidebar');
+    let isResizing = false;
+    
+    resizer.addEventListener('mousedown', () => {
+      isResizing = true;
+      resizer.classList.add('active');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      if (e.clientX >= 200 && e.clientX <= 500) {
+        sidebar.style.width = e.clientX + 'px';
+      }
+    });
+    
+    document.addEventListener('mouseup', () => {
+      isResizing = false;
+      resizer.classList.remove('active');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  </script>
+</body>
+</html>

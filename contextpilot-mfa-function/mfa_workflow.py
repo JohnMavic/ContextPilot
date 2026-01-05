@@ -1,6 +1,9 @@
-"""CONTEXTPILOT MFA Workflow v2.4 (MAF, Python)
+"""CONTEXTPILOT MFA Workflow v2.5 (MAF, Python)
 
-Optimiertes Pattern:
+Aktueller Stand: Sequenzielle Agent-Orchestrierung mit Triage-Routing
+Endziel: Parallele Ausführung via MAF WorkflowBuilder (Fan-Out/Fan-In)
+
+Pattern:
 - Triage entscheidet: direct, web, context, oder Kombinationen
 - "direct": AURAContextPilotQuick antwortet (schnelle, einfache Fragen)
 - Synthesizer NUR wenn BEIDE Agents (web + context) genutzt wurden
@@ -72,13 +75,13 @@ def parse_triage_response(triage_text: str) -> dict[str, Any]:
 
 
 async def run_mfa_workflow(prompt: str) -> dict[str, Any]:
-    """Führt den optimierten MFA-Workflow aus.
+    """Führt den MFA-Workflow aus (aktuell sequenziell, Endziel: parallel).
     
     Ablauf:
     1. Triage entscheidet Routing (direct/web/context)
     2. Bei "direct": Sofortige Antwort ohne weitere Agents
     3. Bei einem Agent: Nur diesen aufrufen, Antwort direkt zurückgeben
-    4. Bei beiden Agents: Parallel aufrufen, dann Synthesizer
+    4. Bei beiden Agents: Sequenziell aufrufen (TODO: parallel), dann Synthesizer
     
     Returns:
         dict mit:

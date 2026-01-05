@@ -15,7 +15,7 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 def healthz(req: func.HttpRequest) -> func.HttpResponse:
     """Health check endpoint - lädt ohne Heavy-Imports."""
     return func.HttpResponse(
-        json.dumps({"ok": True, "version": "2.4"}),
+        json.dumps({"ok": True, "version": "2.5"}),
         status_code=200,
         mimetype="application/json",
     )

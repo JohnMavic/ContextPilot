@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>AURA Foundry API Guide</title>
+  <style>
+
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style type="text/css">@page {size: A4;margin: 2cm 2cm 2.5cm 2cm;}body {font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;line-height: 1.6;max-width: 900px;margin: 0 auto;padding: 20px;color: #1a1a1a;}.doc-header {border-bottom: 3px solid #0078d4;padding-bottom: 20px;margin-bottom: 30px;}.doc-header h1 {color: #0078d4;margin-bottom: 5px;}.doc-meta {color: #666;font-size: 0.9em;}h1 { font-size: 1.8em; color: #0078d4; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }h2 { font-size: 1.4em; color: #333; margin-top: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; }h3 { font-size: 1.2em; color: #444; margin-top: 1.5em; }h4 { font-size: 1.1em; color: #555; }pre {background-color: #f6f8fa;border: 1px solid #e1e4e8;border-radius: 6px;padding: 16px;overflow-x: auto;font-size: 0.85em;line-height: 1.45;}code {font-family: 'Consolas', 'Monaco', 'Courier New', monospace;font-size: 0.9em;}:not(pre) > code {background-color: #f0f0f0;padding: 2px 6px;border-radius: 3px;}table {width: 100%;border-collapse: collapse;margin: 1em 0;}th, td {border: 1px solid #ddd;padding: 10px 12px;text-align: left;}th {background-color: #f0f0f0;font-weight: 600;}tr:nth-child(even) {background-color: #fafafa;}ul, ol {padding-left: 2em;}li {margin-bottom: 0.5em;}blockquote {border-left: 4px solid #0078d4;background-color: #f0f7ff;padding: 15px 20px;margin: 1em 0;color: #333;}a {color: #0078d4;text-decoration: none;}a:hover {text-decoration: underline;}@media print {body {max-width: 100%;padding: 0;font-size: 10pt;}pre {white-space: pre-wrap;word-wrap: break-word;page-break-inside: avoid;}h1, h2, h3 {page-break-after: avoid;}table, figure {page-break-inside: avoid;}a {color: #333;}}</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">AURA Foundry API Guide</h1>
+</header>
+<h1 id="aura-agent-api-integration-guide">AURA Agent API Integration
+Guide</h1>
+<h2 id="microsoft-foundry-new---responses-api">Microsoft Foundry (new) -
+Responses API</h2>
+<blockquote>
+<p><strong>Stand:</strong> Dezember 2025<br />
+<strong>API Version:</strong> <code>2025-11-15-preview</code><br />
+<strong>Getestet mit:</strong> AURAContext Agent (claude-sonnet-4-5)</p>
+</blockquote>
+<hr />
+<h2 id="übersicht">1. Übersicht</h2>
+<p>Die neue Microsoft Foundry API (ab November 2025) verwendet die
+<strong>Responses API</strong> mit Agent-Referenzierung nach
+<strong>Namen</strong> (nicht ID wie bei der alten Assistants API).</p>
+<h3 id="wichtige-unterschiede-zur-alten-api">Wichtige Unterschiede zur
+alten API:</h3>
+<table>
+<thead>
+<tr>
+<th>Alt (Assistants API)</th>
+<th>Neu (Responses API)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>assistant_id: &quot;asst_xxx&quot;</code></td>
+<td><code>agent: { name: &quot;AURAContext&quot; }</code></td>
+</tr>
+<tr>
+<td>Thread erstellen → Message → Run → Poll</td>
+<td>Einzelner POST Request</td>
+</tr>
+<tr>
+<td>API Version <code>2025-05-01</code></td>
+<td>API Version <code>2025-11-15-preview</code></td>
+</tr>
+<tr>
+<td><code>/assistants</code>, <code>/threads</code>,
+<code>/runs</code></td>
+<td><code>/openai/responses</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="endpoint-authentifizierung">2. Endpoint &amp;
+Authentifizierung</h2>
+<h3 id="endpoint-format">Endpoint Format</h3>
+<pre><code>POST https://&lt;resource-name&gt;.services.ai.azure.com/api/projects/&lt;project-name&gt;/openai/responses?api-version=2025-11-15-preview</code></pre>
+<h3 id="konkretes-beispiel">Konkretes Beispiel</h3>
+<pre><code>POST https://aura-foundry-resource.services.ai.azure.com/api/projects/aura/openai/responses?api-version=2025-11-15-preview</code></pre>
+<h3 id="authentifizierung-azure-ad-token">Authentifizierung (Azure AD
+Token)</h3>
+<p><strong>Scope:</strong>
+<code>https://ai.azure.com/.default</code></p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { DefaultAzureCredential } <span class="im">from</span> <span class="st">&quot;@azure/identity&quot;</span><span class="op">;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> credential <span class="op">=</span> <span class="kw">new</span> <span class="fu">DefaultAzureCredential</span>()<span class="op">;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> scope <span class="op">=</span> <span class="st">&quot;https://ai.azure.com/.default&quot;</span><span class="op">;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> token <span class="op">=</span> <span class="cf">await</span> credential<span class="op">.</span><span class="fu">getToken</span>(scope)<span class="op">;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> headers <span class="op">=</span> {</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;Content-Type&quot;</span><span class="op">:</span> <span class="st">&quot;application/json&quot;</span><span class="op">,</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;Authorization&quot;</span><span class="op">:</span> <span class="vs">`Bearer </span><span class="sc">${</span>token<span class="op">.</span><span class="at">token</span><span class="sc">}</span><span class="vs">`</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>}<span class="op">;</span></span></code></pre></div>
+<p><strong>Voraussetzungen für lokale Entwicklung:</strong> - Azure CLI
+installiert (<code>az login</code> ausgeführt) - Oder:
+Umgebungsvariablen <code>AZURE_TENANT_ID</code>,
+<code>AZURE_CLIENT_ID</code>, <code>AZURE_CLIENT_SECRET</code></p>
+<hr />
+<h2 id="request-format">3. Request Format</h2>
+<h3 id="minimaler-request">Minimaler Request</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agent&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;agent_reference&quot;</span><span class="fu">,</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;AURAContext&quot;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;input&quot;</span><span class="fu">:</span> <span class="st">&quot;Was sind die 5 wichtigsten Wins dieser Periode?&quot;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="mit-conversation-id-multi-turn">Mit Conversation ID
+(Multi-Turn)</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agent&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;agent_reference&quot;</span><span class="fu">,</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;AURAContext&quot;</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;input&quot;</span><span class="fu">:</span> <span class="st">&quot;Erzähl mir mehr über den ersten Win.&quot;</span><span class="fu">,</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;conversation&quot;</span><span class="fu">:</span> <span class="st">&quot;conv_abc123...&quot;</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="verfügbare-agenten-stand-dezember-2025">Verfügbare Agenten
+(Stand Dezember 2025)</h3>
+<table>
+<thead>
+<tr>
+<th>Agent Name</th>
+<th>Beschreibung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AURAContext</code></td>
+<td>Allgemeiner Kontext-Agent</td>
+</tr>
+<tr>
+<td><code>AURASpeachToText</code></td>
+<td>Speech-to-Text</td>
+</tr>
+<tr>
+<td><code>AURAMedicalV02</code></td>
+<td>Medizinische Anfragen</td>
+</tr>
+<tr>
+<td><code>AURAOrchestratorV02</code></td>
+<td>Orchestrierung</td>
+</tr>
+<tr>
+<td><code>AURAWeatherV02</code></td>
+<td>Wetter-Anfragen</td>
+</tr>
+<tr>
+<td><code>AURATravelV02</code></td>
+<td>Reise-Anfragen</td>
+</tr>
+<tr>
+<td><code>AURAMainV02</code></td>
+<td>Haupt-Agent</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="response-format">4. Response Format</h2>
+<h3 id="erfolgreiche-response-http-200">Erfolgreiche Response (HTTP
+200)</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;resp_xxx&quot;</span><span class="fu">,</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;object&quot;</span><span class="fu">:</span> <span class="st">&quot;response&quot;</span><span class="fu">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span><span class="fu">,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;model&quot;</span><span class="fu">:</span> <span class="st">&quot;claude-sonnet-4-5&quot;</span><span class="fu">,</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;output&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;file_search_call&quot;</span><span class="fu">,</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;msg_xxx&quot;</span><span class="fu">,</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span><span class="fu">,</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;queries&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;...&quot;</span><span class="ot">]</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;message&quot;</span><span class="fu">,</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;msg_xxx&quot;</span><span class="fu">,</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span><span class="fu">,</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;assistant&quot;</span><span class="fu">,</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;content&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>          <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;output_text&quot;</span><span class="fu">,</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>          <span class="dt">&quot;text&quot;</span><span class="fu">:</span> <span class="st">&quot;Die Antwort des Agenten...&quot;</span><span class="fu">,</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>          <span class="dt">&quot;annotations&quot;</span><span class="fu">:</span> <span class="ot">[]</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>        <span class="fu">}</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;usage&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;input_tokens&quot;</span><span class="fu">:</span> <span class="dv">4576</span><span class="fu">,</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;output_tokens&quot;</span><span class="fu">:</span> <span class="dv">682</span><span class="fu">,</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_tokens&quot;</span><span class="fu">:</span> <span class="dv">5258</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agent&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;agent_id&quot;</span><span class="fu">,</span></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;AURAContext&quot;</span><span class="fu">,</span></span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;version&quot;</span><span class="fu">:</span> <span class="st">&quot;2&quot;</span></span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;conversation&quot;</span><span class="fu">:</span> <span class="kw">null</span></span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="response-parsing-javascript">Response Parsing (JavaScript)</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">extractAgentResponse</span>(responseData) {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Direkt output_text (falls vorhanden)</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (responseData<span class="op">.</span><span class="at">output_text</span>) {</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> responseData<span class="op">.</span><span class="at">output_text</span><span class="op">;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Suche nach message-Typ im output Array</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (responseData<span class="op">.</span><span class="at">output</span> <span class="op">&amp;&amp;</span> <span class="bu">Array</span><span class="op">.</span><span class="fu">isArray</span>(responseData<span class="op">.</span><span class="at">output</span>)) {</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">const</span> messageOutput <span class="op">=</span> responseData<span class="op">.</span><span class="at">output</span><span class="op">.</span><span class="fu">find</span>(o <span class="kw">=&gt;</span> o<span class="op">.</span><span class="at">type</span> <span class="op">===</span> <span class="st">&quot;message&quot;</span>)<span class="op">;</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (messageOutput<span class="op">?.</span><span class="at">content</span>) {</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>      <span class="kw">const</span> textContent <span class="op">=</span> messageOutput<span class="op">.</span><span class="at">content</span><span class="op">.</span><span class="fu">find</span>(</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        c <span class="kw">=&gt;</span> c<span class="op">.</span><span class="at">type</span> <span class="op">===</span> <span class="st">&quot;output_text&quot;</span> <span class="op">||</span> c<span class="op">.</span><span class="at">type</span> <span class="op">===</span> <span class="st">&quot;text&quot;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>      )<span class="op">;</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>      <span class="cf">if</span> (textContent) {</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> textContent<span class="op">.</span><span class="at">text</span> <span class="op">||</span> textContent<span class="op">.</span><span class="at">value</span><span class="op">;</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>      }</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Fallback</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="bu">JSON</span><span class="op">.</span><span class="fu">stringify</span>(responseData)<span class="op">;</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="vollständiges-code-beispiel-node.js">5. Vollständiges
+Code-Beispiel (Node.js)</h2>
+<div class="sourceCode" id="cb8"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { DefaultAzureCredential } <span class="im">from</span> <span class="st">&quot;@azure/identity&quot;</span><span class="op">;</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> AURA_ENDPOINT <span class="op">=</span> <span class="st">&quot;https://aura-foundry-resource.services.ai.azure.com/api/projects/aura&quot;</span><span class="op">;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> AURA_AGENT_NAME <span class="op">=</span> <span class="st">&quot;AURAContext&quot;</span><span class="op">;</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> AURA_API_VERSION <span class="op">=</span> <span class="st">&quot;2025-11-15-preview&quot;</span><span class="op">;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="kw">async</span> <span class="kw">function</span> <span class="fu">askAURA</span>(prompt<span class="op">,</span> conversationId <span class="op">=</span> <span class="kw">null</span>) {</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="co">// 1. Token holen</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> credential <span class="op">=</span> <span class="kw">new</span> <span class="fu">DefaultAzureCredential</span>()<span class="op">;</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> token <span class="op">=</span> <span class="cf">await</span> credential<span class="op">.</span><span class="fu">getToken</span>(<span class="st">&quot;https://ai.azure.com/.default&quot;</span>)<span class="op">;</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  <span class="co">// 2. Request Body</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> requestBody <span class="op">=</span> {</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">agent</span><span class="op">:</span> {</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">type</span><span class="op">:</span> <span class="st">&quot;agent_reference&quot;</span><span class="op">,</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>      <span class="dt">name</span><span class="op">:</span> AURA_AGENT_NAME</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    }<span class="op">,</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">input</span><span class="op">:</span> prompt</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>  }<span class="op">;</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (conversationId) {</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    requestBody<span class="op">.</span><span class="at">conversation</span> <span class="op">=</span> conversationId<span class="op">;</span></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>  <span class="co">// 3. API Call</span></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> url <span class="op">=</span> <span class="vs">`</span><span class="sc">${</span>AURA_ENDPOINT<span class="sc">}</span><span class="vs">/openai/responses?api-version=</span><span class="sc">${</span>AURA_API_VERSION<span class="sc">}</span><span class="vs">`</span><span class="op">;</span></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> response <span class="op">=</span> <span class="cf">await</span> <span class="fu">fetch</span>(url<span class="op">,</span> {</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>    <span class="dt">method</span><span class="op">:</span> <span class="st">&quot;POST&quot;</span><span class="op">,</span></span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    <span class="dt">headers</span><span class="op">:</span> {</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;Content-Type&quot;</span><span class="op">:</span> <span class="st">&quot;application/json&quot;</span><span class="op">,</span></span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;Authorization&quot;</span><span class="op">:</span> <span class="vs">`Bearer </span><span class="sc">${</span>token<span class="op">.</span><span class="at">token</span><span class="sc">}</span><span class="vs">`</span></span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>    }<span class="op">,</span></span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>    <span class="dt">body</span><span class="op">:</span> <span class="bu">JSON</span><span class="op">.</span><span class="fu">stringify</span>(requestBody)</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>  })<span class="op">;</span></span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="op">!</span>response<span class="op">.</span><span class="at">ok</span>) {</span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>    <span class="kw">const</span> error <span class="op">=</span> <span class="cf">await</span> response<span class="op">.</span><span class="fu">text</span>()<span class="op">;</span></span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">Error</span>(<span class="vs">`API Error </span><span class="sc">${</span>response<span class="op">.</span><span class="at">status</span><span class="sc">}</span><span class="vs">: </span><span class="sc">${</span>error<span class="sc">}</span><span class="vs">`</span>)<span class="op">;</span></span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> data <span class="op">=</span> <span class="cf">await</span> response<span class="op">.</span><span class="fu">json</span>()<span class="op">;</span></span>
+<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a>  <span class="co">// 4. Response parsen</span></span>
+<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> messageOutput <span class="op">=</span> data<span class="op">.</span><span class="at">output</span><span class="op">?.</span><span class="fu">find</span>(o <span class="kw">=&gt;</span> o<span class="op">.</span><span class="at">type</span> <span class="op">===</span> <span class="st">&quot;message&quot;</span>)<span class="op">;</span></span>
+<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> textContent <span class="op">=</span> messageOutput<span class="op">?.</span><span class="at">content</span><span class="op">?.</span><span class="fu">find</span>(c <span class="kw">=&gt;</span> c<span class="op">.</span><span class="at">type</span> <span class="op">===</span> <span class="st">&quot;output_text&quot;</span>)<span class="op">;</span></span>
+<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> {</span>
+<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a>    <span class="dt">text</span><span class="op">:</span> textContent<span class="op">?.</span><span class="at">text</span> <span class="op">||</span> <span class="st">&quot;&quot;</span><span class="op">,</span></span>
+<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a>    <span class="dt">conversationId</span><span class="op">:</span> data<span class="op">.</span><span class="at">conversation</span><span class="op">?.</span><span class="at">id</span> <span class="op">||</span> data<span class="op">.</span><span class="at">conversation</span><span class="op">,</span></span>
+<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a>    <span class="dt">usage</span><span class="op">:</span> data<span class="op">.</span><span class="at">usage</span></span>
+<span id="cb8-52"><a href="#cb8-52" aria-hidden="true" tabindex="-1"></a>  }<span class="op">;</span></span>
+<span id="cb8-53"><a href="#cb8-53" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a><span class="co">// Verwendung</span></span>
+<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> result <span class="op">=</span> <span class="cf">await</span> <span class="fu">askAURA</span>(<span class="st">&quot;Was sind die 5 wichtigsten Wins?&quot;</span>)<span class="op">;</span></span>
+<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a><span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(result<span class="op">.</span><span class="at">text</span>)<span class="op">;</span></span></code></pre></div>
+<hr />
+<h2 id="curl-beispiel">6. cURL Beispiel</h2>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Token holen</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="va">TOKEN</span><span class="op">=</span><span class="va">$(</span><span class="ex">az</span> account get-access-token <span class="at">--resource</span> <span class="st">&quot;https://ai.azure.com&quot;</span> <span class="at">--query</span> accessToken <span class="at">-o</span> tsv<span class="va">)</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Request</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST <span class="dt">\</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;https://aura-foundry-resource.services.ai.azure.com/api/projects/aura/openai/responses?api-version=2025-11-15-preview&quot;</span> <span class="dt">\</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer </span><span class="va">$TOKEN</span><span class="st">&quot;</span> <span class="dt">\</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;agent&quot;: {</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;type&quot;: &quot;agent_reference&quot;,</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="st">      &quot;name&quot;: &quot;AURAContext&quot;</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="st">    },</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;input&quot;: &quot;Was sind die 5 wichtigsten Wins?&quot;</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<hr />
+<h2 id="powershell-beispiel">7. PowerShell Beispiel</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Token holen</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="va">$token</span> <span class="op">=</span> az account get-access-token <span class="op">--</span>resource <span class="st">&quot;https://ai.azure.com&quot;</span> <span class="op">--</span>query accessToken <span class="op">-</span>o tsv</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Request</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="va">$body</span> <span class="op">=</span> @<span class="op">{</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    agent <span class="op">=</span> @<span class="op">{</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        <span class="fu">type</span> <span class="op">=</span> <span class="st">&quot;agent_reference&quot;</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        name <span class="op">=</span> <span class="st">&quot;AURAContext&quot;</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    input <span class="op">=</span> <span class="st">&quot;Was sind die 5 wichtigsten Wins?&quot;</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> <span class="op">|</span> <span class="fu">ConvertTo-Json</span> <span class="op">-</span>Depth <span class="dv">3</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="va">$response</span> <span class="op">=</span> <span class="fu">Invoke-RestMethod</span> `</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span>Uri <span class="st">&quot;https://aura-foundry-resource.services.ai.azure.com/api/projects/aura/openai/responses?api-version=2025-11-15-preview&quot;</span> `</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span>Method POST `</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span>ContentType <span class="st">&quot;application/json&quot;</span> `</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span>Headers @<span class="op">{</span> Authorization <span class="op">=</span> <span class="st">&quot;Bearer </span><span class="va">$token</span><span class="st">&quot;</span> <span class="op">}</span> `</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span>Body <span class="va">$body</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Antwort extrahieren</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="va">$message</span> <span class="op">=</span> <span class="va">$response</span><span class="op">.</span><span class="fu">output</span> <span class="op">|</span> <span class="fu">Where-Object</span> <span class="op">{</span> <span class="va">$_</span><span class="op">.</span><span class="fu">type</span> <span class="op">-eq</span> <span class="st">&quot;message&quot;</span> <span class="op">}</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="va">$text</span> <span class="op">=</span> <span class="va">$message</span><span class="op">.</span><span class="fu">content</span> <span class="op">|</span> <span class="fu">Where-Object</span> <span class="op">{</span> <span class="va">$_</span><span class="op">.</span><span class="fu">type</span> <span class="op">-eq</span> <span class="st">&quot;output_text&quot;</span> <span class="op">}</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="fu">Write-Host</span> <span class="va">$text</span><span class="op">.</span><span class="fu">text</span></span></code></pre></div>
+<hr />
+<h2 id="fehlerbehandlung">8. Fehlerbehandlung</h2>
+<table>
+<colgroup>
+<col style="width: 44%" />
+<col style="width: 27%" />
+<col style="width: 27%" />
+</colgroup>
+<thead>
+<tr>
+<th>HTTP Status</th>
+<th>Fehler</th>
+<th>Lösung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>401</td>
+<td>Unauthorized</td>
+<td>Token-Scope prüfen (<code>https://ai.azure.com/.default</code>)</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Bad Request - API version not supported</td>
+<td>API Version auf <code>2025-11-15-preview</code> setzen</td>
+</tr>
+<tr>
+<td>400</td>
+<td>Invalid agent name</td>
+<td>Agent-Name prüfen (case-sensitive!)</td>
+</tr>
+<tr>
+<td>404</td>
+<td>Not Found</td>
+<td>Endpoint-URL prüfen (inkl.
+<code>/api/projects/&lt;project&gt;</code>)</td>
+</tr>
+<tr>
+<td>500</td>
+<td>Internal Server Error</td>
+<td>Agent-Konfiguration im Foundry Portal prüfen</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="umgebungsvariablen-.env.local">9. Umgebungsvariablen
+(.env.local)</h2>
+<blockquote>
+<p><strong>⚠️ WICHTIG:</strong> Die konkreten Credentials und
+Endpoint-URLs sind in der lokalen Datei<br />
+<code>e:\ContextPilot\live-transcriber\.env.local</code>
+gespeichert.<br />
+Diese Datei ist NICHT im Git-Repository und muss lokal vorhanden
+sein!</p>
+</blockquote>
+<pre class="env"><code># Azure AI Foundry - AURA Agent Configuration (NEW Foundry API - November 2025+)
+# Endpoint format: https://&lt;name&gt;.services.ai.azure.com/api/projects/&lt;project&gt;
+AURA_ENDPOINT=https://aura-foundry-resource.services.ai.azure.com/api/projects/aura
+AURA_AGENT_NAME=AURAContext
+AURA_API_VERSION=2025-11-15-preview
+
+# OpenAI API Key für Transkription (WebSocket Proxy)
+VITE_OPENAI_API_KEY=sk-proj-xxx...</code></pre>
+<h3 id="credentials-übersicht">Credentials-Übersicht</h3>
+<table>
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 36%" />
+<col style="width: 36%" />
+</colgroup>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Beschreibung</th>
+<th>Wo zu finden</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AURA_ENDPOINT</code></td>
+<td>Azure AI Foundry Project Endpoint</td>
+<td>Azure Portal → AI Foundry → Project → Overview</td>
+</tr>
+<tr>
+<td><code>AURA_AGENT_NAME</code></td>
+<td>Name des Agenten</td>
+<td>AI Foundry Portal → Agents</td>
+</tr>
+<tr>
+<td><code>AURA_API_VERSION</code></td>
+<td>API Version</td>
+<td><code>2025-11-15-preview</code> (Stand Dez 2025)</td>
+</tr>
+<tr>
+<td><code>VITE_OPENAI_API_KEY</code></td>
+<td>OpenAI API Key für Transkription</td>
+<td>OpenAI Platform → API Keys</td>
+</tr>
+</tbody>
+</table>
+<h3 id="azure-ad-authentifizierung-für-aura">Azure AD Authentifizierung
+(für AURA)</h3>
+<p>Für lokale Entwicklung wird <strong>kein API Key</strong> benötigt!
+Die Authentifizierung erfolgt über Azure AD:</p>
+<ol type="1">
+<li><code>az login</code> ausführen (einmalig)</li>
+<li><code>DefaultAzureCredential</code> holt automatisch den Token</li>
+<li>Der eingeloggte User braucht <strong>Azure AI User</strong> Rolle
+auf dem Project</li>
+</ol>
+<hr />
+<h2 id="workflows-aufrufen-multi-agent-orchestration">10. Workflows
+aufrufen (Multi-Agent Orchestration)</h2>
+<blockquote>
+<p><strong>Entdeckt:</strong> Dezember 2025<br />
+<strong>Wichtig:</strong> Workflows sind <strong>stateful</strong> und
+benötigen eine Conversation!</p>
+</blockquote>
+<h3 id="unterschied-agent-vs-workflow">Unterschied Agent vs
+Workflow</h3>
+<table>
+<colgroup>
+<col style="width: 32%" />
+<col style="width: 28%" />
+<col style="width: 40%" />
+</colgroup>
+<thead>
+<tr>
+<th>Aspekt</th>
+<th>Agent</th>
+<th>Workflow</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Typ in API</td>
+<td><code>kind: &quot;prompt&quot;</code></td>
+<td><code>kind: &quot;workflow&quot;</code></td>
+</tr>
+<tr>
+<td>Stateful</td>
+<td>Optional (conversation)</td>
+<td><strong>Pflicht</strong> (conversation required!)</td>
+</tr>
+<tr>
+<td>Request-Flow</td>
+<td>1 Request</td>
+<td>2 Requests (Conversation erstellen + Response)</td>
+</tr>
+<tr>
+<td>Use Case</td>
+<td>Einzelne Aufgabe</td>
+<td>Multi-Agent Orchestration</td>
+</tr>
+</tbody>
+</table>
+<h3 id="workflow-struktur-beispiel-contextpilot">Workflow-Struktur
+(Beispiel CONTEXTPILOT)</h3>
+<p>Ein Workflow orchestriert mehrere Sub-Agents sequentiell:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">kind</span><span class="kw">:</span><span class="at"> workflow</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">trigger</span><span class="kw">:</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">kind</span><span class="kw">:</span><span class="at"> OnConversationStart</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">id</span><span class="kw">:</span><span class="at"> trigger_wf</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">actions</span><span class="kw">:</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">kind</span><span class="kw">:</span><span class="at"> InvokeAzureAgent</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">id</span><span class="kw">:</span><span class="at"> agent1</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">agent</span><span class="kw">:</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">name</span><span class="kw">:</span><span class="at"> AURAContextPilotWeb</span><span class="co">      # Web-Suche (Bing Grounding)</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">input</span><span class="kw">:</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">messages</span><span class="kw">:</span><span class="at"> =System.LastMessage</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">output</span><span class="kw">:</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">messages</span><span class="kw">:</span><span class="at"> Local.Agent1Response</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">autoSend</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="at">        </span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">kind</span><span class="kw">:</span><span class="at"> InvokeAzureAgent</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">id</span><span class="kw">:</span><span class="at"> agent2</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">agent</span><span class="kw">:</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">name</span><span class="kw">:</span><span class="at"> AURAContextPilot</span><span class="co">         # Index-Suche (File Search)</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">input</span><span class="kw">:</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">messages</span><span class="kw">:</span><span class="at"> =System.LastMessage</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">output</span><span class="kw">:</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">messages</span><span class="kw">:</span><span class="at"> Local.Agent2Response</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">autoSend</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a><span class="at">        </span></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">kind</span><span class="kw">:</span><span class="at"> SetVariable</span></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">id</span><span class="kw">:</span><span class="at"> combine_outputs</span></span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">variable</span><span class="kw">:</span><span class="at"> Local.CombinedMessage</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">value</span><span class="kw">:</span><span class="at"> =UserMessage(Last(Local.Agent1Response).Text &amp; &quot;\n\n&quot; &amp; Last(Local.Agent2Response).Text)</span></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="at">      </span></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">kind</span><span class="kw">:</span><span class="at"> InvokeAzureAgent</span></span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">id</span><span class="kw">:</span><span class="at"> synthesizer</span></span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">agent</span><span class="kw">:</span></span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">name</span><span class="kw">:</span><span class="at"> AURAContextPilotResponseSynthesizer</span><span class="co">  # Kombiniert Ergebnisse</span></span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">input</span><span class="kw">:</span></span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">messages</span><span class="kw">:</span><span class="at"> =Local.CombinedMessage</span></span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">output</span><span class="kw">:</span></span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">autoSend</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span></code></pre></div>
+<h3 id="api-aufruf-für-workflows-2-step-process">API-Aufruf für
+Workflows (2-Step Process)</h3>
+<p><strong>WICHTIG:</strong> Workflows benötigen eine Conversation! Ohne
+<code>conversation.id</code> gibt es den Fehler:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;error&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;param&quot;</span><span class="fu">:</span> <span class="st">&quot;conversation&quot;</span><span class="fu">,</span> <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Not defined.&quot;</span><span class="fu">}}</span></span></code></pre></div>
+<h4 id="schritt-1-conversation-erstellen">Schritt 1: Conversation
+erstellen</h4>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">POST</span> https://<span class="op">&lt;</span>resource<span class="op">&gt;</span>.services.ai.azure.com/api/projects/<span class="op">&lt;</span>project<span class="op">&gt;</span>/openai/conversations<span class="pp">?</span>api-version=2025-11-15-preview</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Authorization:</span> Bearer <span class="va">$TOKEN</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Content-Type:</span> application/json</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="ex">{}</span></span></code></pre></div>
+<p>Response:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;conv_abc123...&quot;</span><span class="fu">,</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;object&quot;</span><span class="fu">:</span> <span class="st">&quot;conversation&quot;</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h4 id="schritt-2-workflow-aufrufen-mit-conversation">Schritt 2:
+Workflow aufrufen mit Conversation</h4>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">POST</span> https://<span class="op">&lt;</span>resource<span class="op">&gt;</span>.services.ai.azure.com/api/projects/<span class="op">&lt;</span>project<span class="op">&gt;</span>/openai/responses<span class="pp">?</span>api-version=2025-11-15-preview</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Authorization:</span> Bearer <span class="va">$TOKEN</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Content-Type:</span> application/json</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;agent&quot;</span><span class="ex">:</span> {</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;type&quot;</span><span class="ex">:</span> <span class="st">&quot;agent_reference&quot;</span>,</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;name&quot;</span><span class="ex">:</span> <span class="st">&quot;CONTEXTPILOT&quot;</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>  <span class="ex">},</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;input&quot;</span><span class="ex">:</span> <span class="st">&quot;Was sind die Deal Details zu Roche?&quot;</span>,</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;conversation&quot;</span><span class="ex">:</span> {</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;id&quot;</span><span class="ex">:</span> <span class="st">&quot;conv_abc123...&quot;</span></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">}</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="er">}</span></span></code></pre></div>
+<h3 id="node.js-beispiel-für-workflows">Node.js Beispiel für
+Workflows</h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">async</span> <span class="kw">function</span> <span class="fu">callWorkflow</span>(workflowName<span class="op">,</span> prompt<span class="op">,</span> endpoint) {</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> credential <span class="op">=</span> <span class="kw">new</span> <span class="fu">DefaultAzureCredential</span>()<span class="op">;</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> token <span class="op">=</span> <span class="cf">await</span> credential<span class="op">.</span><span class="fu">getToken</span>(<span class="st">&quot;https://ai.azure.com/.default&quot;</span>)<span class="op">;</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> headers <span class="op">=</span> {</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Content-Type&quot;</span><span class="op">:</span> <span class="st">&quot;application/json&quot;</span><span class="op">,</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Authorization&quot;</span><span class="op">:</span> <span class="vs">`Bearer </span><span class="sc">${</span>token<span class="op">.</span><span class="at">token</span><span class="sc">}</span><span class="vs">`</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>  }<span class="op">;</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> baseUrl <span class="op">=</span> endpoint<span class="op">.</span><span class="fu">replace</span>(<span class="ss">/</span><span class="sc">\/$</span><span class="ss">/</span><span class="op">,</span> <span class="st">&quot;&quot;</span>)<span class="op">;</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>  <span class="co">// SCHRITT 1: Conversation erstellen (Workflows sind stateful!)</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>  <span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;[WORKFLOW] Creating conversation...&quot;</span>)<span class="op">;</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> convResp <span class="op">=</span> <span class="cf">await</span> <span class="fu">fetch</span>(</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    <span class="vs">`</span><span class="sc">${</span>baseUrl<span class="sc">}</span><span class="vs">/openai/conversations?api-version=2025-11-15-preview`</span><span class="op">,</span></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>    { <span class="dt">method</span><span class="op">:</span> <span class="st">&quot;POST&quot;</span><span class="op">,</span> headers<span class="op">,</span> <span class="dt">body</span><span class="op">:</span> <span class="bu">JSON</span><span class="op">.</span><span class="fu">stringify</span>({}) }</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>  )<span class="op">;</span></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="op">!</span>convResp<span class="op">.</span><span class="at">ok</span>) {</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">Error</span>(<span class="vs">`Failed to create conversation: </span><span class="sc">${</span><span class="cf">await</span> convResp<span class="op">.</span><span class="fu">text</span>()<span class="sc">}</span><span class="vs">`</span>)<span class="op">;</span></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> { <span class="dt">id</span><span class="op">:</span> conversationId } <span class="op">=</span> <span class="cf">await</span> convResp<span class="op">.</span><span class="fu">json</span>()<span class="op">;</span></span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>  <span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;[WORKFLOW] Conversation ID:&quot;</span><span class="op">,</span> conversationId)<span class="op">;</span></span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>  <span class="co">// SCHRITT 2: Workflow mit Conversation aufrufen</span></span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>  <span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;[WORKFLOW] Calling workflow...&quot;</span>)<span class="op">;</span></span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> resp <span class="op">=</span> <span class="cf">await</span> <span class="fu">fetch</span>(</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>    <span class="vs">`</span><span class="sc">${</span>baseUrl<span class="sc">}</span><span class="vs">/openai/responses?api-version=2025-11-15-preview`</span><span class="op">,</span></span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>    {</span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>      <span class="dt">method</span><span class="op">:</span> <span class="st">&quot;POST&quot;</span><span class="op">,</span></span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>      headers<span class="op">,</span></span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>      <span class="dt">body</span><span class="op">:</span> <span class="bu">JSON</span><span class="op">.</span><span class="fu">stringify</span>({</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>        <span class="dt">agent</span><span class="op">:</span> { <span class="dt">type</span><span class="op">:</span> <span class="st">&quot;agent_reference&quot;</span><span class="op">,</span> <span class="dt">name</span><span class="op">:</span> workflowName }<span class="op">,</span></span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>        <span class="dt">input</span><span class="op">:</span> prompt<span class="op">,</span></span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>        <span class="dt">conversation</span><span class="op">:</span> { <span class="dt">id</span><span class="op">:</span> conversationId }</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a>      })</span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb17-38"><a href="#cb17-38" aria-hidden="true" tabindex="-1"></a>  )<span class="op">;</span></span>
+<span id="cb17-39"><a href="#cb17-39" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-40"><a href="#cb17-40" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="op">!</span>resp<span class="op">.</span><span class="at">ok</span>) {</span>
+<span id="cb17-41"><a href="#cb17-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">Error</span>(<span class="vs">`Workflow call failed: </span><span class="sc">${</span><span class="cf">await</span> resp<span class="op">.</span><span class="fu">text</span>()<span class="sc">}</span><span class="vs">`</span>)<span class="op">;</span></span>
+<span id="cb17-42"><a href="#cb17-42" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb17-43"><a href="#cb17-43" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-44"><a href="#cb17-44" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> data <span class="op">=</span> <span class="cf">await</span> resp<span class="op">.</span><span class="fu">json</span>()<span class="op">;</span></span>
+<span id="cb17-45"><a href="#cb17-45" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-46"><a href="#cb17-46" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Response parsen - letztes Message-Output enthält synthesierte Antwort</span></span>
+<span id="cb17-47"><a href="#cb17-47" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> messages <span class="op">=</span> data<span class="op">.</span><span class="at">output</span><span class="op">?.</span><span class="fu">filter</span>(o <span class="kw">=&gt;</span> o<span class="op">.</span><span class="at">type</span> <span class="op">===</span> <span class="st">&quot;message&quot;</span>) <span class="op">||</span> []<span class="op">;</span></span>
+<span id="cb17-48"><a href="#cb17-48" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> lastMessage <span class="op">=</span> messages[messages<span class="op">.</span><span class="at">length</span> <span class="op">-</span> <span class="dv">1</span>]<span class="op">;</span></span>
+<span id="cb17-49"><a href="#cb17-49" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> textContent <span class="op">=</span> lastMessage<span class="op">?.</span><span class="at">content</span><span class="op">?.</span><span class="fu">find</span>(c <span class="kw">=&gt;</span> c<span class="op">.</span><span class="at">type</span> <span class="op">===</span> <span class="st">&quot;output_text&quot;</span>)<span class="op">;</span></span>
+<span id="cb17-50"><a href="#cb17-50" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-51"><a href="#cb17-51" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> {</span>
+<span id="cb17-52"><a href="#cb17-52" aria-hidden="true" tabindex="-1"></a>    <span class="dt">text</span><span class="op">:</span> textContent<span class="op">?.</span><span class="at">text</span> <span class="op">||</span> <span class="st">&quot;&quot;</span><span class="op">,</span></span>
+<span id="cb17-53"><a href="#cb17-53" aria-hidden="true" tabindex="-1"></a>    conversationId<span class="op">,</span></span>
+<span id="cb17-54"><a href="#cb17-54" aria-hidden="true" tabindex="-1"></a>    <span class="dt">usage</span><span class="op">:</span> data<span class="op">.</span><span class="at">usage</span><span class="op">,</span></span>
+<span id="cb17-55"><a href="#cb17-55" aria-hidden="true" tabindex="-1"></a>    <span class="dt">raw</span><span class="op">:</span> data</span>
+<span id="cb17-56"><a href="#cb17-56" aria-hidden="true" tabindex="-1"></a>  }<span class="op">;</span></span>
+<span id="cb17-57"><a href="#cb17-57" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb17-58"><a href="#cb17-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-59"><a href="#cb17-59" aria-hidden="true" tabindex="-1"></a><span class="co">// Verwendung</span></span>
+<span id="cb17-60"><a href="#cb17-60" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> result <span class="op">=</span> <span class="cf">await</span> <span class="fu">callWorkflow</span>(</span>
+<span id="cb17-61"><a href="#cb17-61" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;CONTEXTPILOT&quot;</span><span class="op">,</span></span>
+<span id="cb17-62"><a href="#cb17-62" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;Was sind die Deal Details zu Roche?&quot;</span><span class="op">,</span></span>
+<span id="cb17-63"><a href="#cb17-63" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot&quot;</span></span>
+<span id="cb17-64"><a href="#cb17-64" aria-hidden="true" tabindex="-1"></a>)<span class="op">;</span></span>
+<span id="cb17-65"><a href="#cb17-65" aria-hidden="true" tabindex="-1"></a><span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(result<span class="op">.</span><span class="at">text</span>)<span class="op">;</span></span></code></pre></div>
+<h3 id="powershell-beispiel-für-workflows">PowerShell Beispiel für
+Workflows</h3>
+<div class="sourceCode" id="cb18"><pre class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Token holen</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="va">$token</span> <span class="op">=</span> az account get-access-token <span class="op">--</span>resource <span class="st">&quot;https://ai.azure.com&quot;</span> <span class="op">--</span>query accessToken <span class="op">-</span>o tsv</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="va">$headers</span> <span class="op">=</span> @<span class="op">{</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Content-Type&quot;</span> <span class="op">=</span> <span class="st">&quot;application/json&quot;</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Authorization&quot;</span> <span class="op">=</span> <span class="st">&quot;Bearer </span><span class="va">$token</span><span class="st">&quot;</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="va">$baseUrl</span> <span class="op">=</span> <span class="st">&quot;https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot/openai&quot;</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Schritt 1: Conversation erstellen</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a><span class="va">$conv</span> <span class="op">=</span> <span class="fu">Invoke-RestMethod</span> <span class="op">-</span>Uri <span class="st">&quot;</span><span class="va">$baseUrl</span><span class="st">/conversations?api-version=2025-11-15-preview&quot;</span> `</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span>Method POST <span class="op">-</span>Headers <span class="va">$headers</span> <span class="op">-</span>Body <span class="st">&#39;{}&#39;</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a><span class="va">$convId</span> <span class="op">=</span> <span class="va">$conv</span><span class="op">.</span><span class="fu">id</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a><span class="fu">Write-Host</span> <span class="st">&quot;Conversation ID: </span><span class="va">$convId</span><span class="st">&quot;</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Schritt 2: Workflow aufrufen</span></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a><span class="va">$body</span> <span class="op">=</span> @<span class="op">{</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>    agent <span class="op">=</span> @<span class="op">{</span> <span class="fu">type</span> <span class="op">=</span> <span class="st">&quot;agent_reference&quot;</span><span class="op">;</span> name <span class="op">=</span> <span class="st">&quot;CONTEXTPILOT&quot;</span> <span class="op">}</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>    input <span class="op">=</span> <span class="st">&quot;Was sind die Deal Details zu Roche?&quot;</span></span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>    conversation <span class="op">=</span> @<span class="op">{</span> id <span class="op">=</span> <span class="va">$convId</span> <span class="op">}</span></span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> <span class="op">|</span> <span class="fu">ConvertTo-Json</span> <span class="op">-</span>Depth <span class="dv">5</span></span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a><span class="va">$response</span> <span class="op">=</span> <span class="fu">Invoke-RestMethod</span> <span class="op">-</span>Uri <span class="st">&quot;</span><span class="va">$baseUrl</span><span class="st">/responses?api-version=2025-11-15-preview&quot;</span> `</span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">-</span>Method POST <span class="op">-</span>Headers <span class="va">$headers</span> <span class="op">-</span>Body <span class="va">$body</span> <span class="op">-</span>TimeoutSec <span class="dv">180</span></span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-25"><a href="#cb18-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Letztes Message extrahieren (synthesierte Antwort)</span></span>
+<span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a><span class="va">$messages</span> <span class="op">=</span> <span class="va">$response</span><span class="op">.</span><span class="fu">output</span> <span class="op">|</span> <span class="fu">Where-Object</span> <span class="op">{</span> <span class="va">$_</span><span class="op">.</span><span class="fu">type</span> <span class="op">-eq</span> <span class="st">&quot;message&quot;</span> <span class="op">}</span></span>
+<span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a><span class="va">$lastMessage</span> <span class="op">=</span> <span class="va">$messages</span><span class="op">[</span>-1<span class="op">]</span></span>
+<span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a><span class="va">$text</span> <span class="op">=</span> <span class="va">$lastMessage</span><span class="op">.</span><span class="fu">content</span> <span class="op">|</span> <span class="fu">Where-Object</span> <span class="op">{</span> <span class="va">$_</span><span class="op">.</span><span class="fu">type</span> <span class="op">-eq</span> <span class="st">&quot;output_text&quot;</span> <span class="op">}</span></span>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a><span class="fu">Write-Host</span> <span class="va">$text</span><span class="op">.</span><span class="fu">text</span></span></code></pre></div>
+<h3 id="workflow-response-struktur">Workflow Response-Struktur</h3>
+<p>Die Response enthält alle Workflow-Aktionen im <code>output</code>
+Array:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;wfresp_xxx&quot;</span><span class="fu">,</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;object&quot;</span><span class="fu">:</span> <span class="st">&quot;response&quot;</span><span class="fu">,</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span><span class="fu">,</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;output&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;workflow_action&quot;</span><span class="fu">,</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;InvokeAzureAgent&quot;</span><span class="fu">,</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;action_id&quot;</span><span class="fu">:</span> <span class="st">&quot;agent1&quot;</span><span class="fu">,</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;bing_grounding_call&quot;</span><span class="fu">,</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span><span class="fu">,</span></span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;arguments&quot;</span><span class="fu">:</span> <span class="st">&quot;{</span><span class="ch">\&quot;</span><span class="st">query</span><span class="ch">\&quot;</span><span class="st">:</span><span class="ch">\&quot;</span><span class="st">Roche deal details</span><span class="ch">\&quot;</span><span class="st">}&quot;</span></span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;workflow_action&quot;</span><span class="fu">,</span></span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;InvokeAzureAgent&quot;</span><span class="fu">,</span> </span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;action_id&quot;</span><span class="fu">:</span> <span class="st">&quot;agent2&quot;</span><span class="fu">,</span></span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span></span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;file_search_call&quot;</span><span class="fu">,</span></span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span><span class="fu">,</span></span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;queries&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Roche Deal Details&quot;</span><span class="ot">,</span> <span class="st">&quot;...&quot;</span><span class="ot">]</span></span>
+<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;message&quot;</span><span class="fu">,</span></span>
+<span id="cb19-30"><a href="#cb19-30" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;assistant&quot;</span><span class="fu">,</span></span>
+<span id="cb19-31"><a href="#cb19-31" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;content&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;output_text&quot;</span><span class="fu">,</span> <span class="dt">&quot;text&quot;</span><span class="fu">:</span> <span class="st">&quot;Zwischenergebnis Agent 2...&quot;</span> <span class="fu">}</span><span class="ot">]</span></span>
+<span id="cb19-32"><a href="#cb19-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb19-33"><a href="#cb19-33" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb19-34"><a href="#cb19-34" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;workflow_action&quot;</span><span class="fu">,</span></span>
+<span id="cb19-35"><a href="#cb19-35" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;SetVariable&quot;</span><span class="fu">,</span></span>
+<span id="cb19-36"><a href="#cb19-36" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;action_id&quot;</span><span class="fu">:</span> <span class="st">&quot;combine_outputs&quot;</span><span class="fu">,</span></span>
+<span id="cb19-37"><a href="#cb19-37" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span></span>
+<span id="cb19-38"><a href="#cb19-38" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb19-39"><a href="#cb19-39" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb19-40"><a href="#cb19-40" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;workflow_action&quot;</span><span class="fu">,</span></span>
+<span id="cb19-41"><a href="#cb19-41" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;kind&quot;</span><span class="fu">:</span> <span class="st">&quot;InvokeAzureAgent&quot;</span><span class="fu">,</span></span>
+<span id="cb19-42"><a href="#cb19-42" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;action_id&quot;</span><span class="fu">:</span> <span class="st">&quot;synthesizer&quot;</span><span class="fu">,</span></span>
+<span id="cb19-43"><a href="#cb19-43" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span></span>
+<span id="cb19-44"><a href="#cb19-44" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb19-45"><a href="#cb19-45" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb19-46"><a href="#cb19-46" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;message&quot;</span><span class="fu">,</span></span>
+<span id="cb19-47"><a href="#cb19-47" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;assistant&quot;</span><span class="fu">,</span></span>
+<span id="cb19-48"><a href="#cb19-48" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;content&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;output_text&quot;</span><span class="fu">,</span> <span class="dt">&quot;text&quot;</span><span class="fu">:</span> <span class="st">&quot;# Finale Antwort</span><span class="ch">\n</span><span class="st">- Fakt 1</span><span class="ch">\n</span><span class="st">- Fakt 2&quot;</span> <span class="fu">}</span><span class="ot">]</span></span>
+<span id="cb19-49"><a href="#cb19-49" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb19-50"><a href="#cb19-50" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb19-51"><a href="#cb19-51" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;usage&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb19-52"><a href="#cb19-52" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;input_tokens&quot;</span><span class="fu">:</span> <span class="dv">33709</span><span class="fu">,</span></span>
+<span id="cb19-53"><a href="#cb19-53" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;output_tokens&quot;</span><span class="fu">:</span> <span class="dv">297</span><span class="fu">,</span></span>
+<span id="cb19-54"><a href="#cb19-54" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_tokens&quot;</span><span class="fu">:</span> <span class="dv">34006</span></span>
+<span id="cb19-55"><a href="#cb19-55" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb19-56"><a href="#cb19-56" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;conversation&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb19-57"><a href="#cb19-57" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;conv_xxx&quot;</span></span>
+<span id="cb19-58"><a href="#cb19-58" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb19-59"><a href="#cb19-59" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="konfiguration-in-.env.local">Konfiguration in .env.local</h3>
+<pre class="env"><code># ============================================================================
+# WORKFLOW KONFIGURATION
+# ============================================================================
+# Workflows benötigen eine Conversation (stateful) im Gegensatz zu Agents
+
+WORKFLOW_1_NAME=CONTEXTPILOT
+WORKFLOW_1_LABEL=CONTEXTPILOT (Index &amp; Web)
+WORKFLOW_1_ENDPOINT=https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot
+# Auth: Azure AD (az login) - kein API Key</code></pre>
+<h3 id="typische-fehler-bei-workflows">Typische Fehler bei
+Workflows</h3>
+<table>
+<colgroup>
+<col style="width: 32%" />
+<col style="width: 36%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr>
+<th>Fehler</th>
+<th>Ursache</th>
+<th>Lösung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&quot;param&quot;: &quot;conversation&quot;, &quot;message&quot;: &quot;Not defined.&quot;</code></td>
+<td>Conversation fehlt</td>
+<td>Erst Conversation erstellen, dann mit <code>conversation.id</code>
+aufrufen</td>
+</tr>
+<tr>
+<td><code>500 Internal Server Error</code></td>
+<td>Workflow nicht richtig deployed</td>
+<td>Im Foundry Portal prüfen ob Workflow “Published” ist</td>
+</tr>
+<tr>
+<td>Leere Response</td>
+<td>Sub-Agent fehlerhaft</td>
+<td>Einzelne Sub-Agents separat testen</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="wichtige-hinweise">11. Wichtige Hinweise</h2>
+<ol type="1">
+<li><p><strong>Agent-Name vs Agent-ID:</strong> Die neue API verwendet
+den <strong>Namen</strong> des Agenten (z.B. <code>AURAContext</code>),
+nicht die ID (z.B. <code>asst_xxx</code>).</p></li>
+<li><p><strong>Kein Threading:</strong> Anders als bei der Assistants
+API ist kein Thread-Management nötig. Jeder Request ist eigenständig
+(oder mit <code>conversation</code> für Multi-Turn).</p></li>
+<li><p><strong>Token-Scope:</strong> Unbedingt
+<code>https://ai.azure.com/.default</code> verwenden, NICHT
+<code>https://cognitiveservices.azure.com/.default</code>.</p></li>
+<li><p><strong>Output-Struktur:</strong> Das <code>output</code> Array
+kann mehrere Einträge haben (z.B. <code>file_search_call</code> +
+<code>message</code>). Der Text ist im
+<code>message</code>-Typ.</p></li>
+<li><p><strong>Model:</strong> Der Agent kann verschiedene Models nutzen
+(z.B. <code>claude-sonnet-4-5</code>, <code>gpt-4o</code>). Das wird im
+Agent im Foundry Portal konfiguriert.</p></li>
+<li><p><strong>Workflows sind stateful:</strong> Anders als normale
+Agents <strong>müssen</strong> Workflows mit einer Conversation
+aufgerufen werden. Ohne <code>conversation.id</code> schlägt der Aufruf
+fehl.</p></li>
+</ol>
+<hr />
+<h2 id="referenzen">12. Referenzen</h2>
+<ul>
+<li><a href="https://learn.microsoft.com/en-us/azure/ai-foundry/">Microsoft
+Foundry Documentation</a></li>
+<li><a href="https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/ai/azure-ai-projects">Azure
+AI Foundry SDK Samples</a></li>
+<li><a href="https://learn.microsoft.com/en-us/azure/ai-foundry/quickstarts/get-started-code">Responses
+API Reference</a></li>
+</ul>
+</body>
+</html>
