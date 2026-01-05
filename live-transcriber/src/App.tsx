@@ -437,6 +437,86 @@ export default function App() {
     }
   }, [isTextFrozen]);
 
+  // SYNC DOM-EDITS ZU FROZEN SEGMENTS: Synchronisiert manuelle Text-Änderungen im DOM
+  // zu frozenSegmentsRef, OHNE den Freeze zu beenden. Wichtig vor Highlight-Erstellung,
+  // damit React-Rerenders die Edits nicht überschreiben.
+  const syncDOMToFrozenSegments = useCallback(() => {
+    if (!isTextFrozen || !transcriptBoxRef.current || !frozenSegmentsRef.current) return;
+    
+    const groupElements = transcriptBoxRef.current.querySelectorAll('[data-group-id]');
+    const frozenGroupTexts = frozenGroupTextRef.current || new Map<string, string>();
+    const editedGroups = new Map<string, string>();
+    
+    groupElements.forEach((el) => {
+      const groupId = el.getAttribute('data-group-id');
+      if (!groupId || !groupId.startsWith("group-")) return;
+
+      // Nur den reinen Text (ohne Mark-Tags etc.)
+      const text = normalizeGroupText(el.textContent || '');
+      const frozenText = frozenGroupTexts.get(groupId) || "";
+      const frozenNormalized = normalizeGroupText(frozenText);
+
+      if (text !== frozenNormalized) {
+        editedGroups.set(groupId, text);
+      }
+    });
+    
+    // Wenn Edits vorhanden, frozenSegmentsRef aktualisieren
+    if (editedGroups.size > 0) {
+      // Baue eine aktualisierte Kopie von frozenSegmentsRef.current
+      const sortedWithIndices = frozenSegmentsRef.current
+        .map((seg, originalIndex) => ({ seg, originalIndex }))
+        .sort((a, b) => a.seg.timestamp - b.seg.timestamp);
+      
+      // Gruppierung wie in buildGroupTextMap
+      const groupToOriginalIndices = new Map<string, number[]>();
+      let currentGroupId: string | null = null;
+      let lastSeg: typeof segments[0] | null = null;
+
+      for (let i = 0; i < sortedWithIndices.length; i++) {
+        const { seg, originalIndex } = sortedWithIndices[i];
+        const pauseSinceLast = lastSeg ? seg.timestamp - lastSeg.timestamp : 0;
+        const sourceChanged = !lastSeg || lastSeg.source !== seg.source;
+        const closedAt = currentGroupId ? groupCloseTimestamps[currentGroupId] : undefined;
+        const groupClosed = closedAt !== undefined && seg.timestamp > closedAt;
+        
+        if (!currentGroupId || sourceChanged || pauseSinceLast > GROUP_PAUSE_THRESHOLD_MS || groupClosed) {
+          currentGroupId = makeTranscriptGroupId(seg);
+        }
+        
+        if (!groupToOriginalIndices.has(currentGroupId)) {
+          groupToOriginalIndices.set(currentGroupId, []);
+        }
+        groupToOriginalIndices.get(currentGroupId)!.push(originalIndex);
+        lastSeg = seg;
+      }
+      
+      // Wende die Edits auf frozenSegmentsRef.current an
+      const newFrozenSegments = [...frozenSegmentsRef.current];
+      for (const [groupId, newText] of editedGroups) {
+        const originalIndices = groupToOriginalIndices.get(groupId);
+        if (originalIndices && originalIndices.length > 0) {
+          const words = newText.trim().split(/\s+/);
+          const wordsPerSegment = Math.ceil(words.length / originalIndices.length);
+          
+          originalIndices.forEach((segIndex, i) => {
+            const startWord = i * wordsPerSegment;
+            const segmentWords = words.slice(startWord, startWord + wordsPerSegment);
+            newFrozenSegments[segIndex] = {
+              ...newFrozenSegments[segIndex],
+              text: segmentWords.join(' ')
+            };
+          });
+        }
+      }
+      
+      // Aktualisiere frozenSegmentsRef (ohne Freeze zu beenden)
+      frozenSegmentsRef.current = newFrozenSegments.filter(seg => seg.text.trim().length > 0);
+      // Auch frozenGroupTextRef aktualisieren für konsistente Vergleiche
+      frozenGroupTextRef.current = buildGroupTextMap(frozenSegmentsRef.current, groupCloseTimestamps);
+    }
+  }, [isTextFrozen, groupCloseTimestamps, segments]);
+
   const releaseFocus = useCallback(() => {
     window.getSelection()?.removeAllRanges();
     const active = document.activeElement as HTMLElement | null;
@@ -531,6 +611,10 @@ export default function App() {
         pendingHighlightIdRef.current = null;
       }
 
+      // WICHTIG: Vor Highlight-Erstellung DOM-Edits zu frozenSegments synchronisieren,
+      // damit React-Rerenders die manuellen Edits nicht überschreiben
+      syncDOMToFrozenSegments();
+
       // Sofort echtes Highlight erzeugen (mark-Element)
       const highlight = createHighlightFromSelection(range, text, container);
       if (highlight) {
@@ -577,7 +661,7 @@ export default function App() {
       selection.removeAllRanges();
     }
     // KEINE unfreezeText() hier - Freeze bleibt aktiv bis Klick AUSSERHALB des Textfeldes
-  }, [showMenuAtSelection, createHighlightFromSelection]);
+  }, [showMenuAtSelection, createHighlightFromSelection, syncDOMToFrozenSegments, removeHighlight]);
 
   const openHighlightMenuForMark = useCallback((markEl: HTMLElement, container: HTMLElement) => {
     const highlightId = markEl.getAttribute("data-highlight-id");
