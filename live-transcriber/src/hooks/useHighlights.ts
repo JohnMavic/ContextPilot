@@ -300,6 +300,146 @@ export function useHighlights() {
     setHighlights([]);
   }, []);
 
+  /**
+   * Aktualisiert Highlight-Offsets nach einer Textbearbeitung in einer Gruppe.
+   * Sucht den ursprünglichen Highlight-Text im neuen Gruppen-Text und passt die Offsets an.
+   * 
+   * @param editedGroups - Map von groupId zu neuem Text
+   * @param oldGroupTexts - Map von groupId zu altem Text (vor dem Edit)
+   */
+  const updateHighlightsForGroupEdit = useCallback((
+    editedGroups: Map<string, string>,
+    oldGroupTexts: Map<string, string>
+  ) => {
+    if (editedGroups.size === 0) return;
+
+    setHighlights((prev) => {
+      let hasChanges = false;
+      
+      const updated = prev.map((hl) => {
+        // Nur Single-Group Highlights behandeln (ohne span)
+        // Multi-Group Highlights sind komplexer und seltener editiert
+        if (hl.span) {
+          // Für Multi-Group: Prüfe ob Start- oder End-Gruppe betroffen ist
+          const startEdited = editedGroups.has(hl.span.startGroupId);
+          const endEdited = editedGroups.has(hl.span.endGroupId);
+          
+          if (!startEdited && !endEdited) return hl;
+          
+          // Versuche den Highlight-Text in den neuen Texten zu finden
+          const newStartText = editedGroups.get(hl.span.startGroupId);
+          const newEndText = editedGroups.get(hl.span.endGroupId);
+          const oldStartText = oldGroupTexts.get(hl.span.startGroupId) || "";
+          const oldEndText = oldGroupTexts.get(hl.span.endGroupId) || "";
+          
+          // Extrahiere den Teil des Highlight-Texts aus Start- und End-Gruppe
+          const hlStartPart = oldStartText.slice(hl.span.startOffset);
+          const hlEndPart = oldEndText.slice(0, hl.span.endOffset);
+          
+          let newSpan = { ...hl.span };
+          
+          if (startEdited && newStartText) {
+            // Suche hlStartPart im neuen Text
+            const newStartOffset = newStartText.indexOf(hlStartPart);
+            if (newStartOffset >= 0) {
+              newSpan.startOffset = newStartOffset;
+              hasChanges = true;
+            } else {
+              // Highlight-Text nicht mehr gefunden - Highlight entfernen
+              return null;
+            }
+          }
+          
+          if (endEdited && newEndText) {
+            // Suche hlEndPart im neuen Text
+            const endPartIndex = newEndText.indexOf(hlEndPart);
+            if (endPartIndex >= 0) {
+              newSpan.endOffset = endPartIndex + hlEndPart.length;
+              hasChanges = true;
+            } else {
+              // Highlight-Text nicht mehr gefunden - Highlight entfernen
+              return null;
+            }
+          }
+          
+          return { ...hl, span: newSpan };
+        }
+        
+        // Single-Group Highlight
+        if (!editedGroups.has(hl.groupId)) return hl;
+        
+        const newText = editedGroups.get(hl.groupId)!;
+        
+        // Der ursprünglich markierte Text
+        const highlightedText = hl.text;
+        
+        // Suche den Highlight-Text im neuen Gruppen-Text
+        const newStartOffset = newText.indexOf(highlightedText);
+        
+        if (newStartOffset >= 0) {
+          // Text gefunden - Offsets aktualisieren
+          const newEndOffset = newStartOffset + highlightedText.length;
+          
+          // Nur aktualisieren wenn sich etwas geändert hat
+          if (newStartOffset !== hl.localStartOffset || newEndOffset !== hl.localEndOffset) {
+            hasChanges = true;
+            return {
+              ...hl,
+              localStartOffset: newStartOffset,
+              localEndOffset: newEndOffset,
+            };
+          }
+          return hl;
+        }
+        
+        // Text nicht exakt gefunden - versuche Teilübereinstimmung
+        // (z.B. wenn nur Whitespace normalisiert wurde)
+        const normalizedHighlight = highlightedText.replace(/\s+/g, " ").trim();
+        const normalizedNew = newText.replace(/\s+/g, " ").trim();
+        
+        const normalizedIndex = normalizedNew.indexOf(normalizedHighlight);
+        if (normalizedIndex >= 0) {
+          // Finde die entsprechende Position im Original-Text
+          // Zähle Zeichen bis zur normalisierten Position
+          let charCount = 0;
+          let realIndex = 0;
+          for (let i = 0; i < newText.length && charCount < normalizedIndex; i++) {
+            if (!/\s/.test(newText[i]) || (i > 0 && !/\s/.test(newText[i-1]))) {
+              charCount++;
+            }
+            realIndex = i + 1;
+          }
+          
+          // Approximiere die neue Position
+          const newStartOffset = Math.max(0, realIndex);
+          const newEndOffset = Math.min(newText.length, newStartOffset + highlightedText.length);
+          
+          if (newStartOffset !== hl.localStartOffset || newEndOffset !== hl.localEndOffset) {
+            hasChanges = true;
+            return {
+              ...hl,
+              localStartOffset: newStartOffset,
+              localEndOffset: newEndOffset,
+            };
+          }
+          return hl;
+        }
+        
+        // Highlight-Text nicht mehr im neuen Text vorhanden
+        // Entferne das Highlight (return null wird später gefiltert)
+        console.warn(`[updateHighlightsForGroupEdit] Highlight text "${highlightedText}" not found in edited group "${hl.groupId}", removing highlight`);
+        hasChanges = true;
+        return null;
+      });
+      
+      // Wenn keine Änderungen, Original-Array zurückgeben (verhindert unnötige Re-Renders)
+      if (!hasChanges) return prev;
+      
+      // Entferne null-Einträge (gelöschte Highlights)
+      return updated.filter((hl): hl is Highlight => hl !== null);
+    });
+  }, []);
+
   return {
     highlights,
     menuState,
@@ -310,5 +450,6 @@ export function useHighlights() {
     removeHighlight,
     clearHighlights,
     setNextColor,
+    updateHighlightsForGroupEdit,
   };
 }

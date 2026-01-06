@@ -244,6 +244,7 @@ export default function App() {
     createHighlightFromSelection,
     removeHighlight,
     clearHighlights,
+    updateHighlightsForGroupEdit,
   } = useHighlights();
   
   // Get the provider and model name from the selected transcription model
@@ -415,6 +416,8 @@ export default function App() {
       // Segments mit editiertem Text aktualisieren
       if (editedGroups.size > 0) {
         updateSegmentsFromEdit(editedGroups, groupCloseTimestamps);
+        // Highlight-Offsets an die neuen Texte anpassen
+        updateHighlightsForGroupEdit(editedGroups, frozenGroupTexts);
       }
       
       frozenHtmlRef.current = null;
@@ -423,7 +426,7 @@ export default function App() {
       frozenHtmlSetRef.current = false; // Reset für nächsten Freeze
       setIsTextFrozen(false);
     }
-  }, [isTextFrozen, segments, groupCloseTimestamps, updateSegmentsFromEdit]);
+  }, [isTextFrozen, segments, groupCloseTimestamps, updateSegmentsFromEdit, updateHighlightsForGroupEdit]);
 
   // TEXT UNFREEZE OHNE EDIT-SPEICHERUNG: Für programmatische Aktionen (Delete, Copy, Agent-Query)
   // Diese Funktion überschreibt NICHT die segments - wichtig wenn deleteTextFromTranscript bereits aufgerufen wurde
@@ -513,9 +516,13 @@ export default function App() {
       // Aktualisiere frozenSegmentsRef (ohne Freeze zu beenden)
       frozenSegmentsRef.current = newFrozenSegments.filter(seg => seg.text.trim().length > 0);
       // Auch frozenGroupTextRef aktualisieren für konsistente Vergleiche
+      const oldGroupTexts = frozenGroupTextRef.current || new Map<string, string>();
       frozenGroupTextRef.current = buildGroupTextMap(frozenSegmentsRef.current, groupCloseTimestamps);
+      
+      // Highlight-Offsets an die editierten Texte anpassen
+      updateHighlightsForGroupEdit(editedGroups, oldGroupTexts);
     }
-  }, [isTextFrozen, groupCloseTimestamps, segments]);
+  }, [isTextFrozen, groupCloseTimestamps, segments, updateHighlightsForGroupEdit]);
 
   const releaseFocus = useCallback(() => {
     window.getSelection()?.removeAllRanges();
