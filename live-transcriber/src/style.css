@@ -890,6 +890,14 @@ button:disabled {
   padding-left: 8px;
 }
 
+/* Neue Segmente während Edit-Mode: Leicht ausgegraut, nicht editierbar */
+.final-line.new-after-freeze {
+  opacity: 0.6;
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, transparent 100%);
+  border-left-style: dashed;
+  pointer-events: none;
+}
+
 .live-line.source-mic {
   color: #7dd3fc;
 }

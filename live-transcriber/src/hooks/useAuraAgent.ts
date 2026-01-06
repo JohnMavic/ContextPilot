@@ -140,7 +140,8 @@ export function useAuraAgent() {
           signal: abortController.signal,
         });
 
-        if (resp.status === 429) {
+        // Retry on 429 (Rate Limit) or 5xx (Server Errors)
+        if (resp.status === 429 || (resp.status >= 500 && resp.status < 600)) {
           const retryAfterHeader = resp.headers.get("retry-after");
           let retryDelayMs = 0;
           if (retryAfterHeader) {
@@ -150,16 +151,20 @@ export function useAuraAgent() {
             }
           }
           if (retryDelayMs === 0) {
+            // Exponential backoff: 1s, 2s, 4s
             retryDelayMs = Math.min(8000, 1000 * Math.pow(2, attempt));
           }
 
           if (attempt < maxRetries) {
             attempt += 1;
             const waitSeconds = Math.round(retryDelayMs / 100) / 10;
+            const statusMsg = resp.status === 429 
+              ? `Rate limit, retrying in ${waitSeconds}s...`
+              : `Server error (${resp.status}), retrying in ${waitSeconds}s...`;
             setResponses(prev =>
               prev.map(r =>
                 r.id === responseId
-                  ? { ...r, statusNote: `Rate limit, retrying in ${waitSeconds}s...` }
+                  ? { ...r, statusNote: statusMsg }
                   : r
               )
             );
@@ -168,14 +173,21 @@ export function useAuraAgent() {
             continue;
           } else {
             const json = await resp.json().catch(() => null);
-            const msg = json?.error || "Rate limit exceeded";
+            const msg = json?.error || (resp.status === 429 ? "Rate limit exceeded" : `Server error (${resp.status})`);
             throw new Error(msg);
           }
         }
 
         if (!resp.ok) {
           const json = await resp.json().catch(() => null);
-          throw new Error(json?.error || `Agent request failed (${resp.status})`);
+          let errorMsg = json?.error || `Agent request failed (${resp.status})`;
+          
+          // Benutzerfreundliche Fehlermeldung für Content Filter
+          if (errorMsg.includes('content_filter') || errorMsg.includes('content management policy')) {
+            errorMsg = "Azure Content Filter: Der Text wurde blockiert. Bitte markiere einen anderen Abschnitt.";
+          }
+          
+          throw new Error(errorMsg);
         }
 
         const contentType = resp.headers.get("content-type") || "";
@@ -315,16 +327,55 @@ export function useAuraAgent() {
         )
       );
 
-      const resp = await fetch(`${proxyBaseUrl}/agent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, stream: true }),
-        signal: abortController.signal,
-      });
+      // Retry logic for transient errors
+      const maxRetries = 3;
+      let attempt = 0;
+      let resp: Response | null = null;
 
-      if (!resp.ok) {
-        const json = await resp.json().catch(() => null);
-        throw new Error(json?.error || `Agent request failed (${resp.status})`);
+      while (attempt <= maxRetries) {
+        resp = await fetch(`${proxyBaseUrl}/agent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, stream: true }),
+          signal: abortController.signal,
+        });
+
+        // Retry on 5xx errors
+        if (resp.status >= 500 && resp.status < 600 && attempt < maxRetries) {
+          attempt += 1;
+          const retryDelayMs = Math.min(8000, 1000 * Math.pow(2, attempt - 1));
+          const waitSeconds = Math.round(retryDelayMs / 100) / 10;
+          
+          setResponses(prev =>
+            prev.map(r =>
+              r.id === responseId
+                ? {
+                    ...r,
+                    followUps: r.followUps.map(fu =>
+                      fu.id === followUpId
+                        ? { ...fu, answer: `Server error, retrying in ${waitSeconds}s...` }
+                        : fu
+                    ),
+                  }
+                : r
+            )
+          );
+          await new Promise(res => setTimeout(res, retryDelayMs));
+          continue;
+        }
+        break;
+      }
+
+      if (!resp || !resp.ok) {
+        const json = await resp?.json().catch(() => null);
+        let errorMsg = json?.error || `Agent request failed (${resp?.status || 'unknown'})`;
+        
+        // Benutzerfreundliche Fehlermeldung für Content Filter
+        if (errorMsg.includes('content_filter') || errorMsg.includes('content management policy')) {
+          errorMsg = "Azure Content Filter: Der Text wurde blockiert. Bitte formuliere die Frage anders.";
+        }
+        
+        throw new Error(errorMsg);
       }
 
       const contentType = resp.headers.get("content-type") || "";

@@ -142,20 +142,27 @@ export const HighlightedText = memo(function HighlightedText({
       {segments.map((seg, idx) => {
         const className = getHighlightClass(seg.highlightColors);
         const primaryId = seg.highlightIds[0];
+        const isLastSegment = idx === segments.length - 1;
+        
+        // Zero-Width Space nach mark-Elementen, um Browser-Erweiterung zu verhindern
+        // Der Browser würde sonst neuen Text IN das mark-Element einfügen
+        const needsZeroWidthSpace = className && isLastSegment;
         
         return className ? (
-          <mark
-            key={primaryId ? `${primaryId}-${idx}` : idx}
-            className={className}
-            data-highlight-id={primaryId}
-            data-highlight-ids={seg.highlightIds.join(",")}
-            data-overlap-count={seg.highlightColors.length}
-            title={seg.highlightColors.length > 1 
-              ? `${seg.highlightColors.length} overlapping highlights` 
-              : undefined}
-          >
-            {seg.text}
-          </mark>
+          <span key={primaryId ? `${primaryId}-${idx}` : idx}>
+            <mark
+              className={className}
+              data-highlight-id={primaryId}
+              data-highlight-ids={seg.highlightIds.join(",")}
+              data-overlap-count={seg.highlightColors.length}
+              title={seg.highlightColors.length > 1 
+                ? `${seg.highlightColors.length} overlapping highlights` 
+                : undefined}
+            >
+              {seg.text}
+            </mark>
+            {needsZeroWidthSpace && <span className="zwsp">{"\u200B"}</span>}
+          </span>
         ) : (
           <span key={idx}>{seg.text}</span>
         );

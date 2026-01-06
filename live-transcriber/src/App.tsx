@@ -66,7 +66,8 @@ type TranscriptGroup = {
   hasLive: boolean;
 };
 
-const normalizeGroupText = (value: string) => value.replace(/\s+/g, " ").trim();
+// Zero-Width Space entfernen und Whitespace normalisieren
+const normalizeGroupText = (value: string) => value.replace(/[\u200B\u200C\u200D\uFEFF]/g, "").replace(/\s+/g, " ").trim();
 
 const buildGroupTextMap = (
   inputSegments: TranscriptSegment[],
@@ -373,6 +374,36 @@ export default function App() {
     }
   };
 
+  // EINFACHE LÖSUNG: Speichere pending edits für später, ohne Layout-Änderungen
+  const pendingEditRef = useRef<Map<string, string> | null>(null);
+  
+  // Bei Input: Nur die pending edits tracken, KEIN Re-Render
+  const handleInput = useCallback(() => {
+    if (!isTextFrozen || !transcriptBoxRef.current) return;
+    
+    // Alle Gruppen aus dem DOM auslesen
+    const groupElements = transcriptBoxRef.current.querySelectorAll('[data-group-id]');
+    const editedGroups = new Map<string, string>();
+    const baselineGroupTexts = frozenGroupTextRef.current || new Map<string, string>();
+    
+    groupElements.forEach((el) => {
+      const groupId = el.getAttribute('data-group-id');
+      if (!groupId || !groupId.startsWith("group-")) return;
+      
+      const domText = normalizeGroupText(el.textContent || '');
+      const baselineText = normalizeGroupText(baselineGroupTexts.get(groupId) || '');
+      
+      if (domText !== baselineText) {
+        editedGroups.set(groupId, domText);
+      }
+    });
+    
+    // Nur merken, NICHT speichern - das passiert beim unfreeze
+    if (editedGroups.size > 0) {
+      pendingEditRef.current = editedGroups;
+    }
+  }, [isTextFrozen]);
+
   // TEXT FREEZE: Bei MouseDown einfrieren, damit Selektion nicht durch neuen Text gestört wird
   const handleMouseDown = useCallback(() => {
     if (!isTextFrozen && segments.length > 0) {
@@ -388,16 +419,22 @@ export default function App() {
 
   // TEXT UNFREEZE MIT EDIT-SPEICHERUNG: Für User-Edits (Klick außerhalb, Enter, Escape)
   const unfreezeTextWithSave = useCallback(() => {
+    console.log("[unfreezeTextWithSave] Called, isTextFrozen:", isTextFrozen);
     if (isTextFrozen && transcriptBoxRef.current) {
       // Editierten Text aus dem DOM auslesen und in Segments speichern
       const editedGroups = new Map<string, string>();
       const groupElements = transcriptBoxRef.current.querySelectorAll('[data-group-id]');
+      console.log("[unfreezeTextWithSave] Found group elements:", groupElements.length);
       const frozenGroupTexts = frozenGroupTextRef.current || new Map<string, string>();
       const currentGroupTexts = buildGroupTextMap(segments, groupCloseTimestamps);
       
       groupElements.forEach((el) => {
         const groupId = el.getAttribute('data-group-id');
-        if (!groupId || !groupId.startsWith("group-")) return;
+        console.log("[unfreezeTextWithSave] Checking element, groupId:", groupId);
+        if (!groupId || !groupId.startsWith("group-")) {
+          console.log("[unfreezeTextWithSave] Skipping - invalid groupId");
+          return;
+        }
 
         // Nur den reinen Text (ohne Mark-Tags etc.)
         const text = normalizeGroupText(el.textContent || '');
@@ -515,9 +552,12 @@ export default function App() {
       
       // Aktualisiere frozenSegmentsRef (ohne Freeze zu beenden)
       frozenSegmentsRef.current = newFrozenSegments.filter(seg => seg.text.trim().length > 0);
-      // Auch frozenGroupTextRef aktualisieren für konsistente Vergleiche
+      
+      // WICHTIG: frozenGroupTextRef NICHT aktualisieren!
+      // Das ist die Baseline für den Vergleich bei unfreezeTextWithSave().
+      // Wenn wir es hier überschreiben, werden weitere Änderungen nicht erkannt.
+      // Die oldGroupTexts für Highlight-Updates holen wir aus dem Original.
       const oldGroupTexts = frozenGroupTextRef.current || new Map<string, string>();
-      frozenGroupTextRef.current = buildGroupTextMap(frozenSegmentsRef.current, groupCloseTimestamps);
       
       // Highlight-Offsets an die editierten Texte anpassen
       updateHighlightsForGroupEdit(editedGroups, oldGroupTexts);
@@ -875,8 +915,8 @@ Give me 3-5 bullet points with key facts I can use in conversation. Short, preci
       "Show more details"
     );
     hideMenu();
-    unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
-  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText, registerGroupClosure]);
+    unfreezeTextWithSave(); // Agent-Auftrag abgeschickt - Freeze beenden UND editierten Text speichern
+  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeTextWithSave, registerGroupClosure]);
 
   // Kombinierter Handler: Highlight erstellen UND Facts-Query starten
   const handleHighlightAndFacts = useCallback((useWebSearch: boolean) => {
@@ -903,8 +943,8 @@ Find 2-3 similar deal examples from Microsoft Switzerland in your index. One lin
       "Find similar examples"
     );
     hideMenu();
-    unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
-  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText, registerGroupClosure]);
+    unfreezeTextWithSave(); // Agent-Auftrag abgeschickt - Freeze beenden UND editierten Text speichern
+  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeTextWithSave, registerGroupClosure]);
 
   // Custom Prompt Handler (Enter im Textfeld)
   const handleCustomPrompt = useCallback((customPrompt: string, useWebSearch: boolean) => {
@@ -932,8 +972,8 @@ ${customPrompt}`, useWebSearch);
       customPrompt
     );
     hideMenu();
-    unfreezeText(); // Agent-Auftrag abgeschickt - Freeze beenden
-  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeText, registerGroupClosure]);
+    unfreezeTextWithSave(); // Agent-Auftrag abgeschickt - Freeze beenden UND editierten Text speichern
+  }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeTextWithSave, registerGroupClosure]);
 
   // Handler für das Schließen des Menüs - entfernt auch das pending Highlight
   const handleCloseMenu = useCallback(() => {
@@ -1089,8 +1129,8 @@ ${customPrompt}`, useWebSearch);
     
     // Menü schließen und Highlight entfernen (kein Agent getriggert)
     handleCloseMenu();
-    unfreezeText(); // Text kopiert - Freeze beenden
-  }, [menuState.selectedText, menuState.highlightId, highlights, handleCloseMenu, unfreezeText]);
+    unfreezeTextWithSave(); // Text kopiert - Freeze beenden UND editierten Text speichern
+  }, [menuState.selectedText, menuState.highlightId, highlights, handleCloseMenu, unfreezeTextWithSave]);
 
   // Handler für Delete - löscht markierten Text aus dem Transkript
   const handleDelete = useCallback(() => {
@@ -1211,9 +1251,56 @@ ${customPrompt}`, useWebSearch);
 
   // Segmente nach Timestamp sortieren (alle zusammen, nicht getrennt)
   // Segmente nach Timestamp sortieren - bei Freeze die gefrorenen verwenden
-  const displaySegments = isTextFrozen && frozenSegmentsRef.current 
-    ? frozenSegmentsRef.current 
-    : segments;
+  // ABER: Neue Segmente (nach dem Freeze) werden trotzdem angezeigt!
+  const frozenTimestampRef = useRef<number | null>(null);
+  
+  // Berechne displaySegments: frozen + neue Segmente
+  const displaySegments = useMemo(() => {
+    if (!isTextFrozen || !frozenSegmentsRef.current) {
+      frozenTimestampRef.current = null;
+      return segments;
+    }
+    
+    // Merke den höchsten Timestamp der gefrorenen Segmente
+    if (frozenTimestampRef.current === null && frozenSegmentsRef.current.length > 0) {
+      frozenTimestampRef.current = Math.max(...frozenSegmentsRef.current.map(s => s.timestamp));
+    }
+    
+    // Finde Segmente die NACH dem Freeze dazukamen
+    const newSegments = frozenTimestampRef.current 
+      ? segments.filter(s => s.timestamp > frozenTimestampRef.current!)
+      : [];
+    
+    // Kombiniere: frozen segments + neue segments
+    return [...frozenSegmentsRef.current, ...newSegments];
+  }, [isTextFrozen, segments]);
+  
+  // Set der Gruppen-IDs die nach dem Freeze dazukamen (für contentEditable=false)
+  const frozenGroupIdsRef = useRef<Set<string> | null>(null);
+  const newGroupIds = useMemo(() => {
+    if (!isTextFrozen || !frozenTimestampRef.current) {
+      frozenGroupIdsRef.current = null;
+      return new Set<string>();
+    }
+    
+    // Beim ersten Freeze: Speichere alle aktuellen Gruppen-IDs
+    if (frozenGroupIdsRef.current === null && frozenSegmentsRef.current) {
+      const frozenIds = new Set<string>();
+      frozenSegmentsRef.current.forEach(seg => {
+        frozenIds.add(makeTranscriptGroupId(seg));
+      });
+      frozenGroupIdsRef.current = frozenIds;
+    }
+    
+    // Alle Gruppen-IDs die NICHT in frozenGroupIds sind
+    const newIds = new Set<string>();
+    segments.forEach(seg => {
+      if (seg.timestamp > frozenTimestampRef.current!) {
+        newIds.add(makeTranscriptGroupId(seg));
+      }
+    });
+    return newIds;
+  }, [isTextFrozen, segments]);
     
   const sortedSegments = useMemo(() => 
     [...displaySegments].sort((a, b) => a.timestamp - b.timestamp),
@@ -1672,6 +1759,7 @@ ${customPrompt}`, useWebSearch);
               onMouseDown={handleMouseDown}
               onMouseUp={handleMouseUp}
               onKeyDown={handleKeyDown}
+              onInput={handleInput}
               onClick={handleHighlightClick}
               onContextMenu={handleContextMenu}
               contentEditable={isTextFrozen}
@@ -1687,6 +1775,9 @@ ${customPrompt}`, useWebSearch);
               {groupedSegmentsWithOffsets.map((group) => {
                 const groupText = group.texts.join(" ");
                 
+                // Prüfe ob diese Gruppe nach dem Freeze dazukam
+                const isNewAfterFreeze = isTextFrozen && newGroupIds.has(group.id);
+                
                 // Finde alle Responses die zu diesem Segment gehören
                 // (sourceGroupId = group.id UND keine insertAfterResponseId)
                 const responsesForGroup = auraResponses.filter(r => 
@@ -1694,9 +1785,9 @@ ${customPrompt}`, useWebSearch);
                 );
                 
                 return (
-                  <div key={group.id}>
+                  <div key={group.id} contentEditable={isNewAfterFreeze ? false : undefined} suppressContentEditableWarning>
                     {/* Das Transkript-Segment */}
-                    <div className={`final-line source-${group.source} ${group.isSourceChange ? 'has-tag' : 'no-tag'}`}>
+                    <div className={`final-line source-${group.source} ${group.isSourceChange ? 'has-tag' : 'no-tag'}${isNewAfterFreeze ? ' new-after-freeze' : ''}`}>
                       {group.isSourceChange && (
                         <span className="source-tag">{group.source === "mic" ? "MIC" : "SPK"}</span>
                       )}
