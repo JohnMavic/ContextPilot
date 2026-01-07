@@ -302,7 +302,7 @@ function listAgentsAPI(req, res) {
   
   res.writeHead(200, { 
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*"
+    "Access-Control-Allow-Origin": "http://localhost:5173"
   });
   res.end(JSON.stringify({ 
     agents: agentList,
@@ -326,7 +326,7 @@ function switchAgentAPI(req, res, body) {
     if (!agentId || (!isAgent && !isWorkflow && !isMfa)) {
       res.writeHead(400, { 
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
+        "Access-Control-Allow-Origin": "http://localhost:5173"
       });
       res.end(JSON.stringify({ 
         error: "Invalid agent/workflow/mfa ID",
@@ -344,7 +344,7 @@ function switchAgentAPI(req, res, body) {
     
     res.writeHead(200, { 
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*"
+      "Access-Control-Allow-Origin": "http://localhost:5173"
     });
     res.end(JSON.stringify({ 
       success: true,
@@ -358,7 +358,7 @@ function switchAgentAPI(req, res, body) {
   } catch (e) {
     res.writeHead(400, { 
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*"
+      "Access-Control-Allow-Origin": "http://localhost:5173"
     });
     res.end(JSON.stringify({ error: e.message }));
   }
@@ -964,7 +964,7 @@ async function handleMFARequest(req, res, body, mfaConfig) {
 
 const server = createServer((req, res) => {
   const { method, url } = req;
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
