@@ -31,9 +31,9 @@
 | F2 | CORS `*` | 🔴 | 🟢 Gefixt | ✅ Erledigt |
 | F3 | Klartext-Secrets | 🔴 | 🟡 Geschützt | 🟡 Akzeptiert |
 | F4 | VITE_OPENAI_API_KEY | 🔴 | 🟢 Gefixt | ✅ Erledigt |
-| F5 | Prompts in Logs | 🔴 | 🟠 Teilweise | ⚠️ 2 Stellen offen |
+| F5 | Prompts in Logs | 🔴 | � Gefixt | ✅ Erledigt |
 | F6 | HTTP ohne TLS | 🟡 | 🟡 Offen | 🟢 Akzeptiert |
-| F7 | CVEs in Dependencies | 🟡 | 🟠 Teilweise | ⚠️ Neue CVE |
+| F7 | CVEs in Dependencies | 🟡 | 🟢 Gefixt | ✅ Erledigt |
 | F8 | Input-Validation | 🟡 | 🟡 Offen | 🟡 Akzeptiert |
 
 ---
@@ -191,37 +191,33 @@ OPENAI_API_KEY=sk-proj-...
 ### Aktueller Status (08.01.2026)
 | Aspekt | Details |
 |--------|---------|
-| **Gefixt?** | ⚠️ Teilweise – 1 Stelle gefixt, 2 Stellen offen |
-| **Commit** | `32f5050` – "Security A3: Reduce logging" |
+| **Gefixt?** | ✅ Ja, vollständig |
+| **Commits** | `32f5050` + `a940369` |
 | **Code-Nachweis** | |
 
-**✅ Gefixt (nur Länge geloggt):**
+**✅ Alle Stellen gefixt (nur Länge geloggt):**
 ```javascript
 // Zeile 453
 console.log("[AURA] Prompt length:", prompt.length, "chars");
+
+// Zeile 653 (gefixt am 08.01.2026)
+console.log("[WORKFLOW] Prompt length:", prompt.length, "chars");
+
+// Zeile 831 (gefixt am 08.01.2026)
+console.log("[MFA] Prompt length:", prompt.length, "chars");
 
 // Zeile 1229-1234 (Transkript-Events)
 transcript_length: parsed.transcript?.length ?? 0
 ```
 
-**❌ Noch offen (erste 100 Zeichen geloggt):**
-```javascript
-// Zeile 653
-console.log("[WORKFLOW] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
-
-// Zeile 831
-console.log("[MFA] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
-```
-
 ### Prototyp-Bewertung
 | Aspekt | Details |
 |--------|---------|
-| **Status** | 🟠 Verbesserung nötig |
-| **Begründung** | 2 Stellen loggen noch Prompt-Anfang. Für Debugging hilfreich, aber sollte gefixt werden. |
+| **Status** | 🟢 Mitigiert |
+| **Begründung** | Alle Prompt-Logs zeigen nur noch Längen, keine Inhalte mehr. |
 
 ### Für Produktion erforderlich
-- [x] Prompt-Inhalte durch Längen ersetzen (teilweise) ✅
-- [ ] **Zeile 653 und 831 fixen** (Quick-Fix, 10 Min)
+- [x] Prompt-Inhalte durch Längen ersetzen ✅
 - [ ] DLP-Filter in Application Insights
 - [ ] Log-Retention auf 30 Tage begrenzen
 
@@ -268,8 +264,8 @@ console.log("[MFA] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "
 ### Aktueller Status (08.01.2026)
 | Aspekt | Details |
 |--------|---------|
-| **Gefixt?** | ⚠️ Teilweise |
-| **Commit** | `32540ac` – "Security A5: Dependency audit" |
+| **Gefixt?** | ✅ Ja, vollständig |
+| **Commits** | `32540ac` + `a940369` |
 | **Code-Nachweis** | |
 
 **✅ npm audit (08.01.2026):**
@@ -277,16 +273,19 @@ console.log("[MFA] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "
 found 0 vulnerabilities
 ```
 
+**✅ pip-audit (08.01.2026):**
+```
+No known vulnerabilities found
+```
+
 **✅ aiohttp gepatcht:**
 ```
-# requirements.txt Zeile 14
 aiohttp==3.13.3  # War 3.13.2, 8 CVEs gefixt
 ```
 
-**❌ Neue CVE entdeckt (08.01.2026):**
+**✅ urllib3 gepatcht (08.01.2026):**
 ```
-pip-audit:
-urllib3 2.6.2   CVE-2026-21441   Fix: 2.6.3
+urllib3==2.6.3  # War 2.6.2, CVE-2026-21441 gefixt
 ```
 
 **🟡 Beta-Pakete (bewusst akzeptiert):**
@@ -299,14 +298,14 @@ azure-ai-projects==2.0.0b2
 ### Prototyp-Bewertung
 | Aspekt | Details |
 |--------|---------|
-| **Status** | 🟠 Verbesserung nötig |
-| **Begründung** | aiohttp gepatcht, aber neue urllib3-CVE. Beta-Pakete sind einzige Option für MAF. |
+| **Status** | 🟢 Mitigiert |
+| **Begründung** | Alle bekannten CVEs gepatcht. Beta-Pakete sind einzige Option für MAF und werden akzeptiert. |
 
 ### Für Produktion erforderlich
 - [x] pip-audit durchführen ✅
 - [x] npm audit durchführen ✅
 - [x] aiohttp patchen ✅
-- [ ] **urllib3 auf 2.6.3 patchen** (Quick-Fix, 5 Min)
+- [x] urllib3 patchen ✅
 - [ ] Dependabot/Renovate aktivieren
 - [ ] SBOM generieren und einchecken
 
@@ -343,12 +342,12 @@ azure-ai-projects==2.0.0b2
 
 # Teil C: Aktionsplan
 
-## Sofort-Fixes (heute empfohlen)
+## Sofort-Fixes ✅ Erledigt (08.01.2026)
 
-| Priorität | Aktion | Aufwand | Befund |
-|-----------|--------|---------|--------|
-| 🔴 | urllib3 auf 2.6.3 patchen | 5 Min | F7 |
-| 🟡 | Zeile 653 + 831 Logging fixen | 10 Min | F5 |
+| Priorität | Aktion | Status | Befund |
+|-----------|--------|--------|--------|
+| 🟢 | urllib3 auf 2.6.3 patchen | ✅ Erledigt | F7 |
+| 🟢 | Zeile 653 + 831 Logging fixen | ✅ Erledigt | F5 |
 
 ## Für Produktions-Release
 
@@ -373,7 +372,8 @@ azure-ai-projects==2.0.0b2
 | 2026-01-07 | 1.3 | VITE-Prefix entfernt (Commit `1acc85f`) |
 | 2026-01-07 | 1.4 | aiohttp gepatcht (Commit `32540ac`) |
 | 2026-01-07 | 2.0 | Dokument restrukturiert |
-| 2026-01-08 | 3.0 | Vollständige Neuanalyse mit Code-Nachweisen, neue CVE entdeckt (urllib3) |
+| 2026-01-08 | 3.0 | Vollständige Neuanalyse mit Code-Nachweisen |
+| 2026-01-08 | 3.1 | F5 komplett gefixt, F7 urllib3 gepatcht (Commit `a940369`) |
 
 ---
 

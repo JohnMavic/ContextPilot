@@ -8,7 +8,10 @@ import uuid
 
 import azure.functions as func
 
-app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+# SECURITY: AuthLevel.FUNCTION erfordert x-functions-key Header oder ?code= Parameter
+# Lokal: Azure Functions Core Tools ignoriert dies standardmäßig
+# Azure: Proxy muss MFA_X_FUNCTION_KEY in App Settings haben
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 
 @app.route(route="healthz", methods=["GET"])
