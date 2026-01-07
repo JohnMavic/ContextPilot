@@ -449,7 +449,8 @@ async function handleAgentRequest(req, res, body) {
     return;
   }
 
-  console.log("[AURA] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
+  // Privacy: Log only prompt length, not content
+  console.log("[AURA] Prompt length:", prompt.length, "chars");
   console.log("[AURA] Using agent:", agent.name, `(${agent.label})`);
   console.log("[AURA] Endpoint:", agent.endpoint);
   console.log("[AURA] Streaming:", useStreaming);
@@ -1224,15 +1225,13 @@ wss.on("connection", (clientWs, req) => {
           delta_length: parsed.delta?.length ?? 0,
         });
       } else if (parsed?.type === "conversation.item.input_audio_transcription.completed") {
+        // Privacy: Log only metadata, not transcript content
         trackTranscriptEvent("completed", {
           session_id: sessionId,
           provider: providerLabel,
           item_id: parsed.item_id,
           content_index: parsed.content_index ?? 0,
           transcript_length: parsed.transcript?.length ?? 0,
-          // Log first/last 50 chars for duplication analysis (truncated for privacy/size)
-          transcript_start: (parsed.transcript ?? "").substring(0, 50),
-          transcript_end: (parsed.transcript ?? "").slice(-50),
         });
       } else if (parsed?.type === "input_audio_buffer.committed") {
         trackTranscriptEvent("committed", {
@@ -1246,14 +1245,19 @@ wss.on("connection", (clientWs, req) => {
       // ignore non-JSON payloads
     }
 
-    // Log full message for transcription failures to see the error details
+    // Privacy: Log only event type for failures, not full message content
     if (msg.includes('transcription.failed')) {
-      console.log(`[PROXY] ${providerLabel} TRANSCRIPTION FAILED:`, msg);
-      trackTranscriptEvent("failed", { session_id: sessionId, provider: providerLabel, raw: msg.substring(0, 500) });
+      console.log(`[PROXY] ${providerLabel} TRANSCRIPTION FAILED (details redacted for privacy)`);
+      trackTranscriptEvent("failed", { session_id: sessionId, provider: providerLabel, error_type: "transcription.failed" });
     }
-    // Only log non-audio events (skip verbose audio buffer responses)
+    // Privacy: Log only event type, not message content
     else if (!msg.includes('"type":"input_audio_buffer')) {
-      console.log(`[PROXY] ${providerLabel} ->`, msg.substring(0, 150) + (msg.length > 150 ? "..." : ""));
+      try {
+        const parsed = JSON.parse(msg);
+        console.log(`[PROXY] ${providerLabel} -> type: ${parsed.type || 'unknown'}`);
+      } catch {
+        console.log(`[PROXY] ${providerLabel} -> (non-JSON event)`);
+      }
     }
     if (clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(msg);

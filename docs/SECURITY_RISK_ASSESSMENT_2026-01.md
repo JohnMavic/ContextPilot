@@ -66,7 +66,7 @@
 | A1 | 2026-01-07 | `.gitignore` prüfen | ✅ Erledigt | F3 | `.env.local`, `.env.local.maf`, `appservice-appsettings.generated.json` bereits in `.gitignore` – keine Änderung nötig |
 | A2 | 2026-01-07 | CORS einschränken (lokal) | ✅ Erledigt | F2 | 5 Stellen in `proxy-server.js` geändert (`*` → `http://localhost:5173`) |
 | A2b | 2026-01-07 | CORS einschränken (Azure) | ✅ Erledigt | F2 | App Service `contextpilot-proxy-2025` konfiguriert: `https://ashy-dune-06d0e9810.4.azurestaticapps.net`, `http://localhost:5173` |
-| A3 | – | Logging reduzieren | ⏳ Offen | F5 | Geplant |
+| A3 | 2026-01-07 | Logging reduzieren | ✅ Erledigt | F5 | 4 Stellen in `proxy-server.js` geändert: Prompt-Inhalt, Transkript-Start/Ende, Fehler-Rohdaten entfernt |
 | A4 | – | `VITE_OPENAI_API_KEY` entfernen | ⏳ Offen | F4 | Geplant |
 | A5 | – | Dependency Audit (`npm audit`, `pip-audit`) | ⏳ Offen | F7 | Geplant |
 
@@ -78,7 +78,7 @@
 | F2 | CORS `*` | Kritisch | ✅ Mitigiert | CORS auf `http://localhost:5173` eingeschränkt (2026-01-07) |
 | F3 | Klartext-Secrets | Kritisch | ✅ Mitigiert | Dateien in `.gitignore` – werden nicht committed |
 | F4 | `VITE_` Prefix | Hoch | 🟡 Offen | Geplante Maßnahme A4 |
-| F5 | Prompts in Logs | Hoch | 🟡 Offen | Geplante Maßnahme A3 |
+| F5 | Prompts in Logs | Hoch | ✅ Mitigiert | Logging reduziert: nur Längen/Typen, keine Inhalte (2026-01-07) |
 | F6 | HTTP ohne TLS | Mittel | 🟡 Offen (akzeptiert) | Nur lokal relevant; Azure erzwingt HTTPS automatisch |
 | F7 | Beta-Pakete | Mittel | 🟡 Offen | MAF ist neu, nur Beta verfügbar; Audit geplant (A5) |
 | F8 | Input-Validation | Mittel | 🟡 Offen (akzeptiert) | Azure AI Content Safety Filter aktiv; vollständige Lösung erfordert Guardrails |
@@ -99,4 +99,6 @@ Keine Codeänderungen wurden vorgenommen; Bericht basiert ausschließlich auf de
 | 2026-01-07 | A1: `.gitignore` geprüft – bereits korrekt konfiguriert |
 | 2026-01-07 | A2: CORS von `*` auf `http://localhost:5173` eingeschränkt (5 Stellen in `proxy-server.js`) |
 | 2026-01-07 | A2b: CORS in Azure App Service `contextpilot-proxy-2025` konfiguriert |
+| 2026-01-07 | Restore Point `restore-point-2026-01-07-post-cors` erstellt |
+| 2026-01-07 | A3: Logging reduziert – Prompt-Inhalte, Transkript-Auszüge, Fehler-Rohdaten entfernt |
 | 2026-01-07 | `SECURITY_RISK_ASSESSMENT_*.md` in `.gitignore` aufgenommen |
