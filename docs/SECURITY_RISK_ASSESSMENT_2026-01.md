@@ -74,14 +74,14 @@
 
 | ID | Befund | Ursprüngliches Risiko | Aktueller Status | Begründung |
 |----|--------|----------------------|------------------|------------|
-| F1 | `AuthLevel.ANONYMOUS` | Kritisch | 🟡 Offen (akzeptiert für Entwicklung) | Nur für lokale Entwicklung relevant; in Produktion muss AuthLevel.FUNCTION + API-Key aktiviert werden |
-| F2 | CORS `*` | Kritisch | ✅ Mitigiert | CORS auf `http://localhost:5173` eingeschränkt (2026-01-07) |
-| F3 | Klartext-Secrets | Kritisch | ✅ Mitigiert | Dateien in `.gitignore` – werden nicht committed |
-| F4 | `VITE_` Prefix | Hoch | 🟡 Offen | Geplante Maßnahme A4 |
+| F1 | `AuthLevel.ANONYMOUS` | Kritisch | 🟡 Akzeptiert | Nur für lokale Entwicklung; Azure Function verwendet Azure AD via Managed Identity. Für Produktiv-Deployment empfohlen: AuthLevel.FUNCTION + API-Key oder Azure AD-Authentifizierung. |
+| F2 | CORS `*` | Kritisch | ✅ Mitigiert | CORS eingeschränkt: lokal auf `http://localhost:5173`, Azure auf SWA-Domain (2026-01-07) |
+| F3 | Klartext-Secrets | Kritisch | ✅ Mitigiert | Alle sensitiven Dateien in `.gitignore` – werden nicht committed |
+| F4 | `VITE_` Prefix | Hoch | ✅ Mitigiert | `VITE_OPENAI_API_KEY` → `OPENAI_API_KEY` umbenannt. Key wird nur serverseitig im Proxy verwendet, nicht im Frontend-Bundle (2026-01-07) |
 | F5 | Prompts in Logs | Hoch | ✅ Mitigiert | Logging reduziert: nur Längen/Typen, keine Inhalte (2026-01-07) |
-| F6 | HTTP ohne TLS | Mittel | 🟡 Offen (akzeptiert) | Nur lokal relevant; Azure erzwingt HTTPS automatisch |
-| F7 | Beta-Pakete | Mittel | 🟡 Offen | MAF ist neu, nur Beta verfügbar; Audit geplant (A5) |
-| F8 | Input-Validation | Mittel | 🟡 Offen (akzeptiert) | Azure AI Content Safety Filter aktiv; vollständige Lösung erfordert Guardrails |
+| F6 | HTTP ohne TLS | Mittel | 🟡 Akzeptiert | Nur lokal relevant; Azure erzwingt HTTPS automatisch. Kein Handlungsbedarf. |
+| F7 | Beta-Pakete | Mittel | ✅ Mitigiert | Audit durchgeführt: npm 0 Vulnerabilities, pip `aiohttp` 3.13.2→3.13.3 (8 CVEs gefixt). MAF Beta akzeptiert da einzige verfügbare Version (2026-01-07) |
+| F8 | Input-Validation | Mittel | 🟡 Akzeptiert | Azure AI Content Safety Filter ist serverseitig aktiv. Vollständige Client-Validation erfordert Guardrails-Framework – für Prototyp akzeptables Restrisiko. |
 
 ## Dokument-Vertraulichkeit
 
@@ -101,4 +101,9 @@ Keine Codeänderungen wurden vorgenommen; Bericht basiert ausschließlich auf de
 | 2026-01-07 | A2b: CORS in Azure App Service `contextpilot-proxy-2025` konfiguriert |
 | 2026-01-07 | Restore Point `restore-point-2026-01-07-post-cors` erstellt |
 | 2026-01-07 | A3: Logging reduziert – Prompt-Inhalte, Transkript-Auszüge, Fehler-Rohdaten entfernt |
+| 2026-01-07 | Restore Point `restore-point-2026-01-07-post-logging` erstellt |
+| 2026-01-07 | A4: `VITE_OPENAI_API_KEY` → `OPENAI_API_KEY` umbenannt (`.env.local`, `proxy-server.js`, Doku) |
+| 2026-01-07 | Restore Point `restore-point-2026-01-07-post-A4` erstellt |
+| 2026-01-07 | A5: Dependency Audit durchgeführt – npm: 0 Vulnerabilities, pip: aiohttp 3.13.2→3.13.3 (8 CVEs gefixt) |
 | 2026-01-07 | `SECURITY_RISK_ASSESSMENT_*.md` in `.gitignore` aufgenommen |
+| 2026-01-07 | **Alle Maßnahmen (A1–A5) abgeschlossen** |
