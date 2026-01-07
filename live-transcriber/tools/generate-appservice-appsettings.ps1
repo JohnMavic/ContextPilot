@@ -60,12 +60,6 @@ function Redact-Value([string]$key, [string]$value) {
   return "${prefix}***REDACTED***"
 }
 
-# Map local client-style key to server-style key if present
-# Proxy uses: VITE_OPENAI_API_KEY || OPENAI_API_KEY
-if ($env.Contains('VITE_OPENAI_API_KEY') -and (-not $env.Contains('OPENAI_API_KEY'))) {
-  $env['OPENAI_API_KEY'] = $env['VITE_OPENAI_API_KEY']
-}
-
 # Defaults for OpenAI realtime transcription model override (OpenAI provider only)
 # These are safe defaults; the proxy also has the same defaults in code.
 if (-not $env.Contains('OPENAI_TRANSCRIBE_MODEL')) {

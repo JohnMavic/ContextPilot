@@ -309,7 +309,7 @@ AURA_AGENT_NAME=AURAContext
 AURA_API_VERSION=2025-11-15-preview
 
 # OpenAI API Key für Transkription (WebSocket Proxy)
-VITE_OPENAI_API_KEY=sk-proj-xxx...
+OPENAI_API_KEY=sk-proj-xxx...
 ```
 
 ### Credentials-Übersicht
@@ -319,7 +319,7 @@ VITE_OPENAI_API_KEY=sk-proj-xxx...
 | `AURA_ENDPOINT` | Azure AI Foundry Project Endpoint | Azure Portal → AI Foundry → Project → Overview |
 | `AURA_AGENT_NAME` | Name des Agenten | AI Foundry Portal → Agents |
 | `AURA_API_VERSION` | API Version | `2025-11-15-preview` (Stand Dez 2025) |
-| `VITE_OPENAI_API_KEY` | OpenAI API Key für Transkription | OpenAI Platform → API Keys |
+| `OPENAI_API_KEY` | OpenAI API Key für Transkription | OpenAI Platform → API Keys |
 
 ### Azure AD Authentifizierung (für AURA)
 

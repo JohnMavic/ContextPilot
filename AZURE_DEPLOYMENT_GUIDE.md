@@ -109,7 +109,6 @@ What it does:
   - `live-transcriber/appservice-appsettings.generated.redacted.json` (safe-ish to share)
 - Skips `VITE_*` keys (those are frontend build-time)
 - Adds `WEBSITE_STARTUP_COMMAND = node proxy-server.js`
-- Copies `VITE_OPENAI_API_KEY` into `OPENAI_API_KEY` if needed
 
 Run it (PowerShell):
 ```powershell
@@ -123,7 +122,7 @@ Then in Azure Portal:
 ### 5.2 Proxy env vars (names only)
 
 #### OpenAI Realtime
-- `OPENAI_API_KEY` (proxy uses `VITE_OPENAI_API_KEY` as fallback for local dev)
+- `OPENAI_API_KEY`
 
 #### Azure OpenAI Realtime (transcribe / diarize)
 Used when the client connects with `?provider=azure`:

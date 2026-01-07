@@ -83,7 +83,7 @@ function trackTranscriptEvent(name, properties) {
   }
 }
 
-const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PORT = parseInt(process.env.PORT || "8080", 10);
 
 // OpenAI Realtime Transcription model override (OpenAI provider only)
