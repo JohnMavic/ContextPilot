@@ -650,7 +650,8 @@ async function handleWorkflowRequest(req, res, body, workflow) {
     return;
   }
 
-  console.log("[WORKFLOW] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
+  // Privacy: Log only prompt length, not content
+  console.log("[WORKFLOW] Prompt length:", prompt.length, "chars");
   console.log("[WORKFLOW] Using workflow:", workflow.name, `(${workflow.label})`);
   console.log("[WORKFLOW] Endpoint:", workflow.endpoint);
 
@@ -828,7 +829,8 @@ async function handleMFARequest(req, res, body, mfaConfig) {
     return;
   }
 
-  console.log("[MFA] Prompt:", prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""));
+  // Privacy: Log only prompt length, not content
+  console.log("[MFA] Prompt length:", prompt.length, "chars");
   console.log("[MFA] Forwarding to Azure Function:", mfaConfig.endpoint);
 
   const timeoutMs = parseInt(process.env.MFA_PROXY_TIMEOUT_MS || "200000", 10);
