@@ -11,7 +11,7 @@ agent-framework-azure-ai==1.0.0b251223
 azure-ai-projects==2.0.0b2
 
 # HTTP stack
-aiohttp==3.13.2
+aiohttp==3.13.3
 
 # Auth / Typing
 azure-identity>=1.17.0

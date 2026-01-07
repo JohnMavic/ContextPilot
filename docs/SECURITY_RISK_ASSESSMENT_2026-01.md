@@ -68,7 +68,7 @@
 | A2b | 2026-01-07 | CORS einschränken (Azure) | ✅ Erledigt | F2 | App Service `contextpilot-proxy-2025` konfiguriert: `https://ashy-dune-06d0e9810.4.azurestaticapps.net`, `http://localhost:5173` |
 | A3 | 2026-01-07 | Logging reduzieren | ✅ Erledigt | F5 | 4 Stellen in `proxy-server.js` geändert: Prompt-Inhalt, Transkript-Start/Ende, Fehler-Rohdaten entfernt |
 | A4 | 2026-01-07 | `VITE_OPENAI_API_KEY` entfernen | ✅ Erledigt | F4 | `.env.local`, `proxy-server.js`, Doku aktualisiert – kein VITE_ Prefix mehr |
-| A5 | – | Dependency Audit (`npm audit`, `pip-audit`) | ⏳ Offen | F7 | Geplant |
+| A5 | 2026-01-07 | Dependency Audit (`npm audit`, `pip-audit`) | ✅ Erledigt | F7 | npm: 0 Vulnerabilities, pip: aiohttp 3.13.2→3.13.3 (8 CVEs gefixt) |
 
 ## Risiko-Status nach Maßnahmen
 
