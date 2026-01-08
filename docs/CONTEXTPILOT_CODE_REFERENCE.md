@@ -2,8 +2,8 @@
 
 **Projekt:** CONTEXTPILOT  
 **Zielordner:** `E:\ContextPilot`  
-**Datum:** 3. Januar 2026  
-**Version:** 2.4  
+**Datum:** 8. Januar 2026  
+**Version:** 2.5  
 **Repository:** https://github.com/JohnMavic/ContextPilot
 
 ---
@@ -344,7 +344,10 @@ import uuid
 
 import azure.functions as func
 
-app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+# SECURITY: AuthLevel.FUNCTION erfordert x-functions-key Header oder ?code= Parameter
+# Lokal: Azure Functions Core Tools ignoriert dies standardmäßig
+# Azure: Proxy muss MFA_X_FUNCTION_KEY in App Settings haben
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 
 @app.route(route="healthz", methods=["GET"])

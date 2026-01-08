@@ -27,7 +27,7 @@
 
 | ID | Befund | War | Ist | Für Prototyp |
 |----|--------|-----|-----|--------------|
-| F1 | AuthLevel.ANONYMOUS | 🔴 | 🔴 Offen | 🟡 Akzeptiert |
+| F1 | AuthLevel.ANONYMOUS | 🔴 | 🟢 Gefixt | ✅ Erledigt |
 | F2 | CORS `*` | 🔴 | 🟢 Gefixt | ✅ Erledigt |
 | F3 | Klartext-Secrets | 🔴 | 🟡 Geschützt | 🟡 Akzeptiert |
 | F4 | VITE_OPENAI_API_KEY | 🔴 | 🟢 Gefixt | ✅ Erledigt |
@@ -53,18 +53,40 @@
 ### Aktueller Status (08.01.2026)
 | Aspekt | Details |
 |--------|---------|
-| **Gefixt?** | ❌ Nein |
-| **Code-Nachweis** | `function_app.py:11` zeigt weiterhin `AuthLevel.ANONYMOUS` |
+| **Gefixt?** | ✅ Ja |
+| **Commit** | `64fab75` |
+| **Code-Nachweis** | |
+
+**Vorher:**
+```python
+app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+```
+
+**Nachher:**
+```python
+# SECURITY: AuthLevel.FUNCTION erfordert x-functions-key Header oder ?code= Parameter
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+```
+
+**Verifizierung:**
+```bash
+# OHNE Key: 401 Unauthorized ✅
+curl https://contextpilot-mfa-func.azurewebsites.net/api/healthz
+
+# MIT Key: 200 OK ✅
+curl -H "x-functions-key: <key>" https://contextpilot-mfa-func.azurewebsites.net/api/healthz
+```
 
 ### Prototyp-Bewertung
 | Aspekt | Details |
 |--------|---------|
-| **Status** | 🟡 Akzeptiert für Prototyp |
-| **Begründung** | Function läuft nur lokal auf `localhost:7071`, nicht öffentlich im Internet erreichbar. Proxy ruft sie intern auf. |
+| **Status** | 🟢 Mitigiert |
+| **Begründung** | Function erfordert jetzt Function Key. Proxy hat Key in App Settings konfiguriert. |
 
 ### Für Produktion erforderlich
-- [ ] `AuthLevel.FUNCTION` oder `AuthLevel.ADMIN` setzen
-- [ ] Function Key oder Managed Identity konfigurieren
+- [x] `AuthLevel.FUNCTION` setzen ✅
+- [x] Function Key im Proxy konfigurieren ✅
+- [ ] Key-Rotation Policy einrichten
 - [ ] API Management mit JWT/Rate-Limiting vorschalten
 
 ---
@@ -351,14 +373,14 @@ azure-ai-projects==2.0.0b2
 
 ## Für Produktions-Release
 
-| Priorität | Aktion | Aufwand | Befund |
-|-----------|--------|---------|--------|
-| 🔴 Hoch | AuthLevel.FUNCTION aktivieren | 1h | F1 |
-| 🔴 Hoch | Key Vault Migration | 2-4h | F3 |
-| 🟡 Mittel | Dependabot aktivieren | 30min | F7 |
-| 🟡 Mittel | Rate-Limiting | 2h | F2, F8 |
-| 🟢 Niedrig | SBOM generieren | 15min | F7 |
-| 🟢 Niedrig | Input-Validation | 4-8h | F8 |
+| Priorität | Aktion | Status | Befund |
+|-----------|--------|--------|--------|
+| 🟢 | AuthLevel.FUNCTION aktivieren | ✅ Erledigt | F1 |
+| 🔴 Hoch | Key Vault Migration | Offen (2-4h) | F3 |
+| 🟡 Mittel | Dependabot aktivieren | Offen (30min) | F7 |
+| 🟡 Mittel | Rate-Limiting | Offen (2h) | F2, F8 |
+| 🟢 Niedrig | SBOM generieren | Offen (15min) | F7 |
+| 🟢 Niedrig | Input-Validation | Offen (4-8h) | F8 |
 
 ---
 
@@ -374,6 +396,7 @@ azure-ai-projects==2.0.0b2
 | 2026-01-07 | 2.0 | Dokument restrukturiert |
 | 2026-01-08 | 3.0 | Vollständige Neuanalyse mit Code-Nachweisen |
 | 2026-01-08 | 3.1 | F5 komplett gefixt, F7 urllib3 gepatcht (Commit `a940369`) |
+| 2026-01-08 | 3.2 | **F1 gefixt: AuthLevel.FUNCTION + Function Key (Commit `64fab75`)** |
 
 ---
 
@@ -395,6 +418,7 @@ restore-point-2026-01-07-pre-security
 restore-point-2026-01-07-post-cors
 restore-point-2026-01-07-post-logging
 restore-point-2026-01-07-post-A4
+restore-point-2026-01-08-before-authlevel-fix
 ```
 
 ---

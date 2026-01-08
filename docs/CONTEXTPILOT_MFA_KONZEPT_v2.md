@@ -1,9 +1,9 @@
-# CONTEXTPILOT MFA-Konzept v2.5
+# CONTEXTPILOT MFA-Konzept v2.6
 ## Umstellung auf Azure Function mit Microsoft Agent Framework
 
-**Version:** 2.5  
-**Datum:** 5. Januar 2026  
-**Status:** Produktiv – Zwischenstand (siehe Implementierungsstatus)  
+**Version:** 2.6  
+**Datum:** 8. Januar 2026  
+**Status:** Produktiv – Security Hardening abgeschlossen  
 **Technologie-Stack:** Azure Function (Python) + Microsoft Agent Framework (MAF)
 
 ---
@@ -648,7 +648,9 @@ import azure.functions as func
 # ✅ KEIN TOP-LEVEL IMPORT von mfa_workflow!
 # Der Import erfolgt LAZY innerhalb der Funktion
 
-app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+# SECURITY: AuthLevel.FUNCTION erfordert x-functions-key Header
+# Lokal ignoriert Core Tools dies, Azure benötigt Function Key im Proxy
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 
 @app.route(route="healthz", methods=["GET"])
@@ -779,41 +781,49 @@ You are AURATriage, the intelligent routing agent for CONTEXTPILOT.
 
 TASK:
 Analyze the user request and decide the optimal routing path.
-Your goal is SPEED - avoid unnecessary agent calls!
+Your goal is SPEED and ACCURACY - route to the right agent!
 
 ROUTING OPTIONS:
 
 1. "direct": true
-   → GPT can answer this directly (translations, general knowledge, 
-     math, coding, explanations, summaries)
+   → Route to AURAContextPilotQuick for:
+     • Translations (any language)
+     • General knowledge GPT already knows
+     • Math, calculations, conversions
+     • Code help, syntax, explanations
+     • Definitions, concepts, summaries
+     • Writing assistance, formatting
    → NO external data needed, NO internal business data needed
    → FASTEST option - use whenever possible!
 
 2. "web": true  
-   → ONLY for real-time/current data that GPT doesn't know:
+   → Route to AURAContextPilotWeb for CURRENT/LIVE data:
      • Weather, stock prices, exchange rates
      • Today's news, recent events (after training cutoff)
      • Live schedules, current availability
-     • Recent Wikipedia updates, new releases
-   → Do NOT use for general facts GPT already knows!
+     • Current Wikipedia data, new releases
+     • "latest", "today", "current", "recent" keywords
+   → Use web when a search would add to your existing knowledge
 
 3. "context": true
-   → ONLY for internal business questions:
+   → Route to AURAContextPilot for INTERNAL business data:
      • Microsoft Switzerland FY25/FY26 wins, customers, deals
-     • Internal meeting content, "what was said", "our discussion"
+     • Swiss market analysis, economic strengths and weaknesses
+     • Business sentiment towards AI adoption
+     • AI penetration in enterprise workflows
      • Company-specific data not publicly available
 
-DECISION RULES (in priority order):
-1. Can GPT answer this from its training data? → direct: true
-2. Does it need CURRENT/LIVE data? → web: true
+DECISION RULES (priority order):
+1. Can training data answer this? → direct: true
+2. Would web search add value or provide current data? → web: true
 3. Does it reference INTERNAL business data? → context: true
 4. Explicit comparison internal vs. external? → BOTH web + context: true
-5. If truly unclear after analysis → direct: true (let GPT try first)
+5. Truly ambiguous after analysis? → direct: true (let Quick try first)
 
 CRITICAL:
 - Respond ONLY with a JSON object. No other text!
-- Prefer "direct" over agents whenever reasonable
-- "Unclear = both agents" is WRONG - unclear = direct!
+- Prefer "direct" over other agents when reasonable
+- "Unclear" means "web" and "context" equals true!
 
 FORMAT:
 {
@@ -824,20 +834,6 @@ FORMAT:
   },
   "reasoning": "Brief explanation (max 30 words)"
 }
-
-EXAMPLES:
-
-User: "Translate 'hello' to German"
-→ {"routing": {"direct": true, "web": false, "context": false}, "reasoning": "Translation - GPT can do directly"}
-
-User: "What's the weather in Munich?"
-→ {"routing": {"direct": false, "web": true, "context": false}, "reasoning": "Current weather requires live data"}
-
-User: "What were our Q2 wins?"
-→ {"routing": {"direct": false, "web": false, "context": true}, "reasoning": "Internal business data required"}
-
-User: "Compare our sales strategy with industry best practices"
-→ {"routing": {"direct": false, "web": true, "context": true}, "reasoning": "Needs both internal data and external research"}
 ```
 
 ### 5.3 Wie die Entscheidung verarbeitet wird
@@ -895,41 +891,49 @@ You are AURATriage, the intelligent routing agent for CONTEXTPILOT.
 
 TASK:
 Analyze the user request and decide the optimal routing path.
-Your goal is SPEED - avoid unnecessary agent calls!
+Your goal is SPEED and ACCURACY - route to the right agent!
 
 ROUTING OPTIONS:
 
 1. "direct": true
-   → GPT can answer this directly (translations, general knowledge, 
-     math, coding, explanations, summaries)
+   → Route to AURAContextPilotQuick for:
+     • Translations (any language)
+     • General knowledge GPT already knows
+     • Math, calculations, conversions
+     • Code help, syntax, explanations
+     • Definitions, concepts, summaries
+     • Writing assistance, formatting
    → NO external data needed, NO internal business data needed
    → FASTEST option - use whenever possible!
 
 2. "web": true  
-   → ONLY for real-time/current data that GPT doesn't know:
+   → Route to AURAContextPilotWeb for CURRENT/LIVE data:
      • Weather, stock prices, exchange rates
      • Today's news, recent events (after training cutoff)
      • Live schedules, current availability
-     • Recent Wikipedia updates, new releases
-   → Do NOT use for general facts GPT already knows!
+     • Current Wikipedia data, new releases
+     • "latest", "today", "current", "recent" keywords
+   → Use web when a search would add to your existing knowledge
 
 3. "context": true
-   → ONLY for internal business questions:
+   → Route to AURAContextPilot for INTERNAL business data:
      • Microsoft Switzerland FY25/FY26 wins, customers, deals
-     • Internal meeting content, "what was said", "our discussion"
+     • Swiss market analysis, economic strengths and weaknesses
+     • Business sentiment towards AI adoption
+     • AI penetration in enterprise workflows
      • Company-specific data not publicly available
 
-DECISION RULES (in priority order):
-1. Can GPT answer this from its training data? → direct: true
-2. Does it need CURRENT/LIVE data? → web: true
+DECISION RULES (priority order):
+1. Can training data answer this? → direct: true
+2. Would web search add value or provide current data? → web: true
 3. Does it reference INTERNAL business data? → context: true
 4. Explicit comparison internal vs. external? → BOTH web + context: true
-5. If truly unclear after analysis → direct: true (let GPT try first)
+5. Truly ambiguous after analysis? → direct: true (let Quick try first)
 
 CRITICAL:
 - Respond ONLY with a JSON object. No other text!
-- Prefer "direct" over agents whenever reasonable
-- "Unclear = both agents" is WRONG - unclear = direct!
+- Prefer "direct" over other agents when reasonable
+- "Unclear" means "web" and "context" equals true!
 
 FORMAT:
 {
@@ -940,20 +944,6 @@ FORMAT:
   },
   "reasoning": "Brief explanation (max 30 words)"
 }
-
-EXAMPLES:
-
-User: "Translate 'hello' to German"
-→ {"routing": {"direct": true, "web": false, "context": false}, "reasoning": "Translation - GPT can do directly"}
-
-User: "What's the weather in Munich?"
-→ {"routing": {"direct": false, "web": true, "context": false}, "reasoning": "Current weather requires live data"}
-
-User: "What were our Q2 wins?"
-→ {"routing": {"direct": false, "web": false, "context": true}, "reasoning": "Internal business data required"}
-
-User: "Compare our sales strategy with industry best practices"
-→ {"routing": {"direct": false, "web": true, "context": true}, "reasoning": "Needs both internal data and external research"}
 ```
 
 ### AURAContextPilotWeb (Web Search Agent)
