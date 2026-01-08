@@ -5,6 +5,7 @@ import { HighlightedText } from "./components/HighlightedText";
 import { HighlightMenu } from "./components/HighlightMenu";
 import { AuraResponsePanel } from "./components/AuraResponsePanel";
 import { InlineAgentResponse } from "./components/InlineAgentResponse";
+import { UserMenu } from "./components/UserMenu";
 import type { SpeakerSource } from "./components/DeviceSelector";
 import { useDualRealtime, type TranscriptionProvider, type TranscriptSegment } from "./hooks/useDualRealtime";
 import { useTabCapture } from "./hooks/useTabCapture";
@@ -1579,6 +1580,7 @@ ${customPrompt}`, useWebSearch);
             <span className="brand-text">TEXT</span>
           </h1>
         </div>
+        <UserMenu />
       </header>
 
       {/* Sidebar links */}
