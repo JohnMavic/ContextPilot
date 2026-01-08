@@ -21,20 +21,22 @@
 | Zeitpunkt | Risikostufe | Begründung |
 |-----------|-------------|------------|
 | **07.01.2026 (morgens)** | 🔴 Hoch | Anonyme Endpunkte, CORS `*`, Secrets exponiert, Prompts in Logs |
-| **08.01.2026 (aktuell)** | 🟡 Mittel | CORS gefixt, VITE-Prefix entfernt, Logging reduziert, CVEs gepatcht |
+| **08.01.2026 (aktuell)** | � Niedrig | CORS gefixt, VITE-Prefix entfernt, Logging reduziert, CVEs gepatcht, AAD + GitHub Auth auf 2 Accounts beschränkt |
 
 ## Schnellübersicht Befunde
 
-| ID | Befund | War | Ist | Für Prototyp |
-|----|--------|-----|-----|--------------|
-| F1 | AuthLevel.ANONYMOUS | 🔴 | 🟢 Gefixt | ✅ Erledigt |
-| F2 | CORS `*` | 🔴 | 🟢 Gefixt | ✅ Erledigt |
-| F3 | Klartext-Secrets | 🔴 | 🟡 Geschützt | 🟡 Akzeptiert |
-| F4 | VITE_OPENAI_API_KEY | 🔴 | 🟢 Gefixt | ✅ Erledigt |
-| F5 | Prompts in Logs | 🔴 | � Gefixt | ✅ Erledigt |
-| F6 | HTTP ohne TLS | 🟡 | 🟡 Offen | 🟢 Akzeptiert |
-| F7 | CVEs in Dependencies | 🟡 | 🟢 Gefixt | ✅ Erledigt |
-| F8 | Input-Validation | 🟡 | 🟡 Offen | 🟡 Akzeptiert |
+| ID | Befund | Challenge | War | Ist | Für Prototyp | Kommentar |
+|----|--------|-----------|-----|-----|--------------|-----------|
+| F1 | AuthLevel.ANONYMOUS | API offen für jeden | 🔴 | 🟢 Gefixt | ✅ Erledigt | AAD + GitHub Auth auf 2 Accounts |
+| F2 | CORS `*` | Cross-Site-Angriffe* möglich | 🔴 | 🟢 Gefixt | ✅ Erledigt | |
+| F3 | Klartext-Secrets | Keys könnten ins Repo leaken | 🔴 | 🟡 Geschützt | 🟡 Akzeptiert | .gitignore schützt vor Commit |
+| F4 | VITE_OPENAI_API_KEY | Key landet im Browser-Bundle | 🔴 | 🟢 Gefixt | ✅ Erledigt | |
+| F5 | Prompts in Logs | PII/Inhalte in Logs sichtbar | 🔴 | 🟢 Gefixt | ✅ Erledigt | |
+| F6 | HTTP ohne TLS | Traffic unverschlüsselt | 🟡 | 🟡 Offen | 🟢 Akzeptiert | Nur localhost, Azure erzwingt HTTPS extern |
+| F7 | CVEs in Dependencies | Bekannte Sicherheitslücken | 🟡 | 🟢 Gefixt | ✅ Erledigt | |
+| F8 | Input-Validation | Prompt Injection möglich | 🟡 | 🟡 Offen | 🟡 Akzeptiert | Azure AI Content Safety aktiv |
+
+> **\*Cross-Site-Angriffe:** Ein bösartiges Script auf einer fremden Website (z.B. `evil-site.com`) könnte API-Requests an euren Server schicken – und dabei die Cookies/Session des Users mitnutzen. Mit CORS `*` erlaubt der Browser das. Mit CORS auf `localhost:5173` beschränkt, blockiert der Browser alle Requests von fremden Domains.
 
 ---
 
@@ -81,11 +83,14 @@ curl -H "x-functions-key: <key>" https://contextpilot-mfa-func.azurewebsites.net
 | Aspekt | Details |
 |--------|---------|
 | **Status** | 🟢 Mitigiert |
-| **Begründung** | Function erfordert jetzt Function Key. Proxy hat Key in App Settings konfiguriert. |
+| **Begründung** | Function erfordert jetzt Function Key. Proxy hat Key in App Settings konfiguriert. Zusätzlich AAD + GitHub Authentifizierung auf 2 Accounts beschränkt. |
 
 ### Für Produktion erforderlich
 - [x] `AuthLevel.FUNCTION` setzen ✅
 - [x] Function Key im Proxy konfigurieren ✅
+- [x] AAD Authentifizierung aktivieren ✅
+- [x] GitHub Login aktivieren ✅
+- [x] Zugriff auf 2 Accounts beschränkt ✅
 - [ ] Key-Rotation Policy einrichten
 - [ ] API Management mit JWT/Rate-Limiting vorschalten
 
@@ -265,7 +270,7 @@ transcript_length: parsed.transcript?.length ?? 0
 | Aspekt | Details |
 |--------|---------|
 | **Status** | 🟢 Akzeptiert für Prototyp |
-| **Begründung** | Kommunikation ist nur lokal (`localhost`). Azure App Service erzwingt automatisch HTTPS für externe Verbindungen. |
+| **Begründung** | **Kein echtes Problem:** Der Proxy läuft nur auf `localhost` – Traffic verlässt den Rechner nie. Ein Man-in-the-Middle-Angriff ist technisch unmöglich, da keine Netzwerkkommunikation stattfindet. In Azure erzwingt der App Service automatisch HTTPS für alle externen Verbindungen. TLS wäre hier reine Überarbeitung ohne Sicherheitsgewinn. |
 
 ### Für Produktion erforderlich
 - [ ] HSTS Header setzen
@@ -397,6 +402,7 @@ azure-ai-projects==2.0.0b2
 | 2026-01-08 | 3.0 | Vollständige Neuanalyse mit Code-Nachweisen |
 | 2026-01-08 | 3.1 | F5 komplett gefixt, F7 urllib3 gepatcht (Commit `a940369`) |
 | 2026-01-08 | 3.2 | **F1 gefixt: AuthLevel.FUNCTION + Function Key (Commit `64fab75`)** |
+| 2026-01-08 | 3.3 | **F1 erweitert: AAD + GitHub Authentifizierung, beschränkt auf 2 Accounts** |
 
 ---
 
