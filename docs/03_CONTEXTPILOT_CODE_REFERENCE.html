@@ -1,174 +1,289 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="generator" content="pandoc" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>CONTEXTPILOT Code Reference</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CONTEXTPILOT Code Reference v2.5</title>
   <style>
-
-code{white-space: pre-wrap;}
-span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
-div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-
-ul.task-list[class]{list-style: none;}
-ul.task-list li input[type="checkbox"] {
-font-size: inherit;
-width: 0.8em;
-margin: 0 0.8em 0.2em -1.6em;
-vertical-align: middle;
-}
-.display.math{display: block; text-align: center; margin: 0.5rem auto;}
-
-html { -webkit-text-size-adjust: 100%; }
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-{ counter-reset: source-line 0; }
-pre.numberSource code > span
-{ position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-{ content: counter(source-line);
-position: relative; left: -1em; text-align: right; vertical-align: baseline;
-border: none; display: inline-block;
--webkit-touch-callout: none; -webkit-user-select: none;
--khtml-user-select: none; -moz-user-select: none;
--ms-user-select: none; user-select: none;
-padding: 0 4px; width: 4em;
-color: #aaaaaa;
-}
-pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
-div.sourceCode
-{ }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-}
-code span.al { color: #ff0000; font-weight: bold; } 
-code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.at { color: #7d9029; } 
-code span.bn { color: #40a070; } 
-code span.bu { color: #008000; } 
-code span.cf { color: #007020; font-weight: bold; } 
-code span.ch { color: #4070a0; } 
-code span.cn { color: #880000; } 
-code span.co { color: #60a0b0; font-style: italic; } 
-code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.do { color: #ba2121; font-style: italic; } 
-code span.dt { color: #902000; } 
-code span.dv { color: #40a070; } 
-code span.er { color: #ff0000; font-weight: bold; } 
-code span.ex { } 
-code span.fl { color: #40a070; } 
-code span.fu { color: #06287e; } 
-code span.im { color: #008000; font-weight: bold; } 
-code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.kw { color: #007020; font-weight: bold; } 
-code span.op { color: #666666; } 
-code span.ot { color: #007020; } 
-code span.pp { color: #bc7a00; } 
-code span.sc { color: #4070a0; } 
-code span.ss { color: #bb6688; } 
-code span.st { color: #4070a0; } 
-code span.va { color: #19177c; } 
-code span.vs { color: #4070a0; } 
-code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
-</style>
-  <style type="text/css">@page {size: A4;margin: 2cm 2cm 2.5cm 2cm;}body {font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;line-height: 1.6;max-width: 900px;margin: 0 auto;padding: 20px;color: #1a1a1a;}.doc-header {border-bottom: 3px solid #0078d4;padding-bottom: 20px;margin-bottom: 30px;}.doc-header h1 {color: #0078d4;margin-bottom: 5px;}.doc-meta {color: #666;font-size: 0.9em;}h1 { font-size: 1.8em; color: #0078d4; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }h2 { font-size: 1.4em; color: #333; margin-top: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; }h3 { font-size: 1.2em; color: #444; margin-top: 1.5em; }h4 { font-size: 1.1em; color: #555; }pre {background-color: #f6f8fa;border: 1px solid #e1e4e8;border-radius: 6px;padding: 16px;overflow-x: auto;font-size: 0.85em;line-height: 1.45;}code {font-family: 'Consolas', 'Monaco', 'Courier New', monospace;font-size: 0.9em;}:not(pre) > code {background-color: #f0f0f0;padding: 2px 6px;border-radius: 3px;}table {width: 100%;border-collapse: collapse;margin: 1em 0;}th, td {border: 1px solid #ddd;padding: 10px 12px;text-align: left;}th {background-color: #f0f0f0;font-weight: 600;}tr:nth-child(even) {background-color: #fafafa;}ul, ol {padding-left: 2em;}li {margin-bottom: 0.5em;}blockquote {border-left: 4px solid #0078d4;background-color: #f0f7ff;padding: 15px 20px;margin: 1em 0;color: #333;}a {color: #0078d4;text-decoration: none;}a:hover {text-decoration: underline;}@media print {body {max-width: 100%;padding: 0;font-size: 10pt;}pre {white-space: pre-wrap;word-wrap: break-word;page-break-inside: avoid;}h1, h2, h3 {page-break-after: avoid;}table, figure {page-break-inside: avoid;}a {color: #333;}}</style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    html, body {
+      height: 100%;
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+    }
+    
+    .container {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .sidebar {
+      width: 320px;
+      min-width: 200px;
+      max-width: 500px;
+      background: #f8f9fa;
+      border-right: 2px solid #0078d4;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .sidebar-header {
+      padding: 20px;
+      background: linear-gradient(135deg, #0078d4, #00a4ef);
+      color: white;
+      font-weight: 700;
+      font-size: 1.1em;
+    }
+    
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+    }
+    
+    .sidebar-content ul { list-style: none; padding-left: 0; }
+    .sidebar-content ul ul { padding-left: 1.2em; margin-top: 5px; border-left: 1px solid #ddd; }
+    .sidebar-content li { margin-bottom: 4px; }
+    .sidebar-content a {
+      display: block;
+      padding: 6px 10px;
+      color: #333;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 0.9em;
+      transition: all 0.15s;
+    }
+    .sidebar-content a:hover {
+      background: #e3f2fd;
+      color: #0078d4;
+      transform: translateX(3px);
+    }
+    .sidebar-content > ul > li > a { font-weight: 600; color: #0078d4; }
+    
+    .resizer {
+      width: 6px;
+      background: #e0e0e0;
+      cursor: col-resize;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .resizer:hover, .resizer.active { background: #0078d4; }
+    
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px 50px;
+    }
+    
+    .content-inner { max-width: 950px; }
+    
+    h1 { font-size: 1.9em; color: #0078d4; border-bottom: 3px solid #0078d4; padding-bottom: 12px; margin: 1.5em 0 0.8em 0; }
+    h2 { font-size: 1.5em; color: #333; margin-top: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; }
+    h3 { font-size: 1.2em; color: #444; margin-top: 1.5em; }
+    h4 { font-size: 1.1em; color: #555; margin-top: 1.2em; }
+    p { margin: 1em 0; }
+    
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.85em;
+      line-height: 1.4;
+      margin: 1em 0;
+      white-space: pre;
+    }
+    
+    code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 0.9em; }
+    :not(pre) > code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; color: #c7254e; }
+    
+    table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
+    th { background: #f0f0f0; font-weight: 600; }
+    tr:nth-child(even) { background: #fafafa; }
+    
+    ul, ol { padding-left: 2em; margin: 1em 0; }
+    li { margin-bottom: 0.5em; }
+    
+    blockquote {
+      border-left: 4px solid #0078d4;
+      background: #f0f7ff;
+      padding: 15px 20px;
+      margin: 1em 0;
+      border-radius: 0 6px 6px 0;
+    }
+    
+    a { color: #0078d4; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    
+    details { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px 15px; margin: 1em 0; background: #fafafa; }
+    summary { cursor: pointer; font-weight: 600; color: #0078d4; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 2em 0; }
+    
+    @media print {
+      .container { display: block; }
+      .sidebar, .resizer { display: none; }
+      .content { padding: 20px; overflow: visible; }
+    }
+  </style>
 </head>
 <body>
-<header id="title-block-header">
-<h1 class="title">CONTEXTPILOT Code Reference</h1>
-</header>
-<h1 id="contextpilot---code-reference">CONTEXTPILOT - Code
-Reference</h1>
-<p><strong>Projekt:</strong> CONTEXTPILOT<br />
-<strong>Zielordner:</strong> <code>E:\ContextPilot</code><br />
-<strong>Datum:</strong> 3. Januar 2026<br />
-<strong>Version:</strong> 2.4<br />
-<strong>Repository:</strong>
-https://github.com/JohnMavic/ContextPilot</p>
-<hr />
-<h2 id="dokumentzweck">Dokumentzweck</h2>
-<p>Dieses Dokument enthält den vollständigen, produktiven Code aller
-MFA-relevanten Dateien des CONTEXTPILOT-Projekts. Es dient als
-Code-Referenz für externe Berater und Entwickler.</p>
-<hr />
-<h2 id="inhaltsverzeichnis">Inhaltsverzeichnis</h2>
-<ol type="1">
-<li><a href="#1-architektur-überblick">Architektur-Überblick</a></li>
-<li><a href="#2-azure-function---mfa_workflowpy">Azure Function -
-mfa_workflow.py</a></li>
-<li><a href="#3-azure-function---function_apppy">Azure Function -
-function_app.py</a></li>
-<li><a href="#4-azure-function---requirementstxt">Azure Function -
-requirements.txt</a></li>
-<li><a href="#5-proxy-server---proxy-serverjs-auszüge">Proxy Server -
-proxy-server.js (Auszüge)</a></li>
-<li><a href="#6-frontend-hook---useauraagentts-auszüge">Frontend Hook -
-useAuraAgent.ts (Auszüge)</a></li>
-</ol>
-<hr />
-<h2 id="architektur-überblick">1. Architektur-Überblick</h2>
-<h3 id="komponenten-und-ihre-aufgaben">Komponenten und ihre
-Aufgaben</h3>
-<table>
-<colgroup>
-<col style="width: 42%" />
-<col style="width: 25%" />
-<col style="width: 32%" />
-</colgroup>
-<thead>
-<tr>
-<th>Komponente</th>
-<th>Datei</th>
-<th>Aufgabe</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>MFA Workflow</strong></td>
-<td><code>mfa_workflow.py</code></td>
-<td>Multi-Agent-Orchestrierung: Triage → Agents → Synthesizer</td>
-</tr>
-<tr>
-<td><strong>Azure Function</strong></td>
-<td><code>function_app.py</code></td>
-<td>HTTP-Endpoints für MFA (<code>/api/mfa</code>,
-<code>/api/healthz</code>)</td>
-</tr>
-<tr>
-<td><strong>Dependencies</strong></td>
-<td><code>requirements.txt</code></td>
-<td>Python-Pakete inkl. Microsoft Agent Framework</td>
-</tr>
-<tr>
-<td><strong>Proxy Server</strong></td>
-<td><code>proxy-server.js</code></td>
-<td>Routing Frontend → Agents/Workflows/MFA</td>
-</tr>
-<tr>
-<td><strong>Frontend Hook</strong></td>
-<td><code>useAuraAgent.ts</code></td>
-<td>React-Hook für Agent-Kommunikation</td>
-</tr>
-</tbody>
-</table>
-<h3 id="datenfluss">Datenfluss</h3>
-<pre><code>Frontend (React/Vite)
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-header">📑 Inhaltsverzeichnis</div>
+      <div class="sidebar-content">
+        <ul>
+        <li><a href="#contextpilot---code-reference"
+        id="toc-contextpilot---code-reference">CONTEXTPILOT - Code
+        Reference</a>
+        <ul>
+        <li><a href="#dokumentzweck"
+        id="toc-dokumentzweck">Dokumentzweck</a></li>
+        <li><a href="#inhaltsverzeichnis"
+        id="toc-inhaltsverzeichnis">Inhaltsverzeichnis</a></li>
+        <li><a href="#architektur-überblick"
+        id="toc-architektur-überblick">1. Architektur-Überblick</a>
+        <ul>
+        <li><a href="#komponenten-und-ihre-aufgaben"
+        id="toc-komponenten-und-ihre-aufgaben">Komponenten und ihre
+        Aufgaben</a></li>
+        <li><a href="#datenfluss"
+        id="toc-datenfluss">Datenfluss</a></li>
+        </ul></li>
+        <li><a href="#azure-function---mfa_workflow.py"
+        id="toc-azure-function---mfa_workflow.py">2. Azure Function -
+        mfa_workflow.py</a></li>
+        <li><a href="#azure-function---function_app.py"
+        id="toc-azure-function---function_app.py">3. Azure Function -
+        function_app.py</a></li>
+        <li><a href="#azure-function---requirements.txt"
+        id="toc-azure-function---requirements.txt">4. Azure Function -
+        requirements.txt</a></li>
+        <li><a href="#proxy-server---proxy-server.js-auszüge"
+        id="toc-proxy-server---proxy-server.js-auszüge">5. Proxy Server
+        - proxy-server.js (Auszüge)</a>
+        <ul>
+        <li><a href="#mfa-configuration-loading"
+        id="toc-mfa-configuration-loading">5.1 MFA Configuration
+        Loading</a></li>
+        <li><a href="#agent-request-routing"
+        id="toc-agent-request-routing">5.2 Agent Request
+        Routing</a></li>
+        <li><a href="#mfa-request-handler"
+        id="toc-mfa-request-handler">5.3 MFA Request Handler</a></li>
+        </ul></li>
+        <li><a href="#frontend-hook---useauraagent.ts-auszüge"
+        id="toc-frontend-hook---useauraagent.ts-auszüge">6. Frontend
+        Hook - useAuraAgent.ts (Auszüge)</a>
+        <ul>
+        <li><a href="#typescript-interfaces"
+        id="toc-typescript-interfaces">6.1 TypeScript
+        Interfaces</a></li>
+        <li><a href="#agent-query-function"
+        id="toc-agent-query-function">6.2 Agent Query Function</a></li>
+        </ul></li>
+        <li><a href="#anhang-umgebungsvariablen"
+        id="toc-anhang-umgebungsvariablen">Anhang:
+        Umgebungsvariablen</a>
+        <ul>
+        <li><a href="#azure-function-local.settings.json"
+        id="toc-azure-function-local.settings.json">Azure Function
+        (local.settings.json)</a></li>
+        <li><a href="#proxy-server-.env.local"
+        id="toc-proxy-server-.env.local">Proxy Server
+        (.env.local)</a></li>
+        </ul></li>
+        </ul></li>
+        </ul>
+      </div>
+    </div>
+    <div class="resizer" id="resizer"></div>
+    <div class="content">
+      <div class="content-inner">
+        <h1 id="contextpilot---code-reference">CONTEXTPILOT - Code
+        Reference</h1>
+        <p><strong>Projekt:</strong> CONTEXTPILOT<br />
+        <strong>Zielordner:</strong> <code>E:\ContextPilot</code><br />
+        <strong>Datum:</strong> 8. Januar 2026<br />
+        <strong>Version:</strong> 2.5<br />
+        <strong>Repository:</strong>
+        https://github.com/JohnMavic/ContextPilot</p>
+        <hr />
+        <h2 id="dokumentzweck">Dokumentzweck</h2>
+        <p>Dieses Dokument enthält den vollständigen, produktiven Code
+        aller MFA-relevanten Dateien des CONTEXTPILOT-Projekts. Es dient
+        als Code-Referenz für externe Berater und Entwickler.</p>
+        <hr />
+        <h2 id="inhaltsverzeichnis">Inhaltsverzeichnis</h2>
+        <ol type="1">
+        <li><a
+        href="#1-architektur-überblick">Architektur-Überblick</a></li>
+        <li><a href="#2-azure-function---mfa_workflowpy">Azure Function
+        - mfa_workflow.py</a></li>
+        <li><a href="#3-azure-function---function_apppy">Azure Function
+        - function_app.py</a></li>
+        <li><a href="#4-azure-function---requirementstxt">Azure Function
+        - requirements.txt</a></li>
+        <li><a href="#5-proxy-server---proxy-serverjs-auszüge">Proxy
+        Server - proxy-server.js (Auszüge)</a></li>
+        <li><a href="#6-frontend-hook---useauraagentts-auszüge">Frontend
+        Hook - useAuraAgent.ts (Auszüge)</a></li>
+        </ol>
+        <hr />
+        <h2 id="architektur-überblick">1. Architektur-Überblick</h2>
+        <h3 id="komponenten-und-ihre-aufgaben">Komponenten und ihre
+        Aufgaben</h3>
+        <table>
+        <colgroup>
+        <col style="width: 42%" />
+        <col style="width: 25%" />
+        <col style="width: 32%" />
+        </colgroup>
+        <thead>
+        <tr>
+        <th>Komponente</th>
+        <th>Datei</th>
+        <th>Aufgabe</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td><strong>MFA Workflow</strong></td>
+        <td><code>mfa_workflow.py</code></td>
+        <td>Multi-Agent-Orchestrierung: Triage → Agents →
+        Synthesizer</td>
+        </tr>
+        <tr>
+        <td><strong>Azure Function</strong></td>
+        <td><code>function_app.py</code></td>
+        <td>HTTP-Endpoints für MFA (<code>/api/mfa</code>,
+        <code>/api/healthz</code>)</td>
+        </tr>
+        <tr>
+        <td><strong>Dependencies</strong></td>
+        <td><code>requirements.txt</code></td>
+        <td>Python-Pakete inkl. Microsoft Agent Framework</td>
+        </tr>
+        <tr>
+        <td><strong>Proxy Server</strong></td>
+        <td><code>proxy-server.js</code></td>
+        <td>Routing Frontend → Agents/Workflows/MFA</td>
+        </tr>
+        <tr>
+        <td><strong>Frontend Hook</strong></td>
+        <td><code>useAuraAgent.ts</code></td>
+        <td>React-Hook für Agent-Kommunikation</td>
+        </tr>
+        </tbody>
+        </table>
+        <h3 id="datenfluss">Datenfluss</h3>
+        <pre><code>Frontend (React/Vite)
     │
     │ POST /agent
     ▼
@@ -198,15 +313,17 @@ Proxy Server (Node.js, Port 3001)
                               │
                               ▼
                         Response zurück</code></pre>
-<hr />
-<h2 id="azure-function---mfa_workflow.py">2. Azure Function -
-mfa_workflow.py</h2>
-<p><strong>Pfad:</strong>
-<code>contextpilot-mfa-function/mfa_workflow.py</code></p>
-<p><strong>Aufgabe:</strong> - Kernlogik der Multi-Agent-Orchestrierung
-- Triage-Routing (direct/web/context) - Agent-Aufrufe via Microsoft
-Agent Framework - Synthese bei Mehrfach-Agent-Antworten</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;CONTEXTPILOT MFA Workflow v2.4 (MAF, Python)</span></span>
+        <hr />
+        <h2 id="azure-function---mfa_workflow.py">2. Azure Function -
+        mfa_workflow.py</h2>
+        <p><strong>Pfad:</strong>
+        <code>contextpilot-mfa-function/mfa_workflow.py</code></p>
+        <p><strong>Aufgabe:</strong> - Kernlogik der
+        Multi-Agent-Orchestrierung - Triage-Routing (direct/web/context)
+        - Agent-Aufrufe via Microsoft Agent Framework - Synthese bei
+        Mehrfach-Agent-Antworten</p>
+        <div class="sourceCode" id="cb2"><pre
+        class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;CONTEXTPILOT MFA Workflow v2.4 (MAF, Python)</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">Optimiertes Pattern:</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">- Triage entscheidet: direct, web, context, oder Kombinationen</span></span>
@@ -440,16 +557,17 @@ Agent Framework - Synthese bei Mehrfach-Agent-Antworten</p>
 <span id="cb2-232"><a href="#cb2-232" aria-hidden="true" tabindex="-1"></a><span class="ss">- Provide a clear, actionable answer</span></span>
 <span id="cb2-233"><a href="#cb2-233" aria-hidden="true" tabindex="-1"></a><span class="ss">- Include relevant sources/references</span></span>
 <span id="cb2-234"><a href="#cb2-234" aria-hidden="true" tabindex="-1"></a><span class="ss">&quot;&quot;&quot;</span></span></code></pre></div>
-<hr />
-<h2 id="azure-function---function_app.py">3. Azure Function -
-function_app.py</h2>
-<p><strong>Pfad:</strong>
-<code>contextpilot-mfa-function/function_app.py</code></p>
-<p><strong>Aufgabe:</strong> - HTTP-Trigger für Azure Function -
-<code>/api/healthz</code> - Health-Check Endpoint -
-<code>/api/mfa</code> - MFA-Workflow Endpoint - Lazy Import Pattern
-(verhindert “0 Functions” Problem)</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;Azure Function HTTP Trigger für CONTEXTPILOT MFA.&quot;&quot;&quot;</span></span>
+        <hr />
+        <h2 id="azure-function---function_app.py">3. Azure Function -
+        function_app.py</h2>
+        <p><strong>Pfad:</strong>
+        <code>contextpilot-mfa-function/function_app.py</code></p>
+        <p><strong>Aufgabe:</strong> - HTTP-Trigger für Azure Function -
+        <code>/api/healthz</code> - Health-Check Endpoint -
+        <code>/api/mfa</code> - MFA-Workflow Endpoint - Lazy Import
+        Pattern (verhindert “0 Functions” Problem)</p>
+        <div class="sourceCode" id="cb3"><pre
+        class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;Azure Function HTTP Trigger für CONTEXTPILOT MFA.&quot;&quot;&quot;</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> __future__ <span class="im">import</span> annotations</span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -459,88 +577,91 @@ function_app.py</h2>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> azure.functions <span class="im">as</span> func</span>
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>app <span class="op">=</span> func.FunctionApp(http_auth_level<span class="op">=</span>func.AuthLevel.ANONYMOUS)</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="at">@app.route</span>(route<span class="op">=</span><span class="st">&quot;healthz&quot;</span>, methods<span class="op">=</span>[<span class="st">&quot;GET&quot;</span>])</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> healthz(req: func.HttpRequest) <span class="op">-&gt;</span> func.HttpResponse:</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;Health check endpoint - lädt ohne Heavy-Imports.&quot;&quot;&quot;</span></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        json.dumps({<span class="st">&quot;ok&quot;</span>: <span class="va">True</span>, <span class="st">&quot;version&quot;</span>: <span class="st">&quot;2.4&quot;</span>}),</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        status_code<span class="op">=</span><span class="dv">200</span>,</span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="at">@app.route</span>(route<span class="op">=</span><span class="st">&quot;mfa&quot;</span>, methods<span class="op">=</span>[<span class="st">&quot;POST&quot;</span>])</span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> mfa_endpoint(req: func.HttpRequest) <span class="op">-&gt;</span> func.HttpResponse:</span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;HTTP Endpoint für MFA-Anfragen.</span></span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a><span class="co">    Request Body:</span></span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a><span class="co">        { &quot;prompt&quot;: &quot;...&quot; }</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># </span><span class="al">SECURITY</span><span class="co">: AuthLevel.FUNCTION erfordert x-functions-key Header oder ?code= Parameter</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Lokal: Azure Functions Core Tools ignoriert dies standardmäßig</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Azure: Proxy muss MFA_X_FUNCTION_KEY in App Settings haben</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>app <span class="op">=</span> func.FunctionApp(http_auth_level<span class="op">=</span>func.AuthLevel.FUNCTION)</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="at">@app.route</span>(route<span class="op">=</span><span class="st">&quot;healthz&quot;</span>, methods<span class="op">=</span>[<span class="st">&quot;GET&quot;</span>])</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> healthz(req: func.HttpRequest) <span class="op">-&gt;</span> func.HttpResponse:</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;Health check endpoint - lädt ohne Heavy-Imports.&quot;&quot;&quot;</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        json.dumps({<span class="st">&quot;ok&quot;</span>: <span class="va">True</span>, <span class="st">&quot;version&quot;</span>: <span class="st">&quot;2.4&quot;</span>}),</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        status_code<span class="op">=</span><span class="dv">200</span>,</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a><span class="at">@app.route</span>(route<span class="op">=</span><span class="st">&quot;mfa&quot;</span>, methods<span class="op">=</span>[<span class="st">&quot;POST&quot;</span>])</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> mfa_endpoint(req: func.HttpRequest) <span class="op">-&gt;</span> func.HttpResponse:</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;HTTP Endpoint für MFA-Anfragen.</span></span>
 <span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="co">    Response:</span></span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="co">        { &quot;output_text&quot;: &quot;...&quot;, &quot;workflow&quot;: &quot;mfa&quot; }</span></span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a><span class="co">    &quot;&quot;&quot;</span></span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    correlation_id <span class="op">=</span> req.headers.get(<span class="st">&quot;x-correlation-id&quot;</span>) <span class="kw">or</span> <span class="bu">str</span>(uuid.uuid4())</span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
-<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>        body <span class="op">=</span> req.get_json()</span>
-<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">ValueError</span>:</span>
-<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="st">&quot;Invalid JSON&quot;</span>}),</span>
-<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">400</span>,</span>
-<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
-<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> (body <span class="kw">or</span> {}).get(<span class="st">&quot;prompt&quot;</span>)</span>
-<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> <span class="bu">isinstance</span>(prompt, <span class="bu">str</span>) <span class="kw">or</span> <span class="kw">not</span> prompt.strip():</span>
-<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="st">&quot;Missing &#39;prompt&#39; in request body&quot;</span>}),</span>
-<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">400</span>,</span>
-<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
-<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
-<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Lazy import: verhindert, dass Worker-Indexing bei ImportError komplett ausfällt</span></span>
-<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>        <span class="im">from</span> mfa_workflow <span class="im">import</span> run_mfa_workflow</span>
-<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="cf">await</span> run_mfa_workflow(prompt)</span>
-<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a>            json.dumps({</span>
-<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;output_text&quot;</span>: result[<span class="st">&quot;response&quot;</span>],</span>
-<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;workflow&quot;</span>: <span class="st">&quot;mfa&quot;</span>,</span>
-<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;agents_used&quot;</span>: result[<span class="st">&quot;agents_used&quot;</span>],</span>
-<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;routing&quot;</span>: {</span>
-<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;direct&quot;</span>: result[<span class="st">&quot;routing&quot;</span>].get(<span class="st">&quot;direct&quot;</span>, <span class="va">False</span>),</span>
-<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;web&quot;</span>: result[<span class="st">&quot;routing&quot;</span>].get(<span class="st">&quot;web&quot;</span>, <span class="va">False</span>),</span>
-<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;context&quot;</span>: result[<span class="st">&quot;routing&quot;</span>].get(<span class="st">&quot;context&quot;</span>, <span class="va">False</span>),</span>
-<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;reasoning&quot;</span>: result[<span class="st">&quot;routing&quot;</span>].get(<span class="st">&quot;reasoning&quot;</span>, <span class="st">&quot;&quot;</span>),</span>
-<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>                },</span>
-<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>            }),</span>
-<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">200</span>,</span>
-<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
-<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
-<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="bu">str</span>(e), <span class="st">&quot;hint&quot;</span>: <span class="st">&quot;Check Azure Function logs for details&quot;</span>}),</span>
-<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">500</span>,</span>
-<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
-<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div>
-<hr />
-<h2 id="azure-function---requirements.txt">4. Azure Function -
-requirements.txt</h2>
-<p><strong>Pfad:</strong>
-<code>contextpilot-mfa-function/requirements.txt</code></p>
-<p><strong>Aufgabe:</strong> - Python-Abhängigkeiten für Azure Function
-- Version-Pinning für reproduzierbare Deployments - Microsoft Agent
-Framework (MAF) SDK</p>
-<pre class="text"><code># Azure Functions Runtime
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="co">    Request Body:</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="co">        { &quot;prompt&quot;: &quot;...&quot; }</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a><span class="co">    Response:</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a><span class="co">        { &quot;output_text&quot;: &quot;...&quot;, &quot;workflow&quot;: &quot;mfa&quot; }</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a><span class="co">    &quot;&quot;&quot;</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    correlation_id <span class="op">=</span> req.headers.get(<span class="st">&quot;x-correlation-id&quot;</span>) <span class="kw">or</span> <span class="bu">str</span>(uuid.uuid4())</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>        body <span class="op">=</span> req.get_json()</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">ValueError</span>:</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="st">&quot;Invalid JSON&quot;</span>}),</span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">400</span>,</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> (body <span class="kw">or</span> {}).get(<span class="st">&quot;prompt&quot;</span>)</span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> <span class="bu">isinstance</span>(prompt, <span class="bu">str</span>) <span class="kw">or</span> <span class="kw">not</span> prompt.strip():</span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="st">&quot;Missing &#39;prompt&#39; in request body&quot;</span>}),</span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">400</span>,</span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Lazy import: verhindert, dass Worker-Indexing bei ImportError komplett ausfällt</span></span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>        <span class="im">from</span> mfa_workflow <span class="im">import</span> run_mfa_workflow</span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="cf">await</span> run_mfa_workflow(prompt)</span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>            json.dumps({</span>
+<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;output_text&quot;</span>: result[<span class="st">&quot;response&quot;</span>],</span>
+<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;workflow&quot;</span>: <span class="st">&quot;mfa&quot;</span>,</span>
+<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;agents_used&quot;</span>: result[<span class="st">&quot;agents_used&quot;</span>],</span>
+<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;routing&quot;</span>: {</span>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;direct&quot;</span>: result[<span class="st">&quot;routing&quot;</span>].get(<span class="st">&quot;direct&quot;</span>, <span class="va">False</span>),</span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;web&quot;</span>: result[<span class="st">&quot;routing&quot;</span>].get(<span class="st">&quot;web&quot;</span>, <span class="va">False</span>),</span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;context&quot;</span>: result[<span class="st">&quot;routing&quot;</span>].get(<span class="st">&quot;context&quot;</span>, <span class="va">False</span>),</span>
+<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;reasoning&quot;</span>: result[<span class="st">&quot;routing&quot;</span>].get(<span class="st">&quot;reasoning&quot;</span>, <span class="st">&quot;&quot;</span>),</span>
+<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>                },</span>
+<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>            }),</span>
+<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">200</span>,</span>
+<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
+<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="bu">str</span>(e), <span class="st">&quot;hint&quot;</span>: <span class="st">&quot;Check Azure Function logs for details&quot;</span>}),</span>
+<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">500</span>,</span>
+<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
+<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div>
+        <hr />
+        <h2 id="azure-function---requirements.txt">4. Azure Function -
+        requirements.txt</h2>
+        <p><strong>Pfad:</strong>
+        <code>contextpilot-mfa-function/requirements.txt</code></p>
+        <p><strong>Aufgabe:</strong> - Python-Abhängigkeiten für Azure
+        Function - Version-Pinning für reproduzierbare Deployments -
+        Microsoft Agent Framework (MAF) SDK</p>
+        <pre class="text"><code># Azure Functions Runtime
 azure-functions==1.13.3
 
 # Microsoft Agent Framework (MAF) – Pin auf eine getestete Version
@@ -563,16 +684,18 @@ azure-identity&gt;=1.17.0
 # Keep us on a wheel-supported baseline.
 pydantic&gt;=2.6.0,&lt;3
 typing-extensions==4.12.2</code></pre>
-<hr />
-<h2 id="proxy-server---proxy-server.js-auszüge">5. Proxy Server -
-proxy-server.js (Auszüge)</h2>
-<p><strong>Pfad:</strong>
-<code>live-transcriber/proxy-server.js</code></p>
-<p><strong>Aufgabe:</strong> - WebSocket-Proxy für OpenAI Realtime API -
-HTTP-Routing für Agents, Workflows, MFA - Azure AD Authentifizierung -
-MFA-Request-Handling mit Fallback</p>
-<h3 id="mfa-configuration-loading">5.1 MFA Configuration Loading</h3>
-<div class="sourceCode" id="cb5"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">// MFA configs (Azure Function-backed MAF orchestration) - optional and fully additive</span></span>
+        <hr />
+        <h2 id="proxy-server---proxy-server.js-auszüge">5. Proxy Server
+        - proxy-server.js (Auszüge)</h2>
+        <p><strong>Pfad:</strong>
+        <code>live-transcriber/proxy-server.js</code></p>
+        <p><strong>Aufgabe:</strong> - WebSocket-Proxy für OpenAI
+        Realtime API - HTTP-Routing für Agents, Workflows, MFA - Azure
+        AD Authentifizierung - MFA-Request-Handling mit Fallback</p>
+        <h3 id="mfa-configuration-loading">5.1 MFA Configuration
+        Loading</h3>
+        <div class="sourceCode" id="cb5"><pre
+        class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">// MFA configs (Azure Function-backed MAF orchestration) - optional and fully additive</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">loadMFAConfigs</span>() {</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> mfas <span class="op">=</span> {}<span class="op">;</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> i <span class="op">=</span> <span class="dv">1</span><span class="op">;</span></span>
@@ -594,8 +717,9 @@ MFA-Request-Handling mit Fallback</p>
 <span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>  }</span>
 <span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> mfas<span class="op">;</span></span>
 <span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
-<h3 id="agent-request-routing">5.2 Agent Request Routing</h3>
-<div class="sourceCode" id="cb6"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Handle Agent API Request - NEW Microsoft Foundry Responses API (November 2025+)</span></span>
+        <h3 id="agent-request-routing">5.2 Agent Request Routing</h3>
+        <div class="sourceCode" id="cb6"><pre
+        class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Handle Agent API Request - NEW Microsoft Foundry Responses API (November 2025+)</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">async</span> <span class="kw">function</span> <span class="fu">handleAgentRequest</span>(req<span class="op">,</span> res<span class="op">,</span> body) {</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> agent <span class="op">=</span> <span class="fu">getCurrentAgent</span>()<span class="op">;</span></span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -611,8 +735,9 @@ MFA-Request-Handling mit Fallback</p>
 <span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">// ... regular agent handling</span></span>
 <span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
-<h3 id="mfa-request-handler">5.3 MFA Request Handler</h3>
-<div class="sourceCode" id="cb7"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Handle MFA (Azure Function-backed) Request - fully additive path</span></span>
+        <h3 id="mfa-request-handler">5.3 MFA Request Handler</h3>
+        <div class="sourceCode" id="cb7"><pre
+        class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Handle MFA (Azure Function-backed) Request - fully additive path</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">async</span> <span class="kw">function</span> <span class="fu">handleMFARequest</span>(req<span class="op">,</span> res<span class="op">,</span> body<span class="op">,</span> mfaConfig) {</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(<span class="vs">`[MFA] Request for: </span><span class="sc">${</span>mfaConfig<span class="op">.</span><span class="at">label</span><span class="sc">}</span><span class="vs">`</span>)<span class="op">;</span></span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -681,16 +806,17 @@ MFA-Request-Handling mit Fallback</p>
 <span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>    <span class="dt">routing</span><span class="op">:</span> result<span class="op">.</span><span class="at">routing</span> <span class="op">||</span> {}<span class="op">,</span></span>
 <span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a>  }))<span class="op">;</span></span>
 <span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
-<hr />
-<h2 id="frontend-hook---useauraagent.ts-auszüge">6. Frontend Hook -
-useAuraAgent.ts (Auszüge)</h2>
-<p><strong>Pfad:</strong>
-<code>live-transcriber/src/hooks/useAuraAgent.ts</code></p>
-<p><strong>Aufgabe:</strong> - React Hook für Agent-Kommunikation -
-Verarbeitung von MFA-Routing-Metadaten - Follow-Up Fragen Management -
-Rate-Limit Handling</p>
-<h3 id="typescript-interfaces">6.1 TypeScript Interfaces</h3>
-<div class="sourceCode" id="cb8"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">interface</span> AuraRouting {</span>
+        <hr />
+        <h2 id="frontend-hook---useauraagent.ts-auszüge">6. Frontend
+        Hook - useAuraAgent.ts (Auszüge)</h2>
+        <p><strong>Pfad:</strong>
+        <code>live-transcriber/src/hooks/useAuraAgent.ts</code></p>
+        <p><strong>Aufgabe:</strong> - React Hook für
+        Agent-Kommunikation - Verarbeitung von MFA-Routing-Metadaten -
+        Follow-Up Fragen Management - Rate-Limit Handling</p>
+        <h3 id="typescript-interfaces">6.1 TypeScript Interfaces</h3>
+        <div class="sourceCode" id="cb8"><pre
+        class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">interface</span> AuraRouting {</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  direct<span class="op">:</span> <span class="dt">boolean</span><span class="op">;</span></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  web<span class="op">:</span> <span class="dt">boolean</span><span class="op">;</span></span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  context<span class="op">:</span> <span class="dt">boolean</span><span class="op">;</span></span>
@@ -718,8 +844,9 @@ Rate-Limit Handling</p>
 <span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>  agentsUsed<span class="op">?:</span> <span class="dt">string</span>[]<span class="op">;</span></span>
 <span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>  routing<span class="op">?:</span> AuraRouting<span class="op">;</span></span>
 <span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
-<h3 id="agent-query-function">6.2 Agent Query Function</h3>
-<div class="sourceCode" id="cb9"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> queryAgent <span class="op">=</span> <span class="fu">useCallback</span>(<span class="kw">async</span> (</span>
+        <h3 id="agent-query-function">6.2 Agent Query Function</h3>
+        <div class="sourceCode" id="cb9"><pre
+        class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> queryAgent <span class="op">=</span> <span class="fu">useCallback</span>(<span class="kw">async</span> (</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  prompt<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  highlightId<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  sourceText<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
@@ -756,11 +883,13 @@ Rate-Limit Handling</p>
 <span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> result <span class="op">=</span> <span class="cf">await</span> resp<span class="op">.</span><span class="fu">json</span>()<span class="op">;</span></span>
 <span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>  <span class="co">// result.agents_used, result.routing available for MFA responses</span></span>
 <span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>}<span class="op">,</span> [])<span class="op">;</span></span></code></pre></div>
-<hr />
-<h2 id="anhang-umgebungsvariablen">Anhang: Umgebungsvariablen</h2>
-<h3 id="azure-function-local.settings.json">Azure Function
-(local.settings.json)</h3>
-<div class="sourceCode" id="cb10"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+        <hr />
+        <h2 id="anhang-umgebungsvariablen">Anhang:
+        Umgebungsvariablen</h2>
+        <h3 id="azure-function-local.settings.json">Azure Function
+        (local.settings.json)</h3>
+        <div class="sourceCode" id="cb10"><pre
+        class="sourceCode json"><code class="sourceCode json"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;IsEncrypted&quot;</span><span class="fu">:</span> <span class="kw">false</span><span class="fu">,</span></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;Values&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;FUNCTIONS_WORKER_RUNTIME&quot;</span><span class="fu">:</span> <span class="st">&quot;python&quot;</span><span class="fu">,</span></span>
@@ -774,8 +903,8 @@ Rate-Limit Handling</p>
 <span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;AURA_SYNTHESIZER_AGENT_NAME&quot;</span><span class="fu">:</span> <span class="st">&quot;AURAContextPilotResponseSynthesizer&quot;</span></span>
 <span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
 <span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<h3 id="proxy-server-.env.local">Proxy Server (.env.local)</h3>
-<pre class="env"><code># MFA Configuration
+        <h3 id="proxy-server-.env.local">Proxy Server (.env.local)</h3>
+        <pre class="env"><code># MFA Configuration
 MFA_1_NAME=MFA
 MFA_1_LABEL=MFA (Multi-Agent)
 MFA_1_ENDPOINT=http://localhost:7071/api/mfa
@@ -783,7 +912,37 @@ MFA_1_FALLBACK_WORKFLOW_ID=-1
 
 # Default to MFA
 DEFAULT_AGENT=-101</code></pre>
-<hr />
-<p><em>Ende des Code-Reference-Dokuments</em></p>
+        <hr />
+        <p><em>Ende des Code-Reference-Dokuments</em></p>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const resizer = document.getElementById('resizer');
+    const sidebar = document.querySelector('.sidebar');
+    let isResizing = false;
+    
+    resizer.addEventListener('mousedown', () => {
+      isResizing = true;
+      resizer.classList.add('active');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      if (e.clientX >= 200 && e.clientX <= 500) {
+        sidebar.style.width = e.clientX + 'px';
+      }
+    });
+    
+    document.addEventListener('mouseup', () => {
+      isResizing = false;
+      resizer.classList.remove('active');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  </script>
 </body>
 </html>

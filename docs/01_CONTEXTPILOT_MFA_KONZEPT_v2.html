@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CONTEXTPILOT MFA Konzept v2.5</title>
+  <title>CONTEXTPILOT MFA-Konzept v2.6</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
@@ -139,9 +139,9 @@
       <div class="sidebar-header">📑 Inhaltsverzeichnis</div>
       <div class="sidebar-content">
         <ul>
-        <li><a href="#contextpilot-mfa-konzept-v2.5"
-        id="toc-contextpilot-mfa-konzept-v2.5">CONTEXTPILOT MFA-Konzept
-        v2.5</a>
+        <li><a href="#contextpilot-mfa-konzept-v2.6"
+        id="toc-contextpilot-mfa-konzept-v2.6">CONTEXTPILOT MFA-Konzept
+        v2.6</a>
         <ul>
         <li><a
         href="#umstellung-auf-azure-function-mit-microsoft-agent-framework"
@@ -374,15 +374,15 @@
     <div class="resizer" id="resizer"></div>
     <div class="content">
       <div class="content-inner">
-        <h1 id="contextpilot-mfa-konzept-v2.5">CONTEXTPILOT MFA-Konzept
-        v2.5</h1>
+        <h1 id="contextpilot-mfa-konzept-v2.6">CONTEXTPILOT MFA-Konzept
+        v2.6</h1>
         <h2
         id="umstellung-auf-azure-function-mit-microsoft-agent-framework">Umstellung
         auf Azure Function mit Microsoft Agent Framework</h2>
-        <p><strong>Version:</strong> 2.5<br />
-        <strong>Datum:</strong> 5. Januar 2026<br />
-        <strong>Status:</strong> Produktiv – Zwischenstand (siehe
-        Implementierungsstatus)<br />
+        <p><strong>Version:</strong> 2.6<br />
+        <strong>Datum:</strong> 8. Januar 2026<br />
+        <strong>Status:</strong> Produktiv – Security Hardening
+        abgeschlossen<br />
         <strong>Technologie-Stack:</strong> Azure Function (Python) +
         Microsoft Agent Framework (MAF)</p>
         <hr />
@@ -1297,67 +1297,69 @@ azure-identity&gt;=1.17.0</code></pre>
 <span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ KEIN TOP-LEVEL IMPORT von mfa_workflow!</span></span>
 <span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Der Import erfolgt LAZY innerhalb der Funktion</span></span>
 <span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>app <span class="op">=</span> func.FunctionApp(http_auth_level<span class="op">=</span>func.AuthLevel.ANONYMOUS)</span>
-<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a><span class="at">@app.route</span>(route<span class="op">=</span><span class="st">&quot;healthz&quot;</span>, methods<span class="op">=</span>[<span class="st">&quot;GET&quot;</span>])</span>
-<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> healthz(req: func.HttpRequest) <span class="op">-&gt;</span> func.HttpResponse:</span>
-<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;Health check endpoint - lädt OHNE Heavy-Imports.&quot;&quot;&quot;</span></span>
-<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>        json.dumps({<span class="st">&quot;ok&quot;</span>: <span class="va">True</span>, <span class="st">&quot;version&quot;</span>: <span class="st">&quot;2.4&quot;</span>}),</span>
-<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>        status_code<span class="op">=</span><span class="dv">200</span>,</span>
-<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>        mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a><span class="at">@app.route</span>(route<span class="op">=</span><span class="st">&quot;mfa&quot;</span>, methods<span class="op">=</span>[<span class="st">&quot;POST&quot;</span>])</span>
-<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> mfa_endpoint(req: func.HttpRequest) <span class="op">-&gt;</span> func.HttpResponse:</span>
-<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;MFA Endpoint mit LAZY Import.&quot;&quot;&quot;</span></span>
-<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>    correlation_id <span class="op">=</span> req.headers.get(<span class="st">&quot;x-correlation-id&quot;</span>) <span class="kw">or</span> <span class="bu">str</span>(uuid.uuid4())</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a><span class="co"># </span><span class="al">SECURITY</span><span class="co">: AuthLevel.FUNCTION erfordert x-functions-key Header</span></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Lokal ignoriert Core Tools dies, Azure benötigt Function Key im Proxy</span></span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>app <span class="op">=</span> func.FunctionApp(http_auth_level<span class="op">=</span>func.AuthLevel.FUNCTION)</span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a><span class="at">@app.route</span>(route<span class="op">=</span><span class="st">&quot;healthz&quot;</span>, methods<span class="op">=</span>[<span class="st">&quot;GET&quot;</span>])</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> healthz(req: func.HttpRequest) <span class="op">-&gt;</span> func.HttpResponse:</span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;Health check endpoint - lädt OHNE Heavy-Imports.&quot;&quot;&quot;</span></span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>        json.dumps({<span class="st">&quot;ok&quot;</span>: <span class="va">True</span>, <span class="st">&quot;version&quot;</span>: <span class="st">&quot;2.4&quot;</span>}),</span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>        status_code<span class="op">=</span><span class="dv">200</span>,</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>        mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a><span class="at">@app.route</span>(route<span class="op">=</span><span class="st">&quot;mfa&quot;</span>, methods<span class="op">=</span>[<span class="st">&quot;POST&quot;</span>])</span>
+<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> mfa_endpoint(req: func.HttpRequest) <span class="op">-&gt;</span> func.HttpResponse:</span>
+<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;MFA Endpoint mit LAZY Import.&quot;&quot;&quot;</span></span>
 <span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
-<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a>        body <span class="op">=</span> req.get_json()</span>
-<span id="cb21-37"><a href="#cb21-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">ValueError</span>:</span>
-<span id="cb21-38"><a href="#cb21-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb21-39"><a href="#cb21-39" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="st">&quot;Invalid JSON&quot;</span>}),</span>
-<span id="cb21-40"><a href="#cb21-40" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">400</span>,</span>
-<span id="cb21-41"><a href="#cb21-41" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb21-42"><a href="#cb21-42" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb21-43"><a href="#cb21-43" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-44"><a href="#cb21-44" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> (body <span class="kw">or</span> {}).get(<span class="st">&quot;prompt&quot;</span>)</span>
-<span id="cb21-45"><a href="#cb21-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> <span class="bu">isinstance</span>(prompt, <span class="bu">str</span>) <span class="kw">or</span> <span class="kw">not</span> prompt.strip():</span>
-<span id="cb21-46"><a href="#cb21-46" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb21-47"><a href="#cb21-47" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="st">&quot;Missing &#39;prompt&#39; in request body&quot;</span>}),</span>
-<span id="cb21-48"><a href="#cb21-48" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">400</span>,</span>
-<span id="cb21-49"><a href="#cb21-49" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb21-50"><a href="#cb21-50" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb21-51"><a href="#cb21-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-52"><a href="#cb21-52" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
-<span id="cb21-53"><a href="#cb21-53" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ✅ LAZY IMPORT: Import INNERHALB der Funktion!</span></span>
-<span id="cb21-54"><a href="#cb21-54" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Das verhindert, dass Worker-Indexing bei ImportError ausfällt</span></span>
-<span id="cb21-55"><a href="#cb21-55" aria-hidden="true" tabindex="-1"></a>        <span class="im">from</span> mfa_workflow <span class="im">import</span> run_mfa_workflow</span>
-<span id="cb21-56"><a href="#cb21-56" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-57"><a href="#cb21-57" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="cf">await</span> run_mfa_workflow(prompt)</span>
-<span id="cb21-58"><a href="#cb21-58" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb21-59"><a href="#cb21-59" aria-hidden="true" tabindex="-1"></a>            json.dumps({</span>
-<span id="cb21-60"><a href="#cb21-60" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;output_text&quot;</span>: result[<span class="st">&quot;response&quot;</span>],</span>
-<span id="cb21-61"><a href="#cb21-61" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;workflow&quot;</span>: <span class="st">&quot;mfa&quot;</span>,</span>
-<span id="cb21-62"><a href="#cb21-62" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;agents_used&quot;</span>: result[<span class="st">&quot;agents_used&quot;</span>],</span>
-<span id="cb21-63"><a href="#cb21-63" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;routing&quot;</span>: result[<span class="st">&quot;routing&quot;</span>],</span>
-<span id="cb21-64"><a href="#cb21-64" aria-hidden="true" tabindex="-1"></a>            }),</span>
-<span id="cb21-65"><a href="#cb21-65" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">200</span>,</span>
-<span id="cb21-66"><a href="#cb21-66" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb21-67"><a href="#cb21-67" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
-<span id="cb21-68"><a href="#cb21-68" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb21-69"><a href="#cb21-69" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
-<span id="cb21-70"><a href="#cb21-70" aria-hidden="true" tabindex="-1"></a>        logging.exception(<span class="st">&quot;MFA failed (cid=</span><span class="sc">%s</span><span class="st">)&quot;</span>, correlation_id)</span>
-<span id="cb21-71"><a href="#cb21-71" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
-<span id="cb21-72"><a href="#cb21-72" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="bu">str</span>(e), <span class="st">&quot;hint&quot;</span>: <span class="st">&quot;Check Azure Function logs&quot;</span>}),</span>
-<span id="cb21-73"><a href="#cb21-73" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">500</span>,</span>
-<span id="cb21-74"><a href="#cb21-74" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
-<span id="cb21-75"><a href="#cb21-75" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
-<span id="cb21-76"><a href="#cb21-76" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div>
+<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a>    correlation_id <span class="op">=</span> req.headers.get(<span class="st">&quot;x-correlation-id&quot;</span>) <span class="kw">or</span> <span class="bu">str</span>(uuid.uuid4())</span>
+<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb21-37"><a href="#cb21-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb21-38"><a href="#cb21-38" aria-hidden="true" tabindex="-1"></a>        body <span class="op">=</span> req.get_json()</span>
+<span id="cb21-39"><a href="#cb21-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">ValueError</span>:</span>
+<span id="cb21-40"><a href="#cb21-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb21-41"><a href="#cb21-41" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="st">&quot;Invalid JSON&quot;</span>}),</span>
+<span id="cb21-42"><a href="#cb21-42" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">400</span>,</span>
+<span id="cb21-43"><a href="#cb21-43" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb21-44"><a href="#cb21-44" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb21-45"><a href="#cb21-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-46"><a href="#cb21-46" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> (body <span class="kw">or</span> {}).get(<span class="st">&quot;prompt&quot;</span>)</span>
+<span id="cb21-47"><a href="#cb21-47" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> <span class="bu">isinstance</span>(prompt, <span class="bu">str</span>) <span class="kw">or</span> <span class="kw">not</span> prompt.strip():</span>
+<span id="cb21-48"><a href="#cb21-48" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb21-49"><a href="#cb21-49" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="st">&quot;Missing &#39;prompt&#39; in request body&quot;</span>}),</span>
+<span id="cb21-50"><a href="#cb21-50" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">400</span>,</span>
+<span id="cb21-51"><a href="#cb21-51" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb21-52"><a href="#cb21-52" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb21-53"><a href="#cb21-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-54"><a href="#cb21-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
+<span id="cb21-55"><a href="#cb21-55" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ✅ LAZY IMPORT: Import INNERHALB der Funktion!</span></span>
+<span id="cb21-56"><a href="#cb21-56" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Das verhindert, dass Worker-Indexing bei ImportError ausfällt</span></span>
+<span id="cb21-57"><a href="#cb21-57" aria-hidden="true" tabindex="-1"></a>        <span class="im">from</span> mfa_workflow <span class="im">import</span> run_mfa_workflow</span>
+<span id="cb21-58"><a href="#cb21-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-59"><a href="#cb21-59" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="cf">await</span> run_mfa_workflow(prompt)</span>
+<span id="cb21-60"><a href="#cb21-60" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb21-61"><a href="#cb21-61" aria-hidden="true" tabindex="-1"></a>            json.dumps({</span>
+<span id="cb21-62"><a href="#cb21-62" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;output_text&quot;</span>: result[<span class="st">&quot;response&quot;</span>],</span>
+<span id="cb21-63"><a href="#cb21-63" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;workflow&quot;</span>: <span class="st">&quot;mfa&quot;</span>,</span>
+<span id="cb21-64"><a href="#cb21-64" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;agents_used&quot;</span>: result[<span class="st">&quot;agents_used&quot;</span>],</span>
+<span id="cb21-65"><a href="#cb21-65" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;routing&quot;</span>: result[<span class="st">&quot;routing&quot;</span>],</span>
+<span id="cb21-66"><a href="#cb21-66" aria-hidden="true" tabindex="-1"></a>            }),</span>
+<span id="cb21-67"><a href="#cb21-67" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">200</span>,</span>
+<span id="cb21-68"><a href="#cb21-68" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb21-69"><a href="#cb21-69" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
+<span id="cb21-70"><a href="#cb21-70" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb21-71"><a href="#cb21-71" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
+<span id="cb21-72"><a href="#cb21-72" aria-hidden="true" tabindex="-1"></a>        logging.exception(<span class="st">&quot;MFA failed (cid=</span><span class="sc">%s</span><span class="st">)&quot;</span>, correlation_id)</span>
+<span id="cb21-73"><a href="#cb21-73" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> func.HttpResponse(</span>
+<span id="cb21-74"><a href="#cb21-74" aria-hidden="true" tabindex="-1"></a>            json.dumps({<span class="st">&quot;error&quot;</span>: <span class="bu">str</span>(e), <span class="st">&quot;hint&quot;</span>: <span class="st">&quot;Check Azure Function logs&quot;</span>}),</span>
+<span id="cb21-75"><a href="#cb21-75" aria-hidden="true" tabindex="-1"></a>            status_code<span class="op">=</span><span class="dv">500</span>,</span>
+<span id="cb21-76"><a href="#cb21-76" aria-hidden="true" tabindex="-1"></a>            mimetype<span class="op">=</span><span class="st">&quot;application/json&quot;</span>,</span>
+<span id="cb21-77"><a href="#cb21-77" aria-hidden="true" tabindex="-1"></a>            headers<span class="op">=</span>{<span class="st">&quot;x-correlation-id&quot;</span>: correlation_id},</span>
+<span id="cb21-78"><a href="#cb21-78" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div>
         <h3 id="rolle-von-azureaiclient-im-contextpilot-maf-bild">4.5
         Rolle von <code>AzureAIClient</code> im CONTEXTPILOT-MAF
         Bild</h3>
@@ -1467,41 +1469,49 @@ azure-identity&gt;=1.17.0</code></pre>
 
 TASK:
 Analyze the user request and decide the optimal routing path.
-Your goal is SPEED - avoid unnecessary agent calls!
+Your goal is SPEED and ACCURACY - route to the right agent!
 
 ROUTING OPTIONS:
 
 1. &quot;direct&quot;: true
-   → GPT can answer this directly (translations, general knowledge, 
-     math, coding, explanations, summaries)
+   → Route to AURAContextPilotQuick for:
+     • Translations (any language)
+     • General knowledge GPT already knows
+     • Math, calculations, conversions
+     • Code help, syntax, explanations
+     • Definitions, concepts, summaries
+     • Writing assistance, formatting
    → NO external data needed, NO internal business data needed
    → FASTEST option - use whenever possible!
 
 2. &quot;web&quot;: true  
-   → ONLY for real-time/current data that GPT doesn&#39;t know:
+   → Route to AURAContextPilotWeb for CURRENT/LIVE data:
      • Weather, stock prices, exchange rates
      • Today&#39;s news, recent events (after training cutoff)
      • Live schedules, current availability
-     • Recent Wikipedia updates, new releases
-   → Do NOT use for general facts GPT already knows!
+     • Current Wikipedia data, new releases
+     • &quot;latest&quot;, &quot;today&quot;, &quot;current&quot;, &quot;recent&quot; keywords
+   → Use web when a search would add to your existing knowledge
 
 3. &quot;context&quot;: true
-   → ONLY for internal business questions:
+   → Route to AURAContextPilot for INTERNAL business data:
      • Microsoft Switzerland FY25/FY26 wins, customers, deals
-     • Internal meeting content, &quot;what was said&quot;, &quot;our discussion&quot;
+     • Swiss market analysis, economic strengths and weaknesses
+     • Business sentiment towards AI adoption
+     • AI penetration in enterprise workflows
      • Company-specific data not publicly available
 
-DECISION RULES (in priority order):
-1. Can GPT answer this from its training data? → direct: true
-2. Does it need CURRENT/LIVE data? → web: true
+DECISION RULES (priority order):
+1. Can training data answer this? → direct: true
+2. Would web search add value or provide current data? → web: true
 3. Does it reference INTERNAL business data? → context: true
 4. Explicit comparison internal vs. external? → BOTH web + context: true
-5. If truly unclear after analysis → direct: true (let GPT try first)
+5. Truly ambiguous after analysis? → direct: true (let Quick try first)
 
 CRITICAL:
 - Respond ONLY with a JSON object. No other text!
-- Prefer &quot;direct&quot; over agents whenever reasonable
-- &quot;Unclear = both agents&quot; is WRONG - unclear = direct!
+- Prefer &quot;direct&quot; over other agents when reasonable
+- &quot;Unclear&quot; means &quot;web&quot; and &quot;context&quot; equals true!
 
 FORMAT:
 {
@@ -1511,21 +1521,7 @@ FORMAT:
     &quot;context&quot;: true/false
   },
   &quot;reasoning&quot;: &quot;Brief explanation (max 30 words)&quot;
-}
-
-EXAMPLES:
-
-User: &quot;Translate &#39;hello&#39; to German&quot;
-→ {&quot;routing&quot;: {&quot;direct&quot;: true, &quot;web&quot;: false, &quot;context&quot;: false}, &quot;reasoning&quot;: &quot;Translation - GPT can do directly&quot;}
-
-User: &quot;What&#39;s the weather in Munich?&quot;
-→ {&quot;routing&quot;: {&quot;direct&quot;: false, &quot;web&quot;: true, &quot;context&quot;: false}, &quot;reasoning&quot;: &quot;Current weather requires live data&quot;}
-
-User: &quot;What were our Q2 wins?&quot;
-→ {&quot;routing&quot;: {&quot;direct&quot;: false, &quot;web&quot;: false, &quot;context&quot;: true}, &quot;reasoning&quot;: &quot;Internal business data required&quot;}
-
-User: &quot;Compare our sales strategy with industry best practices&quot;
-→ {&quot;routing&quot;: {&quot;direct&quot;: false, &quot;web&quot;: true, &quot;context&quot;: true}, &quot;reasoning&quot;: &quot;Needs both internal data and external research&quot;}</code></pre>
+}</code></pre>
         <h3 id="wie-die-entscheidung-verarbeitet-wird">5.3 Wie die
         Entscheidung verarbeitet wird</h3>
         <blockquote>
@@ -1589,41 +1585,49 @@ User: &quot;Compare our sales strategy with industry best practices&quot;
 
 TASK:
 Analyze the user request and decide the optimal routing path.
-Your goal is SPEED - avoid unnecessary agent calls!
+Your goal is SPEED and ACCURACY - route to the right agent!
 
 ROUTING OPTIONS:
 
 1. &quot;direct&quot;: true
-   → GPT can answer this directly (translations, general knowledge, 
-     math, coding, explanations, summaries)
+   → Route to AURAContextPilotQuick for:
+     • Translations (any language)
+     • General knowledge GPT already knows
+     • Math, calculations, conversions
+     • Code help, syntax, explanations
+     • Definitions, concepts, summaries
+     • Writing assistance, formatting
    → NO external data needed, NO internal business data needed
    → FASTEST option - use whenever possible!
 
 2. &quot;web&quot;: true  
-   → ONLY for real-time/current data that GPT doesn&#39;t know:
+   → Route to AURAContextPilotWeb for CURRENT/LIVE data:
      • Weather, stock prices, exchange rates
      • Today&#39;s news, recent events (after training cutoff)
      • Live schedules, current availability
-     • Recent Wikipedia updates, new releases
-   → Do NOT use for general facts GPT already knows!
+     • Current Wikipedia data, new releases
+     • &quot;latest&quot;, &quot;today&quot;, &quot;current&quot;, &quot;recent&quot; keywords
+   → Use web when a search would add to your existing knowledge
 
 3. &quot;context&quot;: true
-   → ONLY for internal business questions:
+   → Route to AURAContextPilot for INTERNAL business data:
      • Microsoft Switzerland FY25/FY26 wins, customers, deals
-     • Internal meeting content, &quot;what was said&quot;, &quot;our discussion&quot;
+     • Swiss market analysis, economic strengths and weaknesses
+     • Business sentiment towards AI adoption
+     • AI penetration in enterprise workflows
      • Company-specific data not publicly available
 
-DECISION RULES (in priority order):
-1. Can GPT answer this from its training data? → direct: true
-2. Does it need CURRENT/LIVE data? → web: true
+DECISION RULES (priority order):
+1. Can training data answer this? → direct: true
+2. Would web search add value or provide current data? → web: true
 3. Does it reference INTERNAL business data? → context: true
 4. Explicit comparison internal vs. external? → BOTH web + context: true
-5. If truly unclear after analysis → direct: true (let GPT try first)
+5. Truly ambiguous after analysis? → direct: true (let Quick try first)
 
 CRITICAL:
 - Respond ONLY with a JSON object. No other text!
-- Prefer &quot;direct&quot; over agents whenever reasonable
-- &quot;Unclear = both agents&quot; is WRONG - unclear = direct!
+- Prefer &quot;direct&quot; over other agents when reasonable
+- &quot;Unclear&quot; means &quot;web&quot; and &quot;context&quot; equals true!
 
 FORMAT:
 {
@@ -1633,21 +1637,7 @@ FORMAT:
     &quot;context&quot;: true/false
   },
   &quot;reasoning&quot;: &quot;Brief explanation (max 30 words)&quot;
-}
-
-EXAMPLES:
-
-User: &quot;Translate &#39;hello&#39; to German&quot;
-→ {&quot;routing&quot;: {&quot;direct&quot;: true, &quot;web&quot;: false, &quot;context&quot;: false}, &quot;reasoning&quot;: &quot;Translation - GPT can do directly&quot;}
-
-User: &quot;What&#39;s the weather in Munich?&quot;
-→ {&quot;routing&quot;: {&quot;direct&quot;: false, &quot;web&quot;: true, &quot;context&quot;: false}, &quot;reasoning&quot;: &quot;Current weather requires live data&quot;}
-
-User: &quot;What were our Q2 wins?&quot;
-→ {&quot;routing&quot;: {&quot;direct&quot;: false, &quot;web&quot;: false, &quot;context&quot;: true}, &quot;reasoning&quot;: &quot;Internal business data required&quot;}
-
-User: &quot;Compare our sales strategy with industry best practices&quot;
-→ {&quot;routing&quot;: {&quot;direct&quot;: false, &quot;web&quot;: true, &quot;context&quot;: true}, &quot;reasoning&quot;: &quot;Needs both internal data and external research&quot;}</code></pre>
+}</code></pre>
         <h3
         id="auracontextpilotweb-web-search-agent">AURAContextPilotWeb
         (Web Search Agent)</h3>

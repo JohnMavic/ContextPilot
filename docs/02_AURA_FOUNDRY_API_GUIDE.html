@@ -1,153 +1,309 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="generator" content="pandoc" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AURA Foundry API Guide</title>
   <style>
-
-code{white-space: pre-wrap;}
-span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
-div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-
-ul.task-list[class]{list-style: none;}
-ul.task-list li input[type="checkbox"] {
-font-size: inherit;
-width: 0.8em;
-margin: 0 0.8em 0.2em -1.6em;
-vertical-align: middle;
-}
-.display.math{display: block; text-align: center; margin: 0.5rem auto;}
-
-html { -webkit-text-size-adjust: 100%; }
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-{ counter-reset: source-line 0; }
-pre.numberSource code > span
-{ position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-{ content: counter(source-line);
-position: relative; left: -1em; text-align: right; vertical-align: baseline;
-border: none; display: inline-block;
--webkit-touch-callout: none; -webkit-user-select: none;
--khtml-user-select: none; -moz-user-select: none;
--ms-user-select: none; user-select: none;
-padding: 0 4px; width: 4em;
-color: #aaaaaa;
-}
-pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
-div.sourceCode
-{ }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-}
-code span.al { color: #ff0000; font-weight: bold; } 
-code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.at { color: #7d9029; } 
-code span.bn { color: #40a070; } 
-code span.bu { color: #008000; } 
-code span.cf { color: #007020; font-weight: bold; } 
-code span.ch { color: #4070a0; } 
-code span.cn { color: #880000; } 
-code span.co { color: #60a0b0; font-style: italic; } 
-code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.do { color: #ba2121; font-style: italic; } 
-code span.dt { color: #902000; } 
-code span.dv { color: #40a070; } 
-code span.er { color: #ff0000; font-weight: bold; } 
-code span.ex { } 
-code span.fl { color: #40a070; } 
-code span.fu { color: #06287e; } 
-code span.im { color: #008000; font-weight: bold; } 
-code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
-code span.kw { color: #007020; font-weight: bold; } 
-code span.op { color: #666666; } 
-code span.ot { color: #007020; } 
-code span.pp { color: #bc7a00; } 
-code span.sc { color: #4070a0; } 
-code span.ss { color: #bb6688; } 
-code span.st { color: #4070a0; } 
-code span.va { color: #19177c; } 
-code span.vs { color: #4070a0; } 
-code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
-</style>
-  <style type="text/css">@page {size: A4;margin: 2cm 2cm 2.5cm 2cm;}body {font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;line-height: 1.6;max-width: 900px;margin: 0 auto;padding: 20px;color: #1a1a1a;}.doc-header {border-bottom: 3px solid #0078d4;padding-bottom: 20px;margin-bottom: 30px;}.doc-header h1 {color: #0078d4;margin-bottom: 5px;}.doc-meta {color: #666;font-size: 0.9em;}h1 { font-size: 1.8em; color: #0078d4; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }h2 { font-size: 1.4em; color: #333; margin-top: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; }h3 { font-size: 1.2em; color: #444; margin-top: 1.5em; }h4 { font-size: 1.1em; color: #555; }pre {background-color: #f6f8fa;border: 1px solid #e1e4e8;border-radius: 6px;padding: 16px;overflow-x: auto;font-size: 0.85em;line-height: 1.45;}code {font-family: 'Consolas', 'Monaco', 'Courier New', monospace;font-size: 0.9em;}:not(pre) > code {background-color: #f0f0f0;padding: 2px 6px;border-radius: 3px;}table {width: 100%;border-collapse: collapse;margin: 1em 0;}th, td {border: 1px solid #ddd;padding: 10px 12px;text-align: left;}th {background-color: #f0f0f0;font-weight: 600;}tr:nth-child(even) {background-color: #fafafa;}ul, ol {padding-left: 2em;}li {margin-bottom: 0.5em;}blockquote {border-left: 4px solid #0078d4;background-color: #f0f7ff;padding: 15px 20px;margin: 1em 0;color: #333;}a {color: #0078d4;text-decoration: none;}a:hover {text-decoration: underline;}@media print {body {max-width: 100%;padding: 0;font-size: 10pt;}pre {white-space: pre-wrap;word-wrap: break-word;page-break-inside: avoid;}h1, h2, h3 {page-break-after: avoid;}table, figure {page-break-inside: avoid;}a {color: #333;}}</style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    html, body {
+      height: 100%;
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+    }
+    
+    .container {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .sidebar {
+      width: 320px;
+      min-width: 200px;
+      max-width: 500px;
+      background: #f8f9fa;
+      border-right: 2px solid #0078d4;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .sidebar-header {
+      padding: 20px;
+      background: linear-gradient(135deg, #0078d4, #00a4ef);
+      color: white;
+      font-weight: 700;
+      font-size: 1.1em;
+    }
+    
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+    }
+    
+    .sidebar-content ul { list-style: none; padding-left: 0; }
+    .sidebar-content ul ul { padding-left: 1.2em; margin-top: 5px; border-left: 1px solid #ddd; }
+    .sidebar-content li { margin-bottom: 4px; }
+    .sidebar-content a {
+      display: block;
+      padding: 6px 10px;
+      color: #333;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 0.9em;
+      transition: all 0.15s;
+    }
+    .sidebar-content a:hover {
+      background: #e3f2fd;
+      color: #0078d4;
+      transform: translateX(3px);
+    }
+    .sidebar-content > ul > li > a { font-weight: 600; color: #0078d4; }
+    
+    .resizer {
+      width: 6px;
+      background: #e0e0e0;
+      cursor: col-resize;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .resizer:hover, .resizer.active { background: #0078d4; }
+    
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px 50px;
+    }
+    
+    .content-inner { max-width: 950px; }
+    
+    h1 { font-size: 1.9em; color: #0078d4; border-bottom: 3px solid #0078d4; padding-bottom: 12px; margin: 1.5em 0 0.8em 0; }
+    h2 { font-size: 1.5em; color: #333; margin-top: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; }
+    h3 { font-size: 1.2em; color: #444; margin-top: 1.5em; }
+    h4 { font-size: 1.1em; color: #555; margin-top: 1.2em; }
+    p { margin: 1em 0; }
+    
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.85em;
+      line-height: 1.4;
+      margin: 1em 0;
+      white-space: pre;
+    }
+    
+    code { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 0.9em; }
+    :not(pre) > code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; color: #c7254e; }
+    
+    table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: left; }
+    th { background: #f0f0f0; font-weight: 600; }
+    tr:nth-child(even) { background: #fafafa; }
+    
+    ul, ol { padding-left: 2em; margin: 1em 0; }
+    li { margin-bottom: 0.5em; }
+    
+    blockquote {
+      border-left: 4px solid #0078d4;
+      background: #f0f7ff;
+      padding: 15px 20px;
+      margin: 1em 0;
+      border-radius: 0 6px 6px 0;
+    }
+    
+    a { color: #0078d4; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    
+    details { border: 1px solid #e0e0e0; border-radius: 6px; padding: 12px 15px; margin: 1em 0; background: #fafafa; }
+    summary { cursor: pointer; font-weight: 600; color: #0078d4; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 2em 0; }
+    
+    @media print {
+      .container { display: block; }
+      .sidebar, .resizer { display: none; }
+      .content { padding: 20px; overflow: visible; }
+    }
+  </style>
 </head>
 <body>
-<header id="title-block-header">
-<h1 class="title">AURA Foundry API Guide</h1>
-</header>
-<h1 id="aura-agent-api-integration-guide">AURA Agent API Integration
-Guide</h1>
-<h2 id="microsoft-foundry-new---responses-api">Microsoft Foundry (new) -
-Responses API</h2>
-<blockquote>
-<p><strong>Stand:</strong> Dezember 2025<br />
-<strong>API Version:</strong> <code>2025-11-15-preview</code><br />
-<strong>Getestet mit:</strong> AURAContext Agent (claude-sonnet-4-5)</p>
-</blockquote>
-<hr />
-<h2 id="übersicht">1. Übersicht</h2>
-<p>Die neue Microsoft Foundry API (ab November 2025) verwendet die
-<strong>Responses API</strong> mit Agent-Referenzierung nach
-<strong>Namen</strong> (nicht ID wie bei der alten Assistants API).</p>
-<h3 id="wichtige-unterschiede-zur-alten-api">Wichtige Unterschiede zur
-alten API:</h3>
-<table>
-<thead>
-<tr>
-<th>Alt (Assistants API)</th>
-<th>Neu (Responses API)</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>assistant_id: &quot;asst_xxx&quot;</code></td>
-<td><code>agent: { name: &quot;AURAContext&quot; }</code></td>
-</tr>
-<tr>
-<td>Thread erstellen → Message → Run → Poll</td>
-<td>Einzelner POST Request</td>
-</tr>
-<tr>
-<td>API Version <code>2025-05-01</code></td>
-<td>API Version <code>2025-11-15-preview</code></td>
-</tr>
-<tr>
-<td><code>/assistants</code>, <code>/threads</code>,
-<code>/runs</code></td>
-<td><code>/openai/responses</code></td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="endpoint-authentifizierung">2. Endpoint &amp;
-Authentifizierung</h2>
-<h3 id="endpoint-format">Endpoint Format</h3>
-<pre><code>POST https://&lt;resource-name&gt;.services.ai.azure.com/api/projects/&lt;project-name&gt;/openai/responses?api-version=2025-11-15-preview</code></pre>
-<h3 id="konkretes-beispiel">Konkretes Beispiel</h3>
-<pre><code>POST https://aura-foundry-resource.services.ai.azure.com/api/projects/aura/openai/responses?api-version=2025-11-15-preview</code></pre>
-<h3 id="authentifizierung-azure-ad-token">Authentifizierung (Azure AD
-Token)</h3>
-<p><strong>Scope:</strong>
-<code>https://ai.azure.com/.default</code></p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { DefaultAzureCredential } <span class="im">from</span> <span class="st">&quot;@azure/identity&quot;</span><span class="op">;</span></span>
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-header">📑 Inhaltsverzeichnis</div>
+      <div class="sidebar-content">
+        <ul>
+        <li><a href="#aura-agent-api-integration-guide"
+        id="toc-aura-agent-api-integration-guide">AURA Agent API
+        Integration Guide</a>
+        <ul>
+        <li><a href="#microsoft-foundry-new---responses-api"
+        id="toc-microsoft-foundry-new---responses-api">Microsoft Foundry
+        (new) - Responses API</a></li>
+        <li><a href="#übersicht" id="toc-übersicht">1. Übersicht</a>
+        <ul>
+        <li><a href="#wichtige-unterschiede-zur-alten-api"
+        id="toc-wichtige-unterschiede-zur-alten-api">Wichtige
+        Unterschiede zur alten API:</a></li>
+        </ul></li>
+        <li><a href="#endpoint-authentifizierung"
+        id="toc-endpoint-authentifizierung">2. Endpoint &amp;
+        Authentifizierung</a>
+        <ul>
+        <li><a href="#endpoint-format" id="toc-endpoint-format">Endpoint
+        Format</a></li>
+        <li><a href="#konkretes-beispiel"
+        id="toc-konkretes-beispiel">Konkretes Beispiel</a></li>
+        <li><a href="#authentifizierung-azure-ad-token"
+        id="toc-authentifizierung-azure-ad-token">Authentifizierung
+        (Azure AD Token)</a></li>
+        </ul></li>
+        <li><a href="#request-format" id="toc-request-format">3. Request
+        Format</a>
+        <ul>
+        <li><a href="#minimaler-request"
+        id="toc-minimaler-request">Minimaler Request</a></li>
+        <li><a href="#mit-conversation-id-multi-turn"
+        id="toc-mit-conversation-id-multi-turn">Mit Conversation ID
+        (Multi-Turn)</a></li>
+        <li><a href="#verfügbare-agenten-stand-dezember-2025"
+        id="toc-verfügbare-agenten-stand-dezember-2025">Verfügbare
+        Agenten (Stand Dezember 2025)</a></li>
+        </ul></li>
+        <li><a href="#response-format" id="toc-response-format">4.
+        Response Format</a>
+        <ul>
+        <li><a href="#erfolgreiche-response-http-200"
+        id="toc-erfolgreiche-response-http-200">Erfolgreiche Response
+        (HTTP 200)</a></li>
+        <li><a href="#response-parsing-javascript"
+        id="toc-response-parsing-javascript">Response Parsing
+        (JavaScript)</a></li>
+        </ul></li>
+        <li><a href="#vollständiges-code-beispiel-node.js"
+        id="toc-vollständiges-code-beispiel-node.js">5. Vollständiges
+        Code-Beispiel (Node.js)</a></li>
+        <li><a href="#curl-beispiel" id="toc-curl-beispiel">6. cURL
+        Beispiel</a></li>
+        <li><a href="#powershell-beispiel"
+        id="toc-powershell-beispiel">7. PowerShell Beispiel</a></li>
+        <li><a href="#fehlerbehandlung" id="toc-fehlerbehandlung">8.
+        Fehlerbehandlung</a></li>
+        <li><a href="#umgebungsvariablen-.env.local"
+        id="toc-umgebungsvariablen-.env.local">9. Umgebungsvariablen
+        (.env.local)</a>
+        <ul>
+        <li><a href="#credentials-übersicht"
+        id="toc-credentials-übersicht">Credentials-Übersicht</a></li>
+        <li><a href="#azure-ad-authentifizierung-für-aura"
+        id="toc-azure-ad-authentifizierung-für-aura">Azure AD
+        Authentifizierung (für AURA)</a></li>
+        </ul></li>
+        <li><a href="#workflows-aufrufen-multi-agent-orchestration"
+        id="toc-workflows-aufrufen-multi-agent-orchestration">10.
+        Workflows aufrufen (Multi-Agent Orchestration)</a>
+        <ul>
+        <li><a href="#unterschied-agent-vs-workflow"
+        id="toc-unterschied-agent-vs-workflow">Unterschied Agent vs
+        Workflow</a></li>
+        <li><a href="#workflow-struktur-beispiel-contextpilot"
+        id="toc-workflow-struktur-beispiel-contextpilot">Workflow-Struktur
+        (Beispiel CONTEXTPILOT)</a></li>
+        <li><a href="#api-aufruf-für-workflows-2-step-process"
+        id="toc-api-aufruf-für-workflows-2-step-process">API-Aufruf für
+        Workflows (2-Step Process)</a></li>
+        <li><a href="#node.js-beispiel-für-workflows"
+        id="toc-node.js-beispiel-für-workflows">Node.js Beispiel für
+        Workflows</a></li>
+        <li><a href="#powershell-beispiel-für-workflows"
+        id="toc-powershell-beispiel-für-workflows">PowerShell Beispiel
+        für Workflows</a></li>
+        <li><a href="#workflow-response-struktur"
+        id="toc-workflow-response-struktur">Workflow
+        Response-Struktur</a></li>
+        <li><a href="#konfiguration-in-.env.local"
+        id="toc-konfiguration-in-.env.local">Konfiguration in
+        .env.local</a></li>
+        <li><a href="#typische-fehler-bei-workflows"
+        id="toc-typische-fehler-bei-workflows">Typische Fehler bei
+        Workflows</a></li>
+        </ul></li>
+        <li><a href="#wichtige-hinweise" id="toc-wichtige-hinweise">11.
+        Wichtige Hinweise</a></li>
+        <li><a href="#referenzen" id="toc-referenzen">12.
+        Referenzen</a></li>
+        </ul></li>
+        </ul>
+      </div>
+    </div>
+    <div class="resizer" id="resizer"></div>
+    <div class="content">
+      <div class="content-inner">
+        <h1 id="aura-agent-api-integration-guide">AURA Agent API
+        Integration Guide</h1>
+        <h2 id="microsoft-foundry-new---responses-api">Microsoft Foundry
+        (new) - Responses API</h2>
+        <blockquote>
+        <p><strong>Stand:</strong> Dezember 2025<br />
+        <strong>API Version:</strong>
+        <code>2025-11-15-preview</code><br />
+        <strong>Getestet mit:</strong> AURAContext Agent
+        (claude-sonnet-4-5)</p>
+        </blockquote>
+        <hr />
+        <h2 id="übersicht">1. Übersicht</h2>
+        <p>Die neue Microsoft Foundry API (ab November 2025) verwendet
+        die <strong>Responses API</strong> mit Agent-Referenzierung nach
+        <strong>Namen</strong> (nicht ID wie bei der alten Assistants
+        API).</p>
+        <h3 id="wichtige-unterschiede-zur-alten-api">Wichtige
+        Unterschiede zur alten API:</h3>
+        <table>
+        <thead>
+        <tr>
+        <th>Alt (Assistants API)</th>
+        <th>Neu (Responses API)</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td><code>assistant_id: "asst_xxx"</code></td>
+        <td><code>agent: { name: "AURAContext" }</code></td>
+        </tr>
+        <tr>
+        <td>Thread erstellen → Message → Run → Poll</td>
+        <td>Einzelner POST Request</td>
+        </tr>
+        <tr>
+        <td>API Version <code>2025-05-01</code></td>
+        <td>API Version <code>2025-11-15-preview</code></td>
+        </tr>
+        <tr>
+        <td><code>/assistants</code>, <code>/threads</code>,
+        <code>/runs</code></td>
+        <td><code>/openai/responses</code></td>
+        </tr>
+        </tbody>
+        </table>
+        <hr />
+        <h2 id="endpoint-authentifizierung">2. Endpoint &amp;
+        Authentifizierung</h2>
+        <h3 id="endpoint-format">Endpoint Format</h3>
+        <pre><code>POST https://&lt;resource-name&gt;.services.ai.azure.com/api/projects/&lt;project-name&gt;/openai/responses?api-version=2025-11-15-preview</code></pre>
+        <h3 id="konkretes-beispiel">Konkretes Beispiel</h3>
+        <pre><code>POST https://aura-foundry-resource.services.ai.azure.com/api/projects/aura/openai/responses?api-version=2025-11-15-preview</code></pre>
+        <h3 id="authentifizierung-azure-ad-token">Authentifizierung
+        (Azure AD Token)</h3>
+        <p><strong>Scope:</strong>
+        <code>https://ai.azure.com/.default</code></p>
+        <div class="sourceCode" id="cb3"><pre
+        class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { DefaultAzureCredential } <span class="im">from</span> <span class="st">&quot;@azure/identity&quot;</span><span class="op">;</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> credential <span class="op">=</span> <span class="kw">new</span> <span class="fu">DefaultAzureCredential</span>()<span class="op">;</span></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> scope <span class="op">=</span> <span class="st">&quot;https://ai.azure.com/.default&quot;</span><span class="op">;</span></span>
@@ -157,23 +313,26 @@ Token)</h3>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;Content-Type&quot;</span><span class="op">:</span> <span class="st">&quot;application/json&quot;</span><span class="op">,</span></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;Authorization&quot;</span><span class="op">:</span> <span class="vs">`Bearer </span><span class="sc">${</span>token<span class="op">.</span><span class="at">token</span><span class="sc">}</span><span class="vs">`</span></span>
 <span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>}<span class="op">;</span></span></code></pre></div>
-<p><strong>Voraussetzungen für lokale Entwicklung:</strong> - Azure CLI
-installiert (<code>az login</code> ausgeführt) - Oder:
-Umgebungsvariablen <code>AZURE_TENANT_ID</code>,
-<code>AZURE_CLIENT_ID</code>, <code>AZURE_CLIENT_SECRET</code></p>
-<hr />
-<h2 id="request-format">3. Request Format</h2>
-<h3 id="minimaler-request">Minimaler Request</h3>
-<div class="sourceCode" id="cb4"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+        <p><strong>Voraussetzungen für lokale Entwicklung:</strong> -
+        Azure CLI installiert (<code>az login</code> ausgeführt) - Oder:
+        Umgebungsvariablen <code>AZURE_TENANT_ID</code>,
+        <code>AZURE_CLIENT_ID</code>,
+        <code>AZURE_CLIENT_SECRET</code></p>
+        <hr />
+        <h2 id="request-format">3. Request Format</h2>
+        <h3 id="minimaler-request">Minimaler Request</h3>
+        <div class="sourceCode" id="cb4"><pre
+        class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agent&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;agent_reference&quot;</span><span class="fu">,</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;AURAContext&quot;</span></span>
 <span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;input&quot;</span><span class="fu">:</span> <span class="st">&quot;Was sind die 5 wichtigsten Wins dieser Periode?&quot;</span></span>
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<h3 id="mit-conversation-id-multi-turn">Mit Conversation ID
-(Multi-Turn)</h3>
-<div class="sourceCode" id="cb5"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+        <h3 id="mit-conversation-id-multi-turn">Mit Conversation ID
+        (Multi-Turn)</h3>
+        <div class="sourceCode" id="cb5"><pre
+        class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agent&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;agent_reference&quot;</span><span class="fu">,</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;AURAContext&quot;</span></span>
@@ -181,51 +340,52 @@ Umgebungsvariablen <code>AZURE_TENANT_ID</code>,
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;input&quot;</span><span class="fu">:</span> <span class="st">&quot;Erzähl mir mehr über den ersten Win.&quot;</span><span class="fu">,</span></span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;conversation&quot;</span><span class="fu">:</span> <span class="st">&quot;conv_abc123...&quot;</span></span>
 <span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<h3 id="verfügbare-agenten-stand-dezember-2025">Verfügbare Agenten
-(Stand Dezember 2025)</h3>
-<table>
-<thead>
-<tr>
-<th>Agent Name</th>
-<th>Beschreibung</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>AURAContext</code></td>
-<td>Allgemeiner Kontext-Agent</td>
-</tr>
-<tr>
-<td><code>AURASpeachToText</code></td>
-<td>Speech-to-Text</td>
-</tr>
-<tr>
-<td><code>AURAMedicalV02</code></td>
-<td>Medizinische Anfragen</td>
-</tr>
-<tr>
-<td><code>AURAOrchestratorV02</code></td>
-<td>Orchestrierung</td>
-</tr>
-<tr>
-<td><code>AURAWeatherV02</code></td>
-<td>Wetter-Anfragen</td>
-</tr>
-<tr>
-<td><code>AURATravelV02</code></td>
-<td>Reise-Anfragen</td>
-</tr>
-<tr>
-<td><code>AURAMainV02</code></td>
-<td>Haupt-Agent</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="response-format">4. Response Format</h2>
-<h3 id="erfolgreiche-response-http-200">Erfolgreiche Response (HTTP
-200)</h3>
-<div class="sourceCode" id="cb6"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+        <h3 id="verfügbare-agenten-stand-dezember-2025">Verfügbare
+        Agenten (Stand Dezember 2025)</h3>
+        <table>
+        <thead>
+        <tr>
+        <th>Agent Name</th>
+        <th>Beschreibung</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td><code>AURAContext</code></td>
+        <td>Allgemeiner Kontext-Agent</td>
+        </tr>
+        <tr>
+        <td><code>AURASpeachToText</code></td>
+        <td>Speech-to-Text</td>
+        </tr>
+        <tr>
+        <td><code>AURAMedicalV02</code></td>
+        <td>Medizinische Anfragen</td>
+        </tr>
+        <tr>
+        <td><code>AURAOrchestratorV02</code></td>
+        <td>Orchestrierung</td>
+        </tr>
+        <tr>
+        <td><code>AURAWeatherV02</code></td>
+        <td>Wetter-Anfragen</td>
+        </tr>
+        <tr>
+        <td><code>AURATravelV02</code></td>
+        <td>Reise-Anfragen</td>
+        </tr>
+        <tr>
+        <td><code>AURAMainV02</code></td>
+        <td>Haupt-Agent</td>
+        </tr>
+        </tbody>
+        </table>
+        <hr />
+        <h2 id="response-format">4. Response Format</h2>
+        <h3 id="erfolgreiche-response-http-200">Erfolgreiche Response
+        (HTTP 200)</h3>
+        <div class="sourceCode" id="cb6"><pre
+        class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;resp_xxx&quot;</span><span class="fu">,</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;object&quot;</span><span class="fu">:</span> <span class="st">&quot;response&quot;</span><span class="fu">,</span></span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span><span class="fu">,</span></span>
@@ -263,8 +423,10 @@ Umgebungsvariablen <code>AZURE_TENANT_ID</code>,
 <span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
 <span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;conversation&quot;</span><span class="fu">:</span> <span class="kw">null</span></span>
 <span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<h3 id="response-parsing-javascript">Response Parsing (JavaScript)</h3>
-<div class="sourceCode" id="cb7"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">extractAgentResponse</span>(responseData) {</span>
+        <h3 id="response-parsing-javascript">Response Parsing
+        (JavaScript)</h3>
+        <div class="sourceCode" id="cb7"><pre
+        class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">extractAgentResponse</span>(responseData) {</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Direkt output_text (falls vorhanden)</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (responseData<span class="op">.</span><span class="at">output_text</span>) {</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> responseData<span class="op">.</span><span class="at">output_text</span><span class="op">;</span></span>
@@ -286,10 +448,11 @@ Umgebungsvariablen <code>AZURE_TENANT_ID</code>,
 <span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Fallback</span></span>
 <span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> <span class="bu">JSON</span><span class="op">.</span><span class="fu">stringify</span>(responseData)<span class="op">;</span></span>
 <span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
-<hr />
-<h2 id="vollständiges-code-beispiel-node.js">5. Vollständiges
-Code-Beispiel (Node.js)</h2>
-<div class="sourceCode" id="cb8"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { DefaultAzureCredential } <span class="im">from</span> <span class="st">&quot;@azure/identity&quot;</span><span class="op">;</span></span>
+        <hr />
+        <h2 id="vollständiges-code-beispiel-node.js">5. Vollständiges
+        Code-Beispiel (Node.js)</h2>
+        <div class="sourceCode" id="cb8"><pre
+        class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { DefaultAzureCredential } <span class="im">from</span> <span class="st">&quot;@azure/identity&quot;</span><span class="op">;</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> AURA_ENDPOINT <span class="op">=</span> <span class="st">&quot;https://aura-foundry-resource.services.ai.azure.com/api/projects/aura&quot;</span><span class="op">;</span></span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> AURA_AGENT_NAME <span class="op">=</span> <span class="st">&quot;AURAContext&quot;</span><span class="op">;</span></span>
@@ -346,9 +509,10 @@ Code-Beispiel (Node.js)</h2>
 <span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a><span class="co">// Verwendung</span></span>
 <span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> result <span class="op">=</span> <span class="cf">await</span> <span class="fu">askAURA</span>(<span class="st">&quot;Was sind die 5 wichtigsten Wins?&quot;</span>)<span class="op">;</span></span>
 <span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a><span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(result<span class="op">.</span><span class="at">text</span>)<span class="op">;</span></span></code></pre></div>
-<hr />
-<h2 id="curl-beispiel">6. cURL Beispiel</h2>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Token holen</span></span>
+        <hr />
+        <h2 id="curl-beispiel">6. cURL Beispiel</h2>
+        <div class="sourceCode" id="cb9"><pre
+        class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Token holen</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="va">TOKEN</span><span class="op">=</span><span class="va">$(</span><span class="ex">az</span> account get-access-token <span class="at">--resource</span> <span class="st">&quot;https://ai.azure.com&quot;</span> <span class="at">--query</span> accessToken <span class="at">-o</span> tsv<span class="va">)</span></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Request</span></span>
@@ -363,9 +527,10 @@ Code-Beispiel (Node.js)</h2>
 <span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="st">    },</span></span>
 <span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;input&quot;: &quot;Was sind die 5 wichtigsten Wins?&quot;</span></span>
 <span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
-<hr />
-<h2 id="powershell-beispiel">7. PowerShell Beispiel</h2>
-<div class="sourceCode" id="cb10"><pre class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Token holen</span></span>
+        <hr />
+        <h2 id="powershell-beispiel">7. PowerShell Beispiel</h2>
+        <div class="sourceCode" id="cb10"><pre
+        class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Token holen</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="va">$token</span> <span class="op">=</span> az account get-access-token <span class="op">--</span>resource <span class="st">&quot;https://ai.azure.com&quot;</span> <span class="op">--</span>query accessToken <span class="op">-</span>o tsv</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Request</span></span>
@@ -388,166 +553,170 @@ Code-Beispiel (Node.js)</h2>
 <span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="va">$message</span> <span class="op">=</span> <span class="va">$response</span><span class="op">.</span><span class="fu">output</span> <span class="op">|</span> <span class="fu">Where-Object</span> <span class="op">{</span> <span class="va">$_</span><span class="op">.</span><span class="fu">type</span> <span class="op">-eq</span> <span class="st">&quot;message&quot;</span> <span class="op">}</span></span>
 <span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="va">$text</span> <span class="op">=</span> <span class="va">$message</span><span class="op">.</span><span class="fu">content</span> <span class="op">|</span> <span class="fu">Where-Object</span> <span class="op">{</span> <span class="va">$_</span><span class="op">.</span><span class="fu">type</span> <span class="op">-eq</span> <span class="st">&quot;output_text&quot;</span> <span class="op">}</span></span>
 <span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="fu">Write-Host</span> <span class="va">$text</span><span class="op">.</span><span class="fu">text</span></span></code></pre></div>
-<hr />
-<h2 id="fehlerbehandlung">8. Fehlerbehandlung</h2>
-<table>
-<colgroup>
-<col style="width: 44%" />
-<col style="width: 27%" />
-<col style="width: 27%" />
-</colgroup>
-<thead>
-<tr>
-<th>HTTP Status</th>
-<th>Fehler</th>
-<th>Lösung</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>401</td>
-<td>Unauthorized</td>
-<td>Token-Scope prüfen (<code>https://ai.azure.com/.default</code>)</td>
-</tr>
-<tr>
-<td>400</td>
-<td>Bad Request - API version not supported</td>
-<td>API Version auf <code>2025-11-15-preview</code> setzen</td>
-</tr>
-<tr>
-<td>400</td>
-<td>Invalid agent name</td>
-<td>Agent-Name prüfen (case-sensitive!)</td>
-</tr>
-<tr>
-<td>404</td>
-<td>Not Found</td>
-<td>Endpoint-URL prüfen (inkl.
-<code>/api/projects/&lt;project&gt;</code>)</td>
-</tr>
-<tr>
-<td>500</td>
-<td>Internal Server Error</td>
-<td>Agent-Konfiguration im Foundry Portal prüfen</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="umgebungsvariablen-.env.local">9. Umgebungsvariablen
-(.env.local)</h2>
-<blockquote>
-<p><strong>⚠️ WICHTIG:</strong> Die konkreten Credentials und
-Endpoint-URLs sind in der lokalen Datei<br />
-<code>e:\ContextPilot\live-transcriber\.env.local</code>
-gespeichert.<br />
-Diese Datei ist NICHT im Git-Repository und muss lokal vorhanden
-sein!</p>
-</blockquote>
-<pre class="env"><code># Azure AI Foundry - AURA Agent Configuration (NEW Foundry API - November 2025+)
+        <hr />
+        <h2 id="fehlerbehandlung">8. Fehlerbehandlung</h2>
+        <table>
+        <colgroup>
+        <col style="width: 44%" />
+        <col style="width: 27%" />
+        <col style="width: 27%" />
+        </colgroup>
+        <thead>
+        <tr>
+        <th>HTTP Status</th>
+        <th>Fehler</th>
+        <th>Lösung</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td>401</td>
+        <td>Unauthorized</td>
+        <td>Token-Scope prüfen
+        (<code>https://ai.azure.com/.default</code>)</td>
+        </tr>
+        <tr>
+        <td>400</td>
+        <td>Bad Request - API version not supported</td>
+        <td>API Version auf <code>2025-11-15-preview</code> setzen</td>
+        </tr>
+        <tr>
+        <td>400</td>
+        <td>Invalid agent name</td>
+        <td>Agent-Name prüfen (case-sensitive!)</td>
+        </tr>
+        <tr>
+        <td>404</td>
+        <td>Not Found</td>
+        <td>Endpoint-URL prüfen (inkl.
+        <code>/api/projects/&lt;project&gt;</code>)</td>
+        </tr>
+        <tr>
+        <td>500</td>
+        <td>Internal Server Error</td>
+        <td>Agent-Konfiguration im Foundry Portal prüfen</td>
+        </tr>
+        </tbody>
+        </table>
+        <hr />
+        <h2 id="umgebungsvariablen-.env.local">9. Umgebungsvariablen
+        (.env.local)</h2>
+        <blockquote>
+        <p><strong>⚠️ WICHTIG:</strong> Die konkreten Credentials und
+        Endpoint-URLs sind in der lokalen Datei<br />
+        <code>e:\ContextPilot\live-transcriber\.env.local</code>
+        gespeichert.<br />
+        Diese Datei ist NICHT im Git-Repository und muss lokal vorhanden
+        sein!</p>
+        </blockquote>
+        <pre class="env"><code># Azure AI Foundry - AURA Agent Configuration (NEW Foundry API - November 2025+)
 # Endpoint format: https://&lt;name&gt;.services.ai.azure.com/api/projects/&lt;project&gt;
 AURA_ENDPOINT=https://aura-foundry-resource.services.ai.azure.com/api/projects/aura
 AURA_AGENT_NAME=AURAContext
 AURA_API_VERSION=2025-11-15-preview
 
 # OpenAI API Key für Transkription (WebSocket Proxy)
-VITE_OPENAI_API_KEY=sk-proj-xxx...</code></pre>
-<h3 id="credentials-übersicht">Credentials-Übersicht</h3>
-<table>
-<colgroup>
-<col style="width: 26%" />
-<col style="width: 36%" />
-<col style="width: 36%" />
-</colgroup>
-<thead>
-<tr>
-<th>Variable</th>
-<th>Beschreibung</th>
-<th>Wo zu finden</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>AURA_ENDPOINT</code></td>
-<td>Azure AI Foundry Project Endpoint</td>
-<td>Azure Portal → AI Foundry → Project → Overview</td>
-</tr>
-<tr>
-<td><code>AURA_AGENT_NAME</code></td>
-<td>Name des Agenten</td>
-<td>AI Foundry Portal → Agents</td>
-</tr>
-<tr>
-<td><code>AURA_API_VERSION</code></td>
-<td>API Version</td>
-<td><code>2025-11-15-preview</code> (Stand Dez 2025)</td>
-</tr>
-<tr>
-<td><code>VITE_OPENAI_API_KEY</code></td>
-<td>OpenAI API Key für Transkription</td>
-<td>OpenAI Platform → API Keys</td>
-</tr>
-</tbody>
-</table>
-<h3 id="azure-ad-authentifizierung-für-aura">Azure AD Authentifizierung
-(für AURA)</h3>
-<p>Für lokale Entwicklung wird <strong>kein API Key</strong> benötigt!
-Die Authentifizierung erfolgt über Azure AD:</p>
-<ol type="1">
-<li><code>az login</code> ausführen (einmalig)</li>
-<li><code>DefaultAzureCredential</code> holt automatisch den Token</li>
-<li>Der eingeloggte User braucht <strong>Azure AI User</strong> Rolle
-auf dem Project</li>
-</ol>
-<hr />
-<h2 id="workflows-aufrufen-multi-agent-orchestration">10. Workflows
-aufrufen (Multi-Agent Orchestration)</h2>
-<blockquote>
-<p><strong>Entdeckt:</strong> Dezember 2025<br />
-<strong>Wichtig:</strong> Workflows sind <strong>stateful</strong> und
-benötigen eine Conversation!</p>
-</blockquote>
-<h3 id="unterschied-agent-vs-workflow">Unterschied Agent vs
-Workflow</h3>
-<table>
-<colgroup>
-<col style="width: 32%" />
-<col style="width: 28%" />
-<col style="width: 40%" />
-</colgroup>
-<thead>
-<tr>
-<th>Aspekt</th>
-<th>Agent</th>
-<th>Workflow</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Typ in API</td>
-<td><code>kind: &quot;prompt&quot;</code></td>
-<td><code>kind: &quot;workflow&quot;</code></td>
-</tr>
-<tr>
-<td>Stateful</td>
-<td>Optional (conversation)</td>
-<td><strong>Pflicht</strong> (conversation required!)</td>
-</tr>
-<tr>
-<td>Request-Flow</td>
-<td>1 Request</td>
-<td>2 Requests (Conversation erstellen + Response)</td>
-</tr>
-<tr>
-<td>Use Case</td>
-<td>Einzelne Aufgabe</td>
-<td>Multi-Agent Orchestration</td>
-</tr>
-</tbody>
-</table>
-<h3 id="workflow-struktur-beispiel-contextpilot">Workflow-Struktur
-(Beispiel CONTEXTPILOT)</h3>
-<p>Ein Workflow orchestriert mehrere Sub-Agents sequentiell:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">kind</span><span class="kw">:</span><span class="at"> workflow</span></span>
+OPENAI_API_KEY=sk-proj-xxx...</code></pre>
+        <h3 id="credentials-übersicht">Credentials-Übersicht</h3>
+        <table>
+        <colgroup>
+        <col style="width: 26%" />
+        <col style="width: 36%" />
+        <col style="width: 36%" />
+        </colgroup>
+        <thead>
+        <tr>
+        <th>Variable</th>
+        <th>Beschreibung</th>
+        <th>Wo zu finden</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td><code>AURA_ENDPOINT</code></td>
+        <td>Azure AI Foundry Project Endpoint</td>
+        <td>Azure Portal → AI Foundry → Project → Overview</td>
+        </tr>
+        <tr>
+        <td><code>AURA_AGENT_NAME</code></td>
+        <td>Name des Agenten</td>
+        <td>AI Foundry Portal → Agents</td>
+        </tr>
+        <tr>
+        <td><code>AURA_API_VERSION</code></td>
+        <td>API Version</td>
+        <td><code>2025-11-15-preview</code> (Stand Dez 2025)</td>
+        </tr>
+        <tr>
+        <td><code>OPENAI_API_KEY</code></td>
+        <td>OpenAI API Key für Transkription</td>
+        <td>OpenAI Platform → API Keys</td>
+        </tr>
+        </tbody>
+        </table>
+        <h3 id="azure-ad-authentifizierung-für-aura">Azure AD
+        Authentifizierung (für AURA)</h3>
+        <p>Für lokale Entwicklung wird <strong>kein API Key</strong>
+        benötigt! Die Authentifizierung erfolgt über Azure AD:</p>
+        <ol type="1">
+        <li><code>az login</code> ausführen (einmalig)</li>
+        <li><code>DefaultAzureCredential</code> holt automatisch den
+        Token</li>
+        <li>Der eingeloggte User braucht <strong>Azure AI User</strong>
+        Rolle auf dem Project</li>
+        </ol>
+        <hr />
+        <h2 id="workflows-aufrufen-multi-agent-orchestration">10.
+        Workflows aufrufen (Multi-Agent Orchestration)</h2>
+        <blockquote>
+        <p><strong>Entdeckt:</strong> Dezember 2025<br />
+        <strong>Wichtig:</strong> Workflows sind
+        <strong>stateful</strong> und benötigen eine Conversation!</p>
+        </blockquote>
+        <h3 id="unterschied-agent-vs-workflow">Unterschied Agent vs
+        Workflow</h3>
+        <table>
+        <colgroup>
+        <col style="width: 32%" />
+        <col style="width: 28%" />
+        <col style="width: 40%" />
+        </colgroup>
+        <thead>
+        <tr>
+        <th>Aspekt</th>
+        <th>Agent</th>
+        <th>Workflow</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td>Typ in API</td>
+        <td><code>kind: "prompt"</code></td>
+        <td><code>kind: "workflow"</code></td>
+        </tr>
+        <tr>
+        <td>Stateful</td>
+        <td>Optional (conversation)</td>
+        <td><strong>Pflicht</strong> (conversation required!)</td>
+        </tr>
+        <tr>
+        <td>Request-Flow</td>
+        <td>1 Request</td>
+        <td>2 Requests (Conversation erstellen + Response)</td>
+        </tr>
+        <tr>
+        <td>Use Case</td>
+        <td>Einzelne Aufgabe</td>
+        <td>Multi-Agent Orchestration</td>
+        </tr>
+        </tbody>
+        </table>
+        <h3
+        id="workflow-struktur-beispiel-contextpilot">Workflow-Struktur
+        (Beispiel CONTEXTPILOT)</h3>
+        <p>Ein Workflow orchestriert mehrere Sub-Agents sequentiell:</p>
+        <div class="sourceCode" id="cb12"><pre
+        class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">kind</span><span class="kw">:</span><span class="at"> workflow</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">trigger</span><span class="kw">:</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">kind</span><span class="kw">:</span><span class="at"> OnConversationStart</span></span>
 <span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">id</span><span class="kw">:</span><span class="at"> trigger_wf</span></span>
@@ -585,26 +754,31 @@ Workflow</h3>
 <span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">messages</span><span class="kw">:</span><span class="at"> =Local.CombinedMessage</span></span>
 <span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">output</span><span class="kw">:</span></span>
 <span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">autoSend</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span></code></pre></div>
-<h3 id="api-aufruf-für-workflows-2-step-process">API-Aufruf für
-Workflows (2-Step Process)</h3>
-<p><strong>WICHTIG:</strong> Workflows benötigen eine Conversation! Ohne
-<code>conversation.id</code> gibt es den Fehler:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;error&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;param&quot;</span><span class="fu">:</span> <span class="st">&quot;conversation&quot;</span><span class="fu">,</span> <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Not defined.&quot;</span><span class="fu">}}</span></span></code></pre></div>
-<h4 id="schritt-1-conversation-erstellen">Schritt 1: Conversation
-erstellen</h4>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">POST</span> https://<span class="op">&lt;</span>resource<span class="op">&gt;</span>.services.ai.azure.com/api/projects/<span class="op">&lt;</span>project<span class="op">&gt;</span>/openai/conversations<span class="pp">?</span>api-version=2025-11-15-preview</span>
+        <h3 id="api-aufruf-für-workflows-2-step-process">API-Aufruf für
+        Workflows (2-Step Process)</h3>
+        <p><strong>WICHTIG:</strong> Workflows benötigen eine
+        Conversation! Ohne <code>conversation.id</code> gibt es den
+        Fehler:</p>
+        <div class="sourceCode" id="cb13"><pre
+        class="sourceCode json"><code class="sourceCode json"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span><span class="dt">&quot;error&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;param&quot;</span><span class="fu">:</span> <span class="st">&quot;conversation&quot;</span><span class="fu">,</span> <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Not defined.&quot;</span><span class="fu">}}</span></span></code></pre></div>
+        <h4 id="schritt-1-conversation-erstellen">Schritt 1:
+        Conversation erstellen</h4>
+        <div class="sourceCode" id="cb14"><pre
+        class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">POST</span> https://<span class="op">&lt;</span>resource<span class="op">&gt;</span>.services.ai.azure.com/api/projects/<span class="op">&lt;</span>project<span class="op">&gt;</span>/openai/conversations<span class="pp">?</span>api-version=2025-11-15-preview</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Authorization:</span> Bearer <span class="va">$TOKEN</span></span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Content-Type:</span> application/json</span>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="ex">{}</span></span></code></pre></div>
-<p>Response:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+        <p>Response:</p>
+        <div class="sourceCode" id="cb15"><pre
+        class="sourceCode json"><code class="sourceCode json"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;conv_abc123...&quot;</span><span class="fu">,</span></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;object&quot;</span><span class="fu">:</span> <span class="st">&quot;conversation&quot;</span></span>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<h4 id="schritt-2-workflow-aufrufen-mit-conversation">Schritt 2:
-Workflow aufrufen mit Conversation</h4>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">POST</span> https://<span class="op">&lt;</span>resource<span class="op">&gt;</span>.services.ai.azure.com/api/projects/<span class="op">&lt;</span>project<span class="op">&gt;</span>/openai/responses<span class="pp">?</span>api-version=2025-11-15-preview</span>
+        <h4 id="schritt-2-workflow-aufrufen-mit-conversation">Schritt 2:
+        Workflow aufrufen mit Conversation</h4>
+        <div class="sourceCode" id="cb16"><pre
+        class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">POST</span> https://<span class="op">&lt;</span>resource<span class="op">&gt;</span>.services.ai.azure.com/api/projects/<span class="op">&lt;</span>project<span class="op">&gt;</span>/openai/responses<span class="pp">?</span>api-version=2025-11-15-preview</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Authorization:</span> Bearer <span class="va">$TOKEN</span></span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Content-Type:</span> application/json</span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -618,9 +792,10 @@ Workflow aufrufen mit Conversation</h4>
 <span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;id&quot;</span><span class="ex">:</span> <span class="st">&quot;conv_abc123...&quot;</span></span>
 <span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">}</span></span>
 <span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="er">}</span></span></code></pre></div>
-<h3 id="node.js-beispiel-für-workflows">Node.js Beispiel für
-Workflows</h3>
-<div class="sourceCode" id="cb17"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">async</span> <span class="kw">function</span> <span class="fu">callWorkflow</span>(workflowName<span class="op">,</span> prompt<span class="op">,</span> endpoint) {</span>
+        <h3 id="node.js-beispiel-für-workflows">Node.js Beispiel für
+        Workflows</h3>
+        <div class="sourceCode" id="cb17"><pre
+        class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">async</span> <span class="kw">function</span> <span class="fu">callWorkflow</span>(workflowName<span class="op">,</span> prompt<span class="op">,</span> endpoint) {</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> credential <span class="op">=</span> <span class="kw">new</span> <span class="fu">DefaultAzureCredential</span>()<span class="op">;</span></span>
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> token <span class="op">=</span> <span class="cf">await</span> credential<span class="op">.</span><span class="fu">getToken</span>(<span class="st">&quot;https://ai.azure.com/.default&quot;</span>)<span class="op">;</span></span>
 <span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> headers <span class="op">=</span> {</span>
@@ -685,9 +860,10 @@ Workflows</h3>
 <span id="cb17-63"><a href="#cb17-63" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot&quot;</span></span>
 <span id="cb17-64"><a href="#cb17-64" aria-hidden="true" tabindex="-1"></a>)<span class="op">;</span></span>
 <span id="cb17-65"><a href="#cb17-65" aria-hidden="true" tabindex="-1"></a><span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(result<span class="op">.</span><span class="at">text</span>)<span class="op">;</span></span></code></pre></div>
-<h3 id="powershell-beispiel-für-workflows">PowerShell Beispiel für
-Workflows</h3>
-<div class="sourceCode" id="cb18"><pre class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Token holen</span></span>
+        <h3 id="powershell-beispiel-für-workflows">PowerShell Beispiel
+        für Workflows</h3>
+        <div class="sourceCode" id="cb18"><pre
+        class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Token holen</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="va">$token</span> <span class="op">=</span> az account get-access-token <span class="op">--</span>resource <span class="st">&quot;https://ai.azure.com&quot;</span> <span class="op">--</span>query accessToken <span class="op">-</span>o tsv</span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="va">$headers</span> <span class="op">=</span> @<span class="op">{</span></span>
 <span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Content-Type&quot;</span> <span class="op">=</span> <span class="st">&quot;application/json&quot;</span></span>
@@ -716,10 +892,12 @@ Workflows</h3>
 <span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a><span class="va">$lastMessage</span> <span class="op">=</span> <span class="va">$messages</span><span class="op">[</span>-1<span class="op">]</span></span>
 <span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a><span class="va">$text</span> <span class="op">=</span> <span class="va">$lastMessage</span><span class="op">.</span><span class="fu">content</span> <span class="op">|</span> <span class="fu">Where-Object</span> <span class="op">{</span> <span class="va">$_</span><span class="op">.</span><span class="fu">type</span> <span class="op">-eq</span> <span class="st">&quot;output_text&quot;</span> <span class="op">}</span></span>
 <span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a><span class="fu">Write-Host</span> <span class="va">$text</span><span class="op">.</span><span class="fu">text</span></span></code></pre></div>
-<h3 id="workflow-response-struktur">Workflow Response-Struktur</h3>
-<p>Die Response enthält alle Workflow-Aktionen im <code>output</code>
-Array:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+        <h3 id="workflow-response-struktur">Workflow
+        Response-Struktur</h3>
+        <p>Die Response enthält alle Workflow-Aktionen im
+        <code>output</code> Array:</p>
+        <div class="sourceCode" id="cb19"><pre
+        class="sourceCode json"><code class="sourceCode json"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;wfresp_xxx&quot;</span><span class="fu">,</span></span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;object&quot;</span><span class="fu">:</span> <span class="st">&quot;response&quot;</span><span class="fu">,</span></span>
 <span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span><span class="fu">,</span></span>
@@ -778,8 +956,9 @@ Array:</p>
 <span id="cb19-57"><a href="#cb19-57" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;conv_xxx&quot;</span></span>
 <span id="cb19-58"><a href="#cb19-58" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
 <span id="cb19-59"><a href="#cb19-59" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
-<h3 id="konfiguration-in-.env.local">Konfiguration in .env.local</h3>
-<pre class="env"><code># ============================================================================
+        <h3 id="konfiguration-in-.env.local">Konfiguration in
+        .env.local</h3>
+        <pre class="env"><code># ============================================================================
 # WORKFLOW KONFIGURATION
 # ============================================================================
 # Workflows benötigen eine Conversation (stateful) im Gegensatz zu Agents
@@ -788,73 +967,109 @@ WORKFLOW_1_NAME=CONTEXTPILOT
 WORKFLOW_1_LABEL=CONTEXTPILOT (Index &amp; Web)
 WORKFLOW_1_ENDPOINT=https://contextpilot-resource.services.ai.azure.com/api/projects/contextpilot
 # Auth: Azure AD (az login) - kein API Key</code></pre>
-<h3 id="typische-fehler-bei-workflows">Typische Fehler bei
-Workflows</h3>
-<table>
-<colgroup>
-<col style="width: 32%" />
-<col style="width: 36%" />
-<col style="width: 32%" />
-</colgroup>
-<thead>
-<tr>
-<th>Fehler</th>
-<th>Ursache</th>
-<th>Lösung</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>&quot;param&quot;: &quot;conversation&quot;, &quot;message&quot;: &quot;Not defined.&quot;</code></td>
-<td>Conversation fehlt</td>
-<td>Erst Conversation erstellen, dann mit <code>conversation.id</code>
-aufrufen</td>
-</tr>
-<tr>
-<td><code>500 Internal Server Error</code></td>
-<td>Workflow nicht richtig deployed</td>
-<td>Im Foundry Portal prüfen ob Workflow “Published” ist</td>
-</tr>
-<tr>
-<td>Leere Response</td>
-<td>Sub-Agent fehlerhaft</td>
-<td>Einzelne Sub-Agents separat testen</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="wichtige-hinweise">11. Wichtige Hinweise</h2>
-<ol type="1">
-<li><p><strong>Agent-Name vs Agent-ID:</strong> Die neue API verwendet
-den <strong>Namen</strong> des Agenten (z.B. <code>AURAContext</code>),
-nicht die ID (z.B. <code>asst_xxx</code>).</p></li>
-<li><p><strong>Kein Threading:</strong> Anders als bei der Assistants
-API ist kein Thread-Management nötig. Jeder Request ist eigenständig
-(oder mit <code>conversation</code> für Multi-Turn).</p></li>
-<li><p><strong>Token-Scope:</strong> Unbedingt
-<code>https://ai.azure.com/.default</code> verwenden, NICHT
-<code>https://cognitiveservices.azure.com/.default</code>.</p></li>
-<li><p><strong>Output-Struktur:</strong> Das <code>output</code> Array
-kann mehrere Einträge haben (z.B. <code>file_search_call</code> +
-<code>message</code>). Der Text ist im
-<code>message</code>-Typ.</p></li>
-<li><p><strong>Model:</strong> Der Agent kann verschiedene Models nutzen
-(z.B. <code>claude-sonnet-4-5</code>, <code>gpt-4o</code>). Das wird im
-Agent im Foundry Portal konfiguriert.</p></li>
-<li><p><strong>Workflows sind stateful:</strong> Anders als normale
-Agents <strong>müssen</strong> Workflows mit einer Conversation
-aufgerufen werden. Ohne <code>conversation.id</code> schlägt der Aufruf
-fehl.</p></li>
-</ol>
-<hr />
-<h2 id="referenzen">12. Referenzen</h2>
-<ul>
-<li><a href="https://learn.microsoft.com/en-us/azure/ai-foundry/">Microsoft
-Foundry Documentation</a></li>
-<li><a href="https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/ai/azure-ai-projects">Azure
-AI Foundry SDK Samples</a></li>
-<li><a href="https://learn.microsoft.com/en-us/azure/ai-foundry/quickstarts/get-started-code">Responses
-API Reference</a></li>
-</ul>
+        <h3 id="typische-fehler-bei-workflows">Typische Fehler bei
+        Workflows</h3>
+        <table>
+        <colgroup>
+        <col style="width: 32%" />
+        <col style="width: 36%" />
+        <col style="width: 32%" />
+        </colgroup>
+        <thead>
+        <tr>
+        <th>Fehler</th>
+        <th>Ursache</th>
+        <th>Lösung</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+        <td><code>"param": "conversation", "message": "Not defined."</code></td>
+        <td>Conversation fehlt</td>
+        <td>Erst Conversation erstellen, dann mit
+        <code>conversation.id</code> aufrufen</td>
+        </tr>
+        <tr>
+        <td><code>500 Internal Server Error</code></td>
+        <td>Workflow nicht richtig deployed</td>
+        <td>Im Foundry Portal prüfen ob Workflow “Published” ist</td>
+        </tr>
+        <tr>
+        <td>Leere Response</td>
+        <td>Sub-Agent fehlerhaft</td>
+        <td>Einzelne Sub-Agents separat testen</td>
+        </tr>
+        </tbody>
+        </table>
+        <hr />
+        <h2 id="wichtige-hinweise">11. Wichtige Hinweise</h2>
+        <ol type="1">
+        <li><p><strong>Agent-Name vs Agent-ID:</strong> Die neue API
+        verwendet den <strong>Namen</strong> des Agenten (z.B.
+        <code>AURAContext</code>), nicht die ID (z.B.
+        <code>asst_xxx</code>).</p></li>
+        <li><p><strong>Kein Threading:</strong> Anders als bei der
+        Assistants API ist kein Thread-Management nötig. Jeder Request
+        ist eigenständig (oder mit <code>conversation</code> für
+        Multi-Turn).</p></li>
+        <li><p><strong>Token-Scope:</strong> Unbedingt
+        <code>https://ai.azure.com/.default</code> verwenden, NICHT
+        <code>https://cognitiveservices.azure.com/.default</code>.</p></li>
+        <li><p><strong>Output-Struktur:</strong> Das <code>output</code>
+        Array kann mehrere Einträge haben (z.B.
+        <code>file_search_call</code> + <code>message</code>). Der Text
+        ist im <code>message</code>-Typ.</p></li>
+        <li><p><strong>Model:</strong> Der Agent kann verschiedene
+        Models nutzen (z.B. <code>claude-sonnet-4-5</code>,
+        <code>gpt-4o</code>). Das wird im Agent im Foundry Portal
+        konfiguriert.</p></li>
+        <li><p><strong>Workflows sind stateful:</strong> Anders als
+        normale Agents <strong>müssen</strong> Workflows mit einer
+        Conversation aufgerufen werden. Ohne
+        <code>conversation.id</code> schlägt der Aufruf fehl.</p></li>
+        </ol>
+        <hr />
+        <h2 id="referenzen">12. Referenzen</h2>
+        <ul>
+        <li><a
+        href="https://learn.microsoft.com/en-us/azure/ai-foundry/">Microsoft
+        Foundry Documentation</a></li>
+        <li><a
+        href="https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/ai/azure-ai-projects">Azure
+        AI Foundry SDK Samples</a></li>
+        <li><a
+        href="https://learn.microsoft.com/en-us/azure/ai-foundry/quickstarts/get-started-code">Responses
+        API Reference</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const resizer = document.getElementById('resizer');
+    const sidebar = document.querySelector('.sidebar');
+    let isResizing = false;
+    
+    resizer.addEventListener('mousedown', () => {
+      isResizing = true;
+      resizer.classList.add('active');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      if (e.clientX >= 200 && e.clientX <= 500) {
+        sidebar.style.width = e.clientX + 'px';
+      }
+    });
+    
+    document.addEventListener('mouseup', () => {
+      isResizing = false;
+      resizer.classList.remove('active');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  </script>
 </body>
 </html>
