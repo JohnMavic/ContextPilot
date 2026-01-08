@@ -1,61 +1,57 @@
 # ContextPilot Authentication Guide
 
-**Stand:** 08.01.2026
+**Stand:** 08.01.2026  
+**Status:** FUNKTIONIERT - NICHT ANFASSEN!
 
 ## Login URLs
 
 | Account | Provider | Login URL |
 |---------|----------|-----------|
-| `martih@microsoft.com` | Azure AD | https://ashy-dune-06d0e9810.4.azurestaticapps.net/.auth/login/aad?prompt=select_account |
-| `JohnMavic` (GitHub) | GitHub | https://ashy-dune-06d0e9810.4.azurestaticapps.net/.auth/login/github |
+| martih@microsoft.com | Azure AD | https://ashy-dune-06d0e9810.4.azurestaticapps.net/.auth/login/aad?prompt=select_account |
+| JohnMavic | GitHub | https://ashy-dune-06d0e9810.4.azurestaticapps.net/.auth/login/github |
 
 ## Logout
 
-```
 https://ashy-dune-06d0e9810.4.azurestaticapps.net/.auth/logout
-```
 
-## Setup
+## Wer ist eingeloggt?
 
-### Gewählte Lösung: SWA Role Management mit Invitations
+https://ashy-dune-06d0e9810.4.azurestaticapps.net/.auth/me
 
-Wir nutzen die **Built-in Authentication** von Azure Static Web Apps mit **Custom Roles**:
+Zeigt JSON mit userDetails und userRoles. Muss enthalten:
+- userRoles: ["anonymous", "authenticated", "alloweduser"]
 
-1. **`staticwebapp.config.json`** definiert:
-   - Route `/*` erfordert Role `alloweduser`
-   - Nicht-authentisierte User werden zu AAD Login weitergeleitet
+## Setup (Januar 2026)
 
-2. **Azure Portal → Static Web Apps → ContextPilot → Role Management**:
-   - Einladungen für spezifische User erstellt
-   - Jeder eingeladene User erhält die Role `alloweduser`
+### SWA Role Management mit Invitations
 
-### Warum zwei Provider?
+1. staticwebapp.config.json: Route /* erfordert Role alloweduser
+2. Azure Portal - Static Web Apps - ContextPilot - Role Management:
+   - Einladung fuer martih@microsoft.com (AAD) mit Role alloweduser
+   - Einladung fuer JohnMavic (GitHub) mit Role alloweduser
+3. WICHTIG: Einladungslinks muessen geoeffnet und akzeptiert werden!
 
-| Account | Warum dieser Provider? |
-|---------|------------------------|
-| `martih@microsoft.com` | Corporate Account → **Azure AD** (Work/School Account) |
-| `JohnMavic` | Persönlicher Account (`@hotmail.com`) → **GitHub** (da Hotmail kein AAD ist) |
+### Zwei Provider noetig
 
-### Konfigurationsdateien
-
-- **`live-transcriber/staticwebapp.config.json`**: Routing und Auth-Regeln
-- **Azure Portal**: Role Management für User-Einladungen
+| Account | Provider | Grund |
+|---------|----------|-------|
+| martih@microsoft.com | Azure AD | Corporate Account (Work/School) |
+| JohnMavic | GitHub | Hotmail ist kein AAD - braucht GitHub |
 
 ## Troubleshooting
 
 ### 403 Forbidden
-- Du bist eingeloggt, aber mit einem Account ohne `alloweduser` Role
-- Lösung: Logout → Login mit korrektem Account
+- Einladung nicht akzeptiert oder alloweduser Role fehlt
+- Pruefe mit /.auth/me ob alloweduser in userRoles ist
+- Falls nicht: Neue Einladung im Azure Portal erstellen und Link oeffnen
 
-### Falscher Account wird automatisch verwendet
-- AAD cached den letzten Account
-- Lösung: `?prompt=select_account` an die Login-URL anhängen
+### Falscher Account
+- AAD cached Accounts
+- Loesung: ?prompt=select_account an Login-URL
 
-### Session-Probleme
-```
+### Session zuruecksetzen
 https://ashy-dune-06d0e9810.4.azurestaticapps.net/.auth/purge/aad
-```
 
 ## Lokale Entwicklung
 
-`staticwebapp.config.json` wird lokal ignoriert - keine Authentisierung nötig auf `localhost`.
+Keine Auth noetig - staticwebapp.config.json wird auf localhost ignoriert.
