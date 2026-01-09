@@ -1410,16 +1410,128 @@ ${customPrompt}`, useWebSearch);
     unfreezeTextWithSave(); // Text kopiert - Freeze beenden UND editierten Text speichern
   }, [menuState.selectedText, menuState.highlightId, highlights, handleCloseMenu, unfreezeTextWithSave]);
 
-  // Handler für Delete - löscht markierten Text aus dem Transkript
+
+  // Handler fuer Delete - loescht markierten Text aus dem Transkript
   const handleDelete = useCallback(() => {
-    // Mehrere Quellen für den zu löschenden Text
-    let text = menuState.selectedText;
     const highlightId = menuState.highlightId || lastHighlightRef.current?.id;
-    
-    
+    const highlight = highlightId ? highlights.find((h) => h.id === highlightId) : undefined;
+
+    const overlaySource = isTextFrozen && Object.keys(transientEditOverlayRef.current).length > 0
+      ? transientEditOverlayRef.current
+      : editedGroupTexts;
+    const groupTextMap = buildGroupTextMap(segments, groupCloseTimestamps, overlaySource);
+
+    const applyDeletion = (
+      groupId: string,
+      startOffset: number,
+      endOffset: number,
+      updates: Map<string, string>,
+      oldTexts: Map<string, string>,
+    ) => {
+      const currentText = groupTextMap.get(groupId);
+      if (currentText === undefined) return;
+      const start = Math.max(0, Math.min(startOffset, currentText.length));
+      const end = Math.max(start, Math.min(endOffset, currentText.length));
+      if (start === end) return;
+      const nextRaw = currentText.slice(0, start) + currentText.slice(end);
+      const nextText = normalizeGroupText(nextRaw);
+      updates.set(groupId, nextText);
+      if (!oldTexts.has(groupId)) {
+        oldTexts.set(groupId, currentText);
+      }
+    };
+
+    if (highlight) {
+      const updates = new Map<string, string>();
+      const oldGroupTexts = new Map<string, string>();
+
+      if (highlight.span) {
+        const span = highlight.span;
+        let spanGroupIds = span.groupIds && span.groupIds.length > 0 ? [...span.groupIds] : [];
+        if (spanGroupIds.length === 0 && groupedSegmentsRef.current.length > 0) {
+          const ordered = groupedSegmentsRef.current.map((group) => group.id);
+          const startIndex = ordered.indexOf(span.startGroupId);
+          const endIndex = ordered.indexOf(span.endGroupId);
+          if (startIndex !== -1 && endIndex !== -1) {
+            const from = Math.min(startIndex, endIndex);
+            const to = Math.max(startIndex, endIndex);
+            spanGroupIds = ordered.slice(from, to + 1);
+          }
+        }
+        if (spanGroupIds.length === 0) {
+          spanGroupIds = Array.from(new Set([span.startGroupId, span.endGroupId].filter(Boolean)));
+        }
+
+        spanGroupIds.forEach((groupId) => {
+          const currentText = groupTextMap.get(groupId) || "";
+          if (groupId === span.startGroupId && groupId === span.endGroupId) {
+            applyDeletion(groupId, span.startOffset, span.endOffset, updates, oldGroupTexts);
+            return;
+          }
+          if (groupId === span.startGroupId) {
+            applyDeletion(groupId, span.startOffset, currentText.length, updates, oldGroupTexts);
+            return;
+          }
+          if (groupId === span.endGroupId) {
+            applyDeletion(groupId, 0, span.endOffset, updates, oldGroupTexts);
+            return;
+          }
+          applyDeletion(groupId, 0, currentText.length, updates, oldGroupTexts);
+        });
+      } else {
+        applyDeletion(highlight.groupId, highlight.localStartOffset, highlight.localEndOffset, updates, oldGroupTexts);
+      }
+
+      if (updates.size > 0) {
+        updateSegmentsFromEdit(updates, groupCloseTimestamps);
+        updateHighlightsForGroupEdit(updates, oldGroupTexts);
+        updateFormatsForGroupEdit(updates, oldGroupTexts);
+
+        setEditedGroupTexts((prev) => {
+          const next = { ...prev };
+          for (const [groupId, value] of updates) {
+            if (value) {
+              next[groupId] = value;
+            } else {
+              delete next[groupId];
+            }
+          }
+          return next;
+        });
+
+        setEditedGroupBases((prev) => {
+          const next = { ...prev };
+          for (const [groupId, value] of updates) {
+            const oldText = oldGroupTexts.get(groupId);
+            if (oldText && value) {
+              next[groupId] = normalizeGroupText(oldText);
+            } else {
+              delete next[groupId];
+            }
+          }
+          return next;
+        });
+
+        if (highlightId) {
+          removeResponseByHighlight(highlightId);
+          removeHighlight(highlightId);
+          if (lastHighlightRef.current?.id === highlightId) {
+            lastHighlightRef.current = null;
+          }
+        }
+
+        handleCloseMenu();
+        unfreezeText();
+        window.requestAnimationFrame(releaseFocus);
+        return;
+      }
+    }
+
+    // Mehrere Quellen fuer den zu loeschenden Text
+    let text = menuState.selectedText;
+
     // Fallback 1: highlight object only when selection is missing
     if (!text && highlightId) {
-      const highlight = highlights.find(h => h.id === highlightId);
       if (highlight) {
         text = highlight.text;
       }
@@ -1453,13 +1565,13 @@ ${customPrompt}`, useWebSearch);
       console.warn("[Delete] No text to delete");
       return;
     }
-    
+
     console.log("[Delete] Deleting text:", text.slice(0, 50) + (text.length > 50 ? "..." : ""));
-    
-    // Text aus Transkript löschen
+
+    // Text aus Transkript loeschen
     deleteTextFromTranscript(text);
-    
-    // Zugehörige Highlights und Antworten entfernen
+
+    // Zugehoerige Highlights und Antworten entfernen
     if (highlightId) {
       removeResponseByHighlight(highlightId);
       removeHighlight(highlightId);
@@ -1468,11 +1580,30 @@ ${customPrompt}`, useWebSearch);
       }
     }
 
-    // Menü schließen und Highlight entfernen (kein Agent getriggert)
+    // Menue schliessen und Highlight entfernen (kein Agent getriggert)
     handleCloseMenu();
-    unfreezeText(); // Text gel?scht - Freeze beenden
+    unfreezeText(); // Text geloescht - Freeze beenden
     window.requestAnimationFrame(releaseFocus);
-  }, [menuState.selectedText, menuState.highlightId, highlights, deleteTextFromTranscript, removeResponseByHighlight, removeHighlight, handleCloseMenu, unfreezeText, releaseFocus]);
+  }, [
+    menuState.selectedText,
+    menuState.highlightId,
+    highlights,
+    segments,
+    groupCloseTimestamps,
+    editedGroupTexts,
+    isTextFrozen,
+    updateSegmentsFromEdit,
+    updateHighlightsForGroupEdit,
+    updateFormatsForGroupEdit,
+    setEditedGroupTexts,
+    setEditedGroupBases,
+    deleteTextFromTranscript,
+    removeResponseByHighlight,
+    removeHighlight,
+    handleCloseMenu,
+    unfreezeText,
+    releaseFocus,
+  ]);
 
   // Handler für das Löschen einer Agent-Antwort - entfernt auch das zugehörige Highlight
   const handleRemoveAuraResponse = useCallback((responseId: string) => {
