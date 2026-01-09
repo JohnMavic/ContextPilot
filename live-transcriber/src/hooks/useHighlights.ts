@@ -62,8 +62,30 @@ export function useHighlights() {
     const groupElements = Array.from(container.querySelectorAll("[data-group-id]")) as HTMLElement[];
     if (groupElements.length === 0) return null;
 
-    // Robust: Start/End kann auf SPK/MIC-Label liegen, daher Intersection nutzen.
-    const intersecting = groupElements.filter((el) => {
+    const getGroupAncestor = (node: Node | null) => {
+      if (!node) return null;
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        return (node as Element).closest("[data-group-id]") as HTMLElement | null;
+      }
+      return node.parentElement?.closest("[data-group-id]") as HTMLElement | null;
+    };
+
+    let startGroup = getGroupAncestor(range.startContainer);
+    let endGroup = getGroupAncestor(range.endContainer);
+
+    const extractPrefix = (id: string) => id.split("-")[0];
+    const startGroupIdAttr = startGroup?.getAttribute("data-group-id") || "";
+    const endGroupIdAttr = endGroup?.getAttribute("data-group-id") || "";
+    const startPrefix = startGroupIdAttr ? extractPrefix(startGroupIdAttr) : "";
+    const endPrefix = endGroupIdAttr ? extractPrefix(endGroupIdAttr) : "";
+    const resolvedPrefix = startPrefix || endPrefix;
+    const usePrefix = resolvedPrefix && (!startPrefix || !endPrefix || startPrefix === endPrefix);
+
+    const scopedGroupElements = usePrefix
+      ? groupElements.filter((el) => (el.getAttribute("data-group-id") || "").startsWith(`${resolvedPrefix}-`))
+      : groupElements;
+
+    const intersecting = scopedGroupElements.filter((el) => {
       try {
         return range.intersectsNode(el);
       } catch {
@@ -71,21 +93,28 @@ export function useHighlights() {
       }
     });
 
-    if (intersecting.length === 0) return null;
+    if (!startGroup) startGroup = intersecting[0];
+    if (!endGroup) endGroup = intersecting[intersecting.length - 1];
 
-    const startGroup = intersecting[0];
-    const endGroup = intersecting[intersecting.length - 1];
+    if (!startGroup || !endGroup) return null;
 
     const startGroupId = startGroup.getAttribute("data-group-id");
     const endGroupId = endGroup.getAttribute("data-group-id");
     if (!startGroupId || !endGroupId) return null;
 
-    let startIndex = groupElements.indexOf(startGroup);
-    let endIndex = groupElements.indexOf(endGroup);
+    let useScopedList = true;
+    let startIndex = scopedGroupElements.indexOf(startGroup);
+    let endIndex = scopedGroupElements.indexOf(endGroup);
+    if (startIndex === -1 || endIndex === -1) {
+      startIndex = groupElements.indexOf(startGroup);
+      endIndex = groupElements.indexOf(endGroup);
+      useScopedList = false;
+    }
     if (startIndex === -1 || endIndex === -1) return null;
     if (startIndex > endIndex) [startIndex, endIndex] = [endIndex, startIndex];
 
-    const groupIds = groupElements
+    const sourceElements = useScopedList ? scopedGroupElements : groupElements;
+    const groupIds = sourceElements
       .slice(startIndex, endIndex + 1)
       .map((el) => el.getAttribute("data-group-id"))
       .filter((id): id is string => Boolean(id));
@@ -119,7 +148,7 @@ export function useHighlights() {
     if (startGroupId === endGroupId) {
       combined = startGroupText.slice(startOffset, endOffset);
     } else {
-      const middleGroupElements = groupElements.slice(startIndex + 1, endIndex);
+      const middleGroupElements = sourceElements.slice(startIndex + 1, endIndex);
       const parts = [
         startGroupText.slice(startOffset),
         ...middleGroupElements.map((el) => (el.textContent || "").trim()).filter(Boolean),
@@ -128,7 +157,89 @@ export function useHighlights() {
       combined = parts.join(" ");
     }
 
-    const normalizedText = combined.replace(/\\s+/g, " ").trim();
+    const normalizeSelectionText = (value: string) => value.replace(/\s+/g, " ").trim();
+    const normalizedText = normalizeSelectionText(combined);
+    const normalizedSelection = normalizeSelectionText(range.toString());
+    const hasMismatch = normalizedSelection
+      ? (!normalizedText ||
+        normalizedText.length < normalizedSelection.length * 0.6 ||
+        (!normalizedSelection.includes(normalizedText) && !normalizedText.includes(normalizedSelection)))
+      : false;
+
+    if (hasMismatch) {
+      const intersectionSegments: Array<{
+        groupId: string;
+        startOffset: number;
+        endOffset: number;
+        text: string;
+      }> = [];
+
+      for (const el of sourceElements) {
+        const groupId = el.getAttribute("data-group-id");
+        if (!groupId) continue;
+
+        const groupRange = document.createRange();
+        groupRange.selectNodeContents(el);
+
+        try {
+          if (range.compareBoundaryPoints(Range.END_TO_START, groupRange) <= 0) continue;
+          if (range.compareBoundaryPoints(Range.START_TO_END, groupRange) >= 0) continue;
+        } catch {
+          continue;
+        }
+
+        const intersection = range.cloneRange();
+        try {
+          if (intersection.compareBoundaryPoints(Range.START_TO_START, groupRange) < 0) {
+            intersection.setStart(groupRange.startContainer, groupRange.startOffset);
+          }
+          if (intersection.compareBoundaryPoints(Range.END_TO_END, groupRange) > 0) {
+            intersection.setEnd(groupRange.endContainer, groupRange.endOffset);
+          }
+        } catch {
+          continue;
+        }
+
+        const text = intersection.toString();
+        if (!text.trim()) continue;
+
+        const prefixRange = document.createRange();
+        prefixRange.setStart(groupRange.startContainer, groupRange.startOffset);
+        prefixRange.setEnd(intersection.startContainer, intersection.startOffset);
+        const startOffset = prefixRange.toString().length;
+        const endOffset = startOffset + text.length;
+
+        intersectionSegments.push({
+          groupId,
+          startOffset,
+          endOffset,
+          text,
+        });
+      }
+
+      if (intersectionSegments.length > 0) {
+        const first = intersectionSegments[0];
+        const last = intersectionSegments[intersectionSegments.length - 1];
+        const combinedText = intersectionSegments
+          .map((seg) => seg.text.trim())
+          .filter(Boolean)
+          .join(" ");
+        const fallbackText = normalizeSelectionText(combinedText);
+        if (fallbackText) {
+          return {
+            startGroup,
+            endGroup,
+            startGroupId: first.groupId,
+            endGroupId: last.groupId,
+            groupIds: intersectionSegments.map((seg) => seg.groupId),
+            startOffset: Math.max(0, first.startOffset),
+            endOffset: Math.max(0, last.endOffset),
+            normalizedText: fallbackText,
+          };
+        }
+      }
+    }
+
     if (!normalizedText) return null;
 
     return {
@@ -345,8 +456,8 @@ export function useHighlights() {
               newSpan.startOffset = newStartOffset;
               hasChanges = true;
             } else {
-              // Highlight-Text nicht mehr gefunden - Highlight entfernen
-              return null;
+              // Highlight-Text nicht mehr gefunden - Highlight beibehalten
+              return hl;
             }
           }
           
@@ -357,8 +468,8 @@ export function useHighlights() {
               newSpan.endOffset = endPartIndex + hlEndPart.length;
               hasChanges = true;
             } else {
-              // Highlight-Text nicht mehr gefunden - Highlight entfernen
-              return null;
+              // Highlight-Text nicht mehr gefunden - Highlight beibehalten
+              return hl;
             }
           }
           
@@ -387,6 +498,7 @@ export function useHighlights() {
               ...hl,
               localStartOffset: newStartOffset,
               localEndOffset: newEndOffset,
+              text: newText.slice(newStartOffset, newEndOffset),
             };
           }
           return hl;
@@ -420,23 +532,23 @@ export function useHighlights() {
               ...hl,
               localStartOffset: newStartOffset,
               localEndOffset: newEndOffset,
+              text: newText.slice(newStartOffset, newEndOffset),
             };
           }
           return hl;
         }
         
         // Highlight-Text nicht mehr im neuen Text vorhanden
-        // Entferne das Highlight (return null wird später gefiltert)
-        console.warn(`[updateHighlightsForGroupEdit] Highlight text "${highlightedText}" not found in edited group "${hl.groupId}", removing highlight`);
-        hasChanges = true;
-        return null;
+        // Highlight beibehalten (Offsets bleiben)
+        console.warn(`[updateHighlightsForGroupEdit] Highlight text "${highlightedText}" not found in edited group "${hl.groupId}", keeping highlight`);
+        return hl;
       });
       
       // Wenn keine Änderungen, Original-Array zurückgeben (verhindert unnötige Re-Renders)
       if (!hasChanges) return prev;
       
-      // Entferne null-Einträge (gelöschte Highlights)
-      return updated.filter((hl): hl is Highlight => hl !== null);
+      // Highlights beibehalten
+      return updated;
     });
   }, []);
 

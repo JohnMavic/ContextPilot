@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { HighlightedText } from "./HighlightedText";
 import type { HighlightColor, Highlight } from "../hooks/useHighlights";
 
@@ -138,6 +139,7 @@ export function InlineAgentResponse({
   const groupId = `response-${responseId}`;
   const taskGroupId = `${groupId}-task`;
   const taskText = taskDetail ? `${taskLabel}: ${taskDetail}` : taskLabel;
+  const [isCollapsed, setIsCollapsed] = useState(false);
   
   // Rendert den formatierten Result-Text mit Links und Markdown
   const renderFormattedResult = (resultText: string): React.ReactNode => {
@@ -245,6 +247,14 @@ export function InlineAgentResponse({
       <div className="inline-response-header">
         <span className="inline-response-icon" style={{ color: borderColor }}>✨</span>
         <span className="inline-response-label">CONTEXT PILOT</span>
+        <button
+          className="inline-response-collapse"
+          onClick={() => setIsCollapsed((prev) => !prev)}
+          title={isCollapsed ? "Expand" : "Collapse"}
+          aria-expanded={!isCollapsed}
+        >
+          {isCollapsed ? "+" : "-"}
+        </button>
         <button 
           className="inline-response-close"
           onClick={() => onClose(responseId)}
@@ -255,7 +265,8 @@ export function InlineAgentResponse({
       </div>
       
       {/* Content - markierbarer Text */}
-      <div className="inline-response-content" data-group-id={groupId}>
+      {!isCollapsed && (
+        <div className="inline-response-content" data-group-id={groupId}>
         <div className="inline-response-task">
           <span className="inline-response-task-label">Task:</span>{" "}
           <span data-group-id={taskGroupId}>
@@ -286,7 +297,8 @@ export function InlineAgentResponse({
             <pre>{prompt}</pre>
           </details>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

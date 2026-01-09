@@ -11,6 +11,7 @@ import { useDualRealtime, type TranscriptionProvider, type TranscriptSegment } f
 import { useTabCapture } from "./hooks/useTabCapture";
 import { useAuraAgent } from "./hooks/useAuraAgent";
 import { useHighlights, type HighlightColor } from "./hooks/useHighlights";
+import { useTextFormats } from "./hooks/useTextFormats";
 import { makeTranscriptGroupId } from "./utils/transcriptGrouping";
 import { proxyBaseUrl } from "./proxyConfig";
 
@@ -57,6 +58,8 @@ const TRANSCRIPTION_MODELS: TranscriptionModel[] = [
 
 const GROUP_PAUSE_THRESHOLD_MS = 3500;
 const AURA_PANEL_GAP = 16;
+const INLINE_RESPONSE_GAP = 10;
+const INLINE_RESPONSE_OFFSET = 6;
 
 type TranscriptGroup = {
   id: string;
@@ -73,6 +76,7 @@ const normalizeGroupText = (value: string) => value.replace(/[\u200B\u200C\u200D
 const buildGroupTextMap = (
   inputSegments: TranscriptSegment[],
   groupCloseTimestamps: Record<string, number> = {},
+  editedGroupTexts: Record<string, string> = {},
 ) => {
   const sorted = [...inputSegments].sort((a, b) => a.timestamp - b.timestamp);
   const groups: {
@@ -106,7 +110,65 @@ const buildGroupTextMap = (
   for (const group of groups) {
     map.set(group.id, group.texts.join(" ").trim());
   }
+  for (const [groupId, text] of Object.entries(editedGroupTexts)) {
+    if (map.has(groupId)) {
+      map.set(groupId, text);
+    }
+  }
   return map;
+};
+
+const applyEditsToSegments = (
+  inputSegments: TranscriptSegment[],
+  groupCloseTimestamps: Record<string, number>,
+  editedGroupTexts: Record<string, string>,
+) => {
+  const editedEntries = Object.entries(editedGroupTexts);
+  if (editedEntries.length === 0) return inputSegments;
+
+  const sortedWithIndices = inputSegments
+    .map((seg, originalIndex) => ({ seg, originalIndex }))
+    .sort((a, b) => a.seg.timestamp - b.seg.timestamp);
+
+  const groupToOriginalIndices = new Map<string, number[]>();
+  let currentGroupId: string | null = null;
+  let lastSeg: TranscriptSegment | null = null;
+
+  for (const { seg, originalIndex } of sortedWithIndices) {
+    const pauseSinceLast = lastSeg ? seg.timestamp - lastSeg.timestamp : 0;
+    const sourceChanged = !lastSeg || lastSeg.source !== seg.source;
+    const closedAt = currentGroupId ? groupCloseTimestamps[currentGroupId] : undefined;
+    const groupClosed = closedAt !== undefined && seg.timestamp > closedAt;
+
+    if (!currentGroupId || sourceChanged || pauseSinceLast > GROUP_PAUSE_THRESHOLD_MS || groupClosed) {
+      currentGroupId = makeTranscriptGroupId(seg);
+    }
+
+    if (!groupToOriginalIndices.has(currentGroupId)) {
+      groupToOriginalIndices.set(currentGroupId, []);
+    }
+    groupToOriginalIndices.get(currentGroupId)!.push(originalIndex);
+    lastSeg = seg;
+  }
+
+  const newSegments = [...inputSegments];
+  for (const [groupId, newText] of editedEntries) {
+    const originalIndices = groupToOriginalIndices.get(groupId);
+    if (!originalIndices || originalIndices.length === 0) continue;
+
+    const words = newText.trim().split(/\s+/);
+    const wordsPerSegment = Math.ceil(words.length / originalIndices.length);
+    originalIndices.forEach((segIndex, i) => {
+      const startWord = i * wordsPerSegment;
+      const segmentWords = words.slice(startWord, startWord + wordsPerSegment);
+      newSegments[segIndex] = {
+        ...newSegments[segIndex],
+        text: segmentWords.join(" "),
+      };
+    });
+  }
+
+  return newSegments.filter((seg) => seg.text.trim().length > 0);
 };
 
 const mergeEditedWithBuffered = (
@@ -133,6 +195,28 @@ const mergeEditedWithBuffered = (
   return edited;
 };
 
+const sanitizePastedText = (value: string) =>
+  value
+    .replace(/\r\n/g, "\n")
+    .replace(/\n/g, " ")
+    .replace(/\t/g, " ")
+    .replace(/\s+/g, " ");
+
+const insertPlainTextAtSelection = (value: string) => {
+  if (!value) return;
+  const success = document.execCommand?.("insertText", false, value);
+  if (success) return;
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  range.insertNode(document.createTextNode(value));
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+};
+
 function statusLabel(status: string) {
   switch (status) {
     case "connecting":
@@ -154,12 +238,19 @@ export default function App() {
   const [transcriptScrollTop, setTranscriptScrollTop] = useState(0);
   const [transcriptScrollHeight, setTranscriptScrollHeight] = useState(0);
   const [auraPanelHeights, setAuraPanelHeights] = useState<Record<string, number>>({});
+  const [inlineResponseHeights, setInlineResponseHeights] = useState<Record<string, number>>({});
   const [dynamicAnchorTops, setDynamicAnchorTops] = useState<Record<string, number>>({});
+  const [highlightAnchorRects, setHighlightAnchorRects] = useState<
+    Record<string, { top: number; bottom: number; left: number; right: number }>
+  >({});
   const [agentPanelWidth, setAgentPanelWidth] = useState(400); // Default doppelte Breite
   const [isResizing, setIsResizing] = useState(false);
   const [highlightMenuContainer, setHighlightMenuContainer] = useState<HTMLElement | null>(null);
   const [disableDeleteInMenu, setDisableDeleteInMenu] = useState(false);
   const [groupCloseTimestamps, setGroupCloseTimestamps] = useState<Record<string, number>>({});
+  const [editedGroupTexts, setEditedGroupTexts] = useState<Record<string, string>>({});
+  const transientEditOverlayRef = useRef<Record<string, string>>({});
+  const [transientEditOverlayVersion, setTransientEditOverlayVersion] = useState(0);
   
   // TEXT FREEZE: Wenn User klickt/selektiert, wird neuer Text gepuffert statt angezeigt
   const [isTextFrozen, setIsTextFrozen] = useState(false);
@@ -169,6 +260,8 @@ export default function App() {
   const frozenGroupTextRef = useRef<Map<string, string> | null>(null);
   const groupedSegmentsRef = useRef<TranscriptGroup[]>([]);
   const skipNextFreezeSaveRef = useRef(false);
+  const inlineSpacerHeightRef = useRef(0);
+  const [frozenSegmentsVersion, setFrozenSegmentsVersion] = useState(0);
   
   // Agent selection state
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -248,6 +341,13 @@ export default function App() {
     clearHighlights,
     updateHighlightsForGroupEdit,
   } = useHighlights();
+
+  const {
+    formats,
+    toggleBoldFromSelection,
+    clearFormats,
+    updateFormatsForGroupEdit,
+  } = useTextFormats();
   
   // Get the provider and model name from the selected transcription model
   const transcriptionProvider = useMemo((): TranscriptionProvider => {
@@ -403,7 +503,44 @@ export default function App() {
     if (editedGroups.size > 0) {
       pendingEditRef.current = editedGroups;
     }
-  }, [isTextFrozen]);
+  }, [isTextFrozen, setTransientEditOverlayVersion]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    if (!isTextFrozen) return;
+    e.preventDefault();
+    const text = e.clipboardData?.getData("text/plain") || "";
+    const sanitized = sanitizePastedText(text);
+    if (!sanitized) return;
+    insertPlainTextAtSelection(sanitized);
+    handleInput();
+  }, [isTextFrozen, handleInput]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    if (!isTextFrozen) return;
+    e.preventDefault();
+    const text = e.dataTransfer?.getData("text/plain") || "";
+    const sanitized = sanitizePastedText(text);
+    if (!sanitized) return;
+    insertPlainTextAtSelection(sanitized);
+    handleInput();
+  }, [isTextFrozen, handleInput]);
+
+  const closeGroupsForFreeze = useCallback(() => {
+    const groups = groupedSegmentsRef.current;
+    if (!groups || groups.length === 0) return;
+    setGroupCloseTimestamps((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const group of groups) {
+        const current = next[group.id];
+        if (current === undefined || current < group.lastTimestamp) {
+          next[group.id] = group.lastTimestamp;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [setGroupCloseTimestamps]);
 
   // TEXT FREEZE: Bei MouseDown einfrieren, damit Selektion nicht durch neuen Text gestört wird
   const handleMouseDown = useCallback(() => {
@@ -412,11 +549,13 @@ export default function App() {
       if (transcriptBoxRef.current) {
         frozenHtmlRef.current = transcriptBoxRef.current.innerHTML;
       }
-      frozenSegmentsRef.current = [...segments];
-      frozenGroupTextRef.current = buildGroupTextMap(segments, groupCloseTimestamps);
+      const baseSegments = [...segments];
+      frozenSegmentsRef.current = applyEditsToSegments(baseSegments, groupCloseTimestamps, editedGroupTexts);
+      frozenGroupTextRef.current = buildGroupTextMap(segments, groupCloseTimestamps, editedGroupTexts);
+      closeGroupsForFreeze();
       setIsTextFrozen(true);
     }
-  }, [isTextFrozen, segments, groupCloseTimestamps]);
+  }, [isTextFrozen, segments, groupCloseTimestamps, editedGroupTexts, closeGroupsForFreeze]);
 
   // TEXT UNFREEZE MIT EDIT-SPEICHERUNG: Für User-Edits (Klick außerhalb, Enter, Escape)
   const unfreezeTextWithSave = useCallback(() => {
@@ -427,7 +566,7 @@ export default function App() {
       const groupElements = transcriptBoxRef.current.querySelectorAll('[data-group-id]');
       console.log("[unfreezeTextWithSave] Found group elements:", groupElements.length);
       const frozenGroupTexts = frozenGroupTextRef.current || new Map<string, string>();
-      const currentGroupTexts = buildGroupTextMap(segments, groupCloseTimestamps);
+      const currentGroupTexts = buildGroupTextMap(segments, groupCloseTimestamps, editedGroupTexts);
       
       groupElements.forEach((el) => {
         const groupId = el.getAttribute('data-group-id');
@@ -456,6 +595,14 @@ export default function App() {
         updateSegmentsFromEdit(editedGroups, groupCloseTimestamps);
         // Highlight-Offsets an die neuen Texte anpassen
         updateHighlightsForGroupEdit(editedGroups, frozenGroupTexts);
+        updateFormatsForGroupEdit(editedGroups, frozenGroupTexts);
+        setEditedGroupTexts((prev) => {
+          const next = { ...prev };
+          for (const [groupId, text] of editedGroups) {
+            next[groupId] = text;
+          }
+          return next;
+        });
       }
       
       frozenHtmlRef.current = null;
@@ -463,8 +610,22 @@ export default function App() {
       frozenGroupTextRef.current = null;
       frozenHtmlSetRef.current = false; // Reset für nächsten Freeze
       setIsTextFrozen(false);
+      if (Object.keys(transientEditOverlayRef.current).length > 0) {
+        transientEditOverlayRef.current = {};
+        setTransientEditOverlayVersion((prev) => prev + 1);
+      }
     }
-  }, [isTextFrozen, segments, groupCloseTimestamps, updateSegmentsFromEdit, updateHighlightsForGroupEdit]);
+  }, [
+    isTextFrozen,
+    segments,
+    groupCloseTimestamps,
+    editedGroupTexts,
+    updateSegmentsFromEdit,
+    updateHighlightsForGroupEdit,
+    updateFormatsForGroupEdit,
+    setEditedGroupTexts,
+    setTransientEditOverlayVersion,
+  ]);
 
   // TEXT UNFREEZE OHNE EDIT-SPEICHERUNG: Für programmatische Aktionen (Delete, Copy, Agent-Query)
   // Diese Funktion überschreibt NICHT die segments - wichtig wenn deleteTextFromTranscript bereits aufgerufen wurde
@@ -553,6 +714,7 @@ export default function App() {
       
       // Aktualisiere frozenSegmentsRef (ohne Freeze zu beenden)
       frozenSegmentsRef.current = newFrozenSegments.filter(seg => seg.text.trim().length > 0);
+      setFrozenSegmentsVersion((prev) => prev + 1);
       
       // WICHTIG: frozenGroupTextRef NICHT aktualisieren!
       // Das ist die Baseline für den Vergleich bei unfreezeTextWithSave().
@@ -562,8 +724,27 @@ export default function App() {
       
       // Highlight-Offsets an die editierten Texte anpassen
       updateHighlightsForGroupEdit(editedGroups, oldGroupTexts);
+      updateFormatsForGroupEdit(editedGroups, oldGroupTexts);
+
+      const nextOverlay = { ...transientEditOverlayRef.current };
+      for (const [groupId, text] of editedGroups) {
+        nextOverlay[groupId] = text;
+      }
+      transientEditOverlayRef.current = nextOverlay;
+      setTransientEditOverlayVersion((prev) => prev + 1);
+    } else if (Object.keys(transientEditOverlayRef.current).length > 0) {
+      transientEditOverlayRef.current = {};
+      setTransientEditOverlayVersion((prev) => prev + 1);
     }
-  }, [isTextFrozen, groupCloseTimestamps, segments, updateHighlightsForGroupEdit]);
+  }, [
+    isTextFrozen,
+    groupCloseTimestamps,
+    segments,
+    updateHighlightsForGroupEdit,
+    updateFormatsForGroupEdit,
+    setFrozenSegmentsVersion,
+    setTransientEditOverlayVersion,
+  ]);
 
   const releaseFocus = useCallback(() => {
     window.getSelection()?.removeAllRanges();
@@ -609,6 +790,16 @@ export default function App() {
   // Keyboard-Handler für Freeze-Modus: Escape oder Enter beendet Edit-Modus
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!isTextFrozen) return;
+
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      const selection = window.getSelection();
+      const container = transcriptBoxRef.current;
+      if (!selection || selection.rangeCount === 0 || !container) return;
+      syncDOMToFrozenSegments();
+      toggleBoldFromSelection(selection.getRangeAt(0), container);
+      return;
+    }
     
     // Escape: Edit abbrechen, Freeze beenden (OHNE Speichern - Änderungen verwerfen)
     if (e.key === 'Escape') {
@@ -623,7 +814,33 @@ export default function App() {
       window.getSelection()?.removeAllRanges();
       unfreezeTextWithSave(); // Mit Speichern - behält Änderungen
     }
-  }, [isTextFrozen, unfreezeText, unfreezeTextWithSave]);
+  }, [isTextFrozen, syncDOMToFrozenSegments, toggleBoldFromSelection, unfreezeText, unfreezeTextWithSave]);
+
+
+  // Ref für letztes erstelltes Highlight (für Agent-Queries)
+  const lastHighlightRef = useRef<{ 
+    id: string; 
+    text: string; 
+    color: HighlightColor; 
+    anchorTop: number;
+    groupId: string;           // GroupId wo das Highlight liegt
+    parentResponseId?: string; // Falls in einer Response markiert wurde
+  } | null>(null);
+
+  // Track "pending" highlight that hasn't been confirmed with an agent query
+  // Will be removed when clicking elsewhere or selecting new text
+  const pendingHighlightIdRef = useRef<string | null>(null);
+  const discardPendingHighlight = useCallback((keepId?: string) => {
+    const pendingId = pendingHighlightIdRef.current;
+    if (!pendingId) return;
+    if (keepId && pendingId === keepId) return;
+    removeResponseByHighlight(pendingId);
+    removeHighlight(pendingId);
+    if (lastHighlightRef.current?.id === pendingId) {
+      lastHighlightRef.current = null;
+    }
+    pendingHighlightIdRef.current = null;
+  }, [removeHighlight, removeResponseByHighlight]);
 
   // Context menu on right-click or text selection
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -654,10 +871,8 @@ export default function App() {
       const containerRect = container.getBoundingClientRect();
 
       // Remove previous pending highlight if exists (user selected new text without querying agent)
-      if (pendingHighlightIdRef.current) {
-        removeHighlight(pendingHighlightIdRef.current);
-        pendingHighlightIdRef.current = null;
-      }
+      discardPendingHighlight();
+      syncDOMToFrozenSegments();
 
       // WICHTIG: Vor Highlight-Erstellung DOM-Edits zu frozenSegments synchronisieren,
       // damit React-Rerenders die manuellen Edits nicht überschreiben
@@ -709,17 +924,16 @@ export default function App() {
       selection.removeAllRanges();
     }
     // KEINE unfreezeText() hier - Freeze bleibt aktiv bis Klick AUSSERHALB des Textfeldes
-  }, [showMenuAtSelection, createHighlightFromSelection, syncDOMToFrozenSegments, removeHighlight]);
+  }, [showMenuAtSelection, createHighlightFromSelection, syncDOMToFrozenSegments, discardPendingHighlight]);
 
   const openHighlightMenuForMark = useCallback((markEl: HTMLElement, container: HTMLElement) => {
     const highlightId = markEl.getAttribute("data-highlight-id");
     if (!highlightId) return;
 
     // Remove previous pending highlight if it's a different one
-    if (pendingHighlightIdRef.current && pendingHighlightIdRef.current !== highlightId) {
-      removeHighlight(pendingHighlightIdRef.current);
-      pendingHighlightIdRef.current = null;
-    }
+    discardPendingHighlight(highlightId);
+
+    syncDOMToFrozenSegments();
 
     const highlight = highlights.find(h => h.id === highlightId);
     if (!highlight) return;
@@ -768,7 +982,7 @@ export default function App() {
       x: rect.left - containerRect.left,
       y: rect.bottom - containerRect.top + 8,
     });
-  }, [highlights, removeHighlight, showMenuAtSelection]);
+  }, [highlights, showMenuAtSelection, discardPendingHighlight, syncDOMToFrozenSegments]);
 
   // Beim Klick auf bestehendes Highlight: Optionen erneut anzeigen
   const handleHighlightClick = useCallback((e: React.MouseEvent) => {
@@ -788,10 +1002,9 @@ export default function App() {
     if (!highlightId) return;
 
     // Remove previous pending highlight if it's a different one
-    if (pendingHighlightIdRef.current && pendingHighlightIdRef.current !== highlightId) {
-      removeHighlight(pendingHighlightIdRef.current);
-      pendingHighlightIdRef.current = null;
-    }
+    discardPendingHighlight(highlightId);
+
+    syncDOMToFrozenSegments();
 
     const highlight = highlights.find(h => h.id === highlightId);
     if (!highlight) return;
@@ -842,21 +1055,8 @@ export default function App() {
       x: rect.left - containerRect.left,
       y: rect.bottom - containerRect.top + 8,
     });
-  }, [highlights, removeHighlight, showMenuAtSelection, transcriptScrollTop]);
+  }, [highlights, showMenuAtSelection, transcriptScrollTop, discardPendingHighlight, syncDOMToFrozenSegments]);
 
-  // Ref für letztes erstelltes Highlight (für Agent-Queries)
-  const lastHighlightRef = useRef<{ 
-    id: string; 
-    text: string; 
-    color: HighlightColor; 
-    anchorTop: number;
-    groupId: string;           // GroupId wo das Highlight liegt
-    parentResponseId?: string; // Falls in einer Response markiert wurde
-  } | null>(null);
-
-  // Track "pending" highlight that hasn't been confirmed with an agent query
-  // Will be removed when clicking elsewhere or selecting new text
-  const pendingHighlightIdRef = useRef<string | null>(null);
   const registerGroupClosure = useCallback((groupId: string) => {
     if (!groupId.startsWith("group-")) return;
     const group = groupedSegmentsRef.current.find((g) => g.id === groupId);
@@ -976,18 +1176,13 @@ ${customPrompt}`, useWebSearch);
     unfreezeTextWithSave(); // Agent-Auftrag abgeschickt - Freeze beenden UND editierten Text speichern
   }, [getCurrentHighlightSnapshot, withWebSearchInstruction, queryAgent, hideMenu, unfreezeTextWithSave, registerGroupClosure]);
 
-  // Handler für das Schließen des Menüs - entfernt auch das pending Highlight
+  // Handler fr das Schlieen des Mens - pending Highlight wird nur freigegeben
+  // Wenn ein pending Highlight existiert, nur den pending-Status lschen
   const handleCloseMenu = useCallback(() => {
-    // Wenn ein pending Highlight existiert und das Menü geschlossen wird (ohne Agent-Query),
-    // dann entferne das Highlight wieder
-    if (pendingHighlightIdRef.current) {
-      removeHighlight(pendingHighlightIdRef.current);
-      pendingHighlightIdRef.current = null;
-      lastHighlightRef.current = null;
-    }
+    discardPendingHighlight();
     hideMenu();
-    // KEIN unfreezeText() - Freeze bleibt bis Klick außerhalb
-  }, [hideMenu, removeHighlight]);
+    // KEIN unfreezeText() - Freeze bleibt bis Klick au?erhalb
+  }, [hideMenu, discardPendingHighlight]);
 
   // Handler für Copy - kopiert markierten Text in Zwischenablage
   // Rechter Panel: Textselektion ebenfalls highlightbar machen (Agent-Aufträge markieren)
@@ -1020,10 +1215,7 @@ ${customPrompt}`, useWebSearch);
       const rect = range.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
 
-      if (pendingHighlightIdRef.current) {
-        removeHighlight(pendingHighlightIdRef.current);
-        pendingHighlightIdRef.current = null;
-      }
+      discardPendingHighlight();
 
       const highlight = createHighlightFromSelection(range, text, container);
       if (highlight) {
@@ -1068,7 +1260,13 @@ ${customPrompt}`, useWebSearch);
 
       selection.removeAllRanges();
     }
-  }, [createHighlightFromSelection, removeHighlight, showMenuAtSelection, transcriptScrollTop]);
+  }, [
+    createHighlightFromSelection,
+    showMenuAtSelection,
+    transcriptScrollTop,
+    discardPendingHighlight,
+    syncDOMToFrozenSegments,
+  ]);
 
   const handleAuraPanelHighlightClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -1234,7 +1432,13 @@ ${customPrompt}`, useWebSearch);
     }
 
     clearHighlights();
+    clearFormats();
     clearAuraResponses();
+    setEditedGroupTexts({});
+    if (Object.keys(transientEditOverlayRef.current).length > 0) {
+      transientEditOverlayRef.current = {};
+      setTransientEditOverlayVersion((prev) => prev + 1);
+    }
     setGroupCloseTimestamps({});
     lastHighlightRef.current = null;
     pendingHighlightIdRef.current = null;
@@ -1274,7 +1478,7 @@ ${customPrompt}`, useWebSearch);
     
     // Kombiniere: frozen segments + neue segments
     return [...frozenSegmentsRef.current, ...newSegments];
-  }, [isTextFrozen, segments]);
+  }, [isTextFrozen, segments, frozenSegmentsVersion]);
   
   // Set der Gruppen-IDs die nach dem Freeze dazukamen (für contentEditable=false)
   const frozenGroupIdsRef = useRef<Set<string> | null>(null);
@@ -1346,9 +1550,23 @@ ${customPrompt}`, useWebSearch);
         if (!seg.isFinal) lastGroup.hasLive = true;
       }
     }
-    
+
+    const transientOverlay = transientEditOverlayRef.current;
+    const overlaySource = isTextFrozen && Object.keys(transientOverlay).length > 0
+      ? transientOverlay
+      : editedGroupTexts;
+
+    if (Object.keys(overlaySource).length > 0) {
+      for (const group of groups) {
+        const override = overlaySource[group.id];
+        if (override !== undefined) {
+          group.texts = [override];
+        }
+      }
+    }
+
     return groups;
-  }, [sortedSegments, groupCloseTimestamps]);
+  }, [sortedSegments, groupCloseTimestamps, editedGroupTexts, isTextFrozen, transientEditOverlayVersion]);
 
   useEffect(() => {
     groupedSegmentsRef.current = groupedSegmentsWithOffsets;
@@ -1407,6 +1625,40 @@ ${customPrompt}`, useWebSearch);
     return () => ro.disconnect();
   }, [auraResponses.length]);
 
+  useLayoutEffect(() => {
+    const container = transcriptBoxRef.current;
+    if (!container) return;
+
+    const panels = Array.from(
+      container.querySelectorAll(".inline-agent-response[data-response-id]")
+    ) as HTMLElement[];
+
+    if (panels.length === 0) {
+      setInlineResponseHeights((prev) => (Object.keys(prev).length ? {} : prev));
+      return;
+    }
+
+    const update = (el: HTMLElement) => {
+      const id = el.getAttribute("data-response-id");
+      if (!id) return;
+      const h = Math.max(0, Math.ceil(el.getBoundingClientRect().height));
+      setInlineResponseHeights((prev) => {
+        if (prev[id] === h) return prev;
+        return { ...prev, [id]: h };
+      });
+    };
+
+    panels.forEach(update);
+
+    const ro = new ResizeObserver((entries) => {
+      entries.forEach((entry) => update(entry.target as HTMLElement));
+    });
+
+    panels.forEach((p) => ro.observe(p));
+
+    return () => ro.disconnect();
+  }, [auraResponses.length]);
+
   // Dynamische anchorTop-Positionen (Highlight kann sich durch Re-Sortierung/Wrap/Resize verschieben).
   // Wichtig: DOM-Messung NICHT in render() (useMemo) ausführen, sonst läuft es bei Streaming ständig.
   const auraAnchorSignature = useMemo(() => {
@@ -1422,9 +1674,12 @@ ${customPrompt}`, useWebSearch);
     const compute = () => {
       rafId = null;
       const containerRect = transcriptBox.getBoundingClientRect();
+      const scrollTop = transcriptBox.scrollTop;
+      const scrollLeft = transcriptBox.scrollLeft;
       const next: Record<string, number> = {};
 
       const highlightPositions = new Map<string, number>();
+      const highlightAnchors = new Map<string, { top: number; bottom: number; left: number; right: number }>();
       const markEls = Array.from(
         transcriptBox.querySelectorAll("mark[data-highlight-id], mark[data-highlight-ids]")
       ) as HTMLElement[];
@@ -1442,11 +1697,23 @@ ${customPrompt}`, useWebSearch);
         }
         if (ids.size === 0) continue;
 
-        const top = markEl.getBoundingClientRect().top - containerRect.top + transcriptBox.scrollTop;
+        const rect = markEl.getBoundingClientRect();
+        const top = rect.top - containerRect.top + scrollTop;
+        const bottom = rect.bottom - containerRect.top + scrollTop;
+        const left = rect.left - containerRect.left + scrollLeft;
+        const right = rect.right - containerRect.left + scrollLeft;
+
         for (const id of ids) {
           const existing = highlightPositions.get(id);
           if (existing === undefined || top < existing) {
             highlightPositions.set(id, top);
+          }
+
+          const existingAnchor = highlightAnchors.get(id);
+          if (!existingAnchor || bottom > existingAnchor.bottom) {
+            highlightAnchors.set(id, { top, bottom, left, right });
+          } else if (top < existingAnchor.top) {
+            highlightAnchors.set(id, { ...existingAnchor, top });
           }
         }
       }
@@ -1462,6 +1729,31 @@ ${customPrompt}`, useWebSearch);
         if (prevKeys.length !== nextKeys.length) return next;
         for (const k of nextKeys) {
           if (prev[k] !== next[k]) return next;
+        }
+        return prev;
+      });
+
+      const nextAnchors: Record<string, { top: number; bottom: number; left: number; right: number }> = {};
+      highlightAnchors.forEach((value, key) => {
+        nextAnchors[key] = value;
+      });
+
+      setHighlightAnchorRects((prev) => {
+        const prevKeys = Object.keys(prev);
+        const nextKeys = Object.keys(nextAnchors);
+        if (prevKeys.length !== nextKeys.length) return nextAnchors;
+        for (const k of nextKeys) {
+          const prevAnchor = prev[k];
+          const nextAnchor = nextAnchors[k];
+          if (!prevAnchor) return nextAnchors;
+          if (
+            prevAnchor.top !== nextAnchor.top ||
+            prevAnchor.bottom !== nextAnchor.bottom ||
+            prevAnchor.left !== nextAnchor.left ||
+            prevAnchor.right !== nextAnchor.right
+          ) {
+            return nextAnchors;
+          }
         }
         return prev;
       });
@@ -1532,6 +1824,117 @@ ${customPrompt}`, useWebSearch);
 
     return Math.max(baseHeight, required);
   }, [positionedAuraResponses, auraPanelHeights, transcriptScrollHeight]);
+
+  const inlineResponseChains = useMemo(() => {
+    if (auraResponses.length === 0) return [];
+
+    const getChainedResponses = (parentId: string): typeof auraResponses => {
+      const children = auraResponses.filter((r) => r.insertAfterResponseId === parentId);
+      return children.flatMap((child) => [child, ...getChainedResponses(child.id)]);
+    };
+
+    const roots = auraResponses.filter(
+      (r) => !r.insertAfterResponseId && r.sourceGroupId.startsWith("group-")
+    );
+
+    return roots.map((root) => [root, ...getChainedResponses(root.id)]);
+  }, [auraResponses]);
+
+  const positionedInlineResponses = useMemo(() => {
+    if (inlineResponseChains.length === 0) return [];
+
+    const container = transcriptBoxRef.current;
+    const containerWidth = container?.clientWidth ?? 0;
+    const styles = container ? window.getComputedStyle(container) : null;
+    const paddingLeft = styles ? parseFloat(styles.paddingLeft) || 0 : 0;
+    const paddingRight = styles ? parseFloat(styles.paddingRight) || 0 : 0;
+    const maxWidth = containerWidth ? Math.max(0, containerWidth - paddingLeft - paddingRight) : 520;
+    const baseLeft = paddingLeft;
+
+    const chainsWithAnchor = inlineResponseChains.map((chain) => {
+      const root = chain[0];
+      const anchor = highlightAnchorRects[root.highlightId];
+      const anchorTop = (anchor?.bottom ?? root.anchorTop) + INLINE_RESPONSE_OFFSET;
+      return { chain, anchorTop };
+    });
+
+    chainsWithAnchor.sort((a, b) => a.anchorTop - b.anchorTop);
+
+    const positioned: Array<typeof auraResponses[number] & {
+      adjustedTop: number;
+      adjustedLeft: number;
+      maxWidth: number;
+      anchorHighlightId: string;
+    }> = [];
+
+    let lastBottom = -Infinity;
+    for (const { chain, anchorTop } of chainsWithAnchor) {
+      const anchorHighlightId = chain[0].highlightId;
+      let top = lastBottom === -Infinity ? anchorTop : Math.max(anchorTop, lastBottom + INLINE_RESPONSE_GAP);
+
+      for (const response of chain) {
+        const height = inlineResponseHeights[response.id] ?? 0;
+
+        positioned.push({
+          ...response,
+          adjustedTop: Math.max(0, top),
+          adjustedLeft: baseLeft,
+          maxWidth,
+          anchorHighlightId,
+        });
+
+        top += height + INLINE_RESPONSE_GAP;
+      }
+      lastBottom = top - INLINE_RESPONSE_GAP;
+    }
+
+    return positioned;
+  }, [inlineResponseChains, highlightAnchorRects, inlineResponseHeights]);
+
+  const inlineResponseSpacingByHighlightId = useMemo(() => {
+    if (positionedInlineResponses.length === 0) return {};
+
+    const spacing: Record<string, number> = {};
+
+    for (const response of positionedInlineResponses) {
+      const height = inlineResponseHeights[response.id] ?? 0;
+      const anchor = highlightAnchorRects[response.anchorHighlightId];
+      if (!anchor) continue;
+      const bottom = response.adjustedTop + height;
+      const reserve = Math.max(0, bottom - anchor.bottom + INLINE_RESPONSE_GAP);
+      const current = spacing[response.anchorHighlightId] ?? 0;
+      if (reserve > current) {
+        spacing[response.anchorHighlightId] = reserve;
+      }
+    }
+
+    return spacing;
+  }, [positionedInlineResponses, inlineResponseHeights, highlightAnchorRects]);
+
+  const inlineSpacerHeight = useMemo(() => {
+    if (positionedInlineResponses.length === 0) return 0;
+
+    const baseHeight = Math.max(0, transcriptScrollHeight - inlineSpacerHeightRef.current);
+    let required = 0;
+
+    for (const response of positionedInlineResponses) {
+      const height = inlineResponseHeights[response.id] ?? 0;
+      required = Math.max(required, response.adjustedTop + height + INLINE_RESPONSE_GAP);
+    }
+
+    return Math.max(0, required - baseHeight);
+  }, [positionedInlineResponses, inlineResponseHeights, transcriptScrollHeight]);
+
+  useEffect(() => {
+    inlineSpacerHeightRef.current = inlineSpacerHeight;
+  }, [inlineSpacerHeight]);
+
+  useLayoutEffect(() => {
+    if (!transcriptBoxRef.current) return;
+    const { scrollTop, scrollHeight } = transcriptBoxRef.current;
+    setTranscriptScrollTop(scrollTop);
+    setTranscriptScrollHeight(scrollHeight);
+  }, [inlineSpacerHeight, positionedInlineResponses]);
   
   const handleAskAuraFullTranscript = useCallback(() => {
     if (segments.length === 0) return;
@@ -1549,11 +1952,29 @@ ${customPrompt}`, useWebSearch);
     resetTranscript();
     clearErrors();
     clearHighlights();
+    clearFormats();
     clearAuraResponses();
+    setEditedGroupTexts({});
+    if (Object.keys(transientEditOverlayRef.current).length > 0) {
+      transientEditOverlayRef.current = {};
+      setTransientEditOverlayVersion((prev) => prev + 1);
+    }
     setGroupCloseTimestamps({});
     lastHighlightRef.current = null;
     pendingHighlightIdRef.current = null;
-  }, [resetTranscript, clearErrors, clearHighlights, clearAuraResponses, setGroupCloseTimestamps, hideMenu, unfreezeText, isTextFrozen]);
+  }, [
+    resetTranscript,
+    clearErrors,
+    clearHighlights,
+    clearFormats,
+    clearAuraResponses,
+    setEditedGroupTexts,
+    setGroupCloseTimestamps,
+    setTransientEditOverlayVersion,
+    hideMenu,
+    unfreezeText,
+    isTextFrozen,
+  ]);
 
   const handleClearAuraResponses = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -1762,6 +2183,8 @@ ${customPrompt}`, useWebSearch);
               onMouseUp={handleMouseUp}
               onKeyDown={handleKeyDown}
               onInput={handleInput}
+              onPaste={handlePaste}
+              onDrop={handleDrop}
               onClick={handleHighlightClick}
               onContextMenu={handleContextMenu}
               contentEditable={isTextFrozen}
@@ -1773,18 +2196,11 @@ ${customPrompt}`, useWebSearch);
                 <p className="muted">No input yet. Pick at least one audio source and hit Start.</p>
               )}
               {/* Gruppierte Segmente - Tag nur bei Speaker-Wechsel, Cursor bei Live-Content */}
-              {/* Mit Inline Agent Responses nach relevanten Segmenten */}
               {groupedSegmentsWithOffsets.map((group) => {
                 const groupText = group.texts.join(" ");
                 
                 // Prüfe ob diese Gruppe nach dem Freeze dazukam
                 const isNewAfterFreeze = isTextFrozen && newGroupIds.has(group.id);
-                
-                // Finde alle Responses die zu diesem Segment gehören
-                // (sourceGroupId = group.id UND keine insertAfterResponseId)
-                const responsesForGroup = auraResponses.filter(r => 
-                  r.sourceGroupId === group.id && !r.insertAfterResponseId
-                );
                 
                 return (
                   <div key={group.id} contentEditable={isNewAfterFreeze ? false : undefined} suppressContentEditableWarning>
@@ -1802,58 +2218,58 @@ ${customPrompt}`, useWebSearch);
                           Cursor ist AUSSERHALB dieses spans.
                         */}
                         <span data-group-id={group.id}>
-                          <HighlightedText text={groupText} highlights={highlights} groupId={group.id} />
+                          <HighlightedText
+                            text={groupText}
+                            highlights={highlights}
+                            formats={formats}
+                            responseSpacing={inlineResponseSpacingByHighlightId}
+                            groupId={group.id}
+                          />
                         </span>
                         {group.hasLive && <span className="cursor">|</span>}
                       </span>
                     </div>
                     
-                    {/* Inline Agent Responses für dieses Segment */}
-                    {responsesForGroup.map(response => {
-                      // Sammle auch alle Folge-Responses (wenn in dieser Response markiert wurde)
-                      const getChainedResponses = (parentId: string): typeof auraResponses => {
-                        const children = auraResponses.filter(r => r.insertAfterResponseId === parentId);
-                        return children.flatMap(child => [child, ...getChainedResponses(child.id)]);
-                      };
-                      const chainedResponses = getChainedResponses(response.id);
-                      
-                      return (
-                        <div key={response.id} className="inline-responses-chain">
-                          <InlineAgentResponse
-                            responseId={response.id}
-                            taskLabel={response.taskLabel}
-                            taskDetail={response.taskDetail}
-                            prompt={response.prompt}
-                            result={response.result}
-                            loading={response.loading}
-                            error={response.error}
-                            color={response.color}
-                            highlights={highlights}
-                            onClose={handleRemoveAuraResponse}
-                          />
-                          {/* Folge-Responses (nicht verschachtelt, untereinander) */}
-                          {chainedResponses.map(chainedResponse => (
-                            <InlineAgentResponse
-                              key={chainedResponse.id}
-                              responseId={chainedResponse.id}
-                              taskLabel={chainedResponse.taskLabel}
-                              taskDetail={chainedResponse.taskDetail}
-                              prompt={chainedResponse.prompt}
-                              result={chainedResponse.result}
-                              loading={chainedResponse.loading}
-                              error={chainedResponse.error}
-                              color={chainedResponse.color}
-                              highlights={highlights}
-                              onClose={handleRemoveAuraResponse}
-                            />
-                          ))}
-                        </div>
-                      );
-                    })}
                   </div>
                 );
               })}
-              
+
+              <div className="inline-response-layer" contentEditable={false}>
+                {positionedInlineResponses.map((response) => (
+                  <div
+                    key={response.id}
+                    className="inline-response-anchor"
+                    style={{
+                      top: response.adjustedTop,
+                      left: response.adjustedLeft,
+                      width: response.maxWidth,
+                    }}
+                  >
+                    <InlineAgentResponse
+                      responseId={response.id}
+                      taskLabel={response.taskLabel}
+                      taskDetail={response.taskDetail}
+                      prompt={response.prompt}
+                      result={response.result}
+                      loading={response.loading}
+                      error={response.error}
+                      color={response.color}
+                      highlights={highlights}
+                      onClose={handleRemoveAuraResponse}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {inlineSpacerHeight > 0 && (
+                <div
+                  className="inline-response-spacer"
+                  contentEditable={false}
+                  aria-hidden="true"
+                  style={{ height: inlineSpacerHeight }}
+                />
+              )}
+
               {menuState.visible && highlightMenuContainer && createPortal(
                 <HighlightMenu
                   visible={menuState.visible}

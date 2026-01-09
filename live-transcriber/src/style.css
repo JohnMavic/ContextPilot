@@ -895,7 +895,8 @@ button:disabled {
   opacity: 0.6;
   background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, transparent 100%);
   border-left-style: dashed;
-  pointer-events: none;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .live-line.source-mic {
@@ -2163,6 +2164,35 @@ h5.aura-heading {
    Inline Agent Responses im Transkript
    ========================================= */
 
+.inline-response-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.inline-response-gap {
+  display: block;
+  width: 100%;
+  pointer-events: none;
+  line-height: 0;
+  font-size: 0;
+}
+
+.inline-response-anchor {
+  position: absolute;
+  pointer-events: auto;
+  width: 100%;
+  max-width: 100%;
+}
+
+.inline-response-spacer {
+  width: 100%;
+  pointer-events: none;
+}
+
 .inline-responses-chain {
   margin: 12px 0 16px 0;
   display: flex;
@@ -2177,6 +2207,7 @@ h5.aura-heading {
   border-radius: 8px;
   overflow: hidden;
   animation: inlineSlideIn 0.3s ease-out;
+  width: 100%;
 }
 
 @keyframes inlineSlideIn {
@@ -2209,6 +2240,26 @@ h5.aura-heading {
   color: #94a3b8;
   letter-spacing: 0.5px;
   flex: 1;
+}
+
+.inline-response-collapse {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.inline-response-collapse:hover {
+  background: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
 }
 
 .inline-response-close {
