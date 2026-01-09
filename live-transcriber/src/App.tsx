@@ -184,6 +184,10 @@ const mergeEditedWithBuffered = (
     return edited;
   }
 
+  if (edited && current.startsWith(edited)) {
+    return current;
+  }
+
   if (current.startsWith(frozen)) {
     const tail = current.slice(frozen.length).trimStart();
     if (!tail) return edited;
@@ -249,6 +253,7 @@ export default function App() {
   const [disableDeleteInMenu, setDisableDeleteInMenu] = useState(false);
   const [groupCloseTimestamps, setGroupCloseTimestamps] = useState<Record<string, number>>({});
   const [editedGroupTexts, setEditedGroupTexts] = useState<Record<string, string>>({});
+  const [editedGroupBases, setEditedGroupBases] = useState<Record<string, string>>({});
   const transientEditOverlayRef = useRef<Record<string, string>>({});
   const [transientEditOverlayVersion, setTransientEditOverlayVersion] = useState(0);
   
@@ -603,6 +608,16 @@ export default function App() {
           }
           return next;
         });
+        setEditedGroupBases((prev) => {
+          const next = { ...prev };
+          for (const [groupId] of editedGroups) {
+            const baseText = frozenGroupTexts.get(groupId);
+            if (baseText !== undefined) {
+              next[groupId] = normalizeGroupText(baseText);
+            }
+          }
+          return next;
+        });
       }
       
       frozenHtmlRef.current = null;
@@ -620,10 +635,12 @@ export default function App() {
     segments,
     groupCloseTimestamps,
     editedGroupTexts,
+    editedGroupBases,
     updateSegmentsFromEdit,
     updateHighlightsForGroupEdit,
     updateFormatsForGroupEdit,
     setEditedGroupTexts,
+    setEditedGroupBases,
     setTransientEditOverlayVersion,
   ]);
 
@@ -636,8 +653,70 @@ export default function App() {
       frozenGroupTextRef.current = null;
       frozenHtmlSetRef.current = false; // Reset für nächsten Freeze
       setIsTextFrozen(false);
+      if (Object.keys(transientEditOverlayRef.current).length > 0) {
+        transientEditOverlayRef.current = {};
+        setTransientEditOverlayVersion((prev) => prev + 1);
+      }
     }
-  }, [isTextFrozen]);
+  }, [isTextFrozen, setTransientEditOverlayVersion]);
+
+  
+  useEffect(() => {
+    if (isTextFrozen) return;
+
+    const editedEntries = Object.entries(editedGroupTexts);
+    if (editedEntries.length === 0) return;
+
+    const currentGroupTexts = buildGroupTextMap(segments, groupCloseTimestamps);
+    const overlayUpdates = new Map<string, string>();
+    const overlayPrevious = new Map<string, string>();
+    const segmentUpdates = new Map<string, string>();
+
+    for (const [groupId, editedText] of editedEntries) {
+      const baseText = editedGroupBases[groupId] ?? editedText;
+      const currentText = currentGroupTexts.get(groupId) ?? baseText;
+      const mergedText = mergeEditedWithBuffered(editedText, baseText, currentText);
+
+      const normalizedMerged = normalizeGroupText(mergedText);
+      const normalizedEdited = normalizeGroupText(editedText);
+      const normalizedCurrent = normalizeGroupText(currentText);
+
+      if (normalizedMerged !== normalizedEdited) {
+        overlayUpdates.set(groupId, mergedText);
+        overlayPrevious.set(groupId, editedText);
+      }
+
+      if (normalizedMerged !== normalizedCurrent) {
+        segmentUpdates.set(groupId, mergedText);
+      }
+    }
+
+    if (segmentUpdates.size > 0) {
+      updateSegmentsFromEdit(segmentUpdates, groupCloseTimestamps);
+    }
+
+    if (overlayUpdates.size > 0) {
+      setEditedGroupTexts((prev) => {
+        const next = { ...prev };
+        for (const [groupId, value] of overlayUpdates) {
+          next[groupId] = value;
+        }
+        return next;
+      });
+      updateHighlightsForGroupEdit(overlayUpdates, overlayPrevious);
+      updateFormatsForGroupEdit(overlayUpdates, overlayPrevious);
+    }
+  }, [
+    isTextFrozen,
+    editedGroupTexts,
+    editedGroupBases,
+    segments,
+    groupCloseTimestamps,
+    updateSegmentsFromEdit,
+    updateHighlightsForGroupEdit,
+    updateFormatsForGroupEdit,
+    setEditedGroupTexts,
+  ]);
 
   // SYNC DOM-EDITS ZU FROZEN SEGMENTS: Synchronisiert manuelle Text-Änderungen im DOM
   // zu frozenSegmentsRef, OHNE den Freeze zu beenden. Wichtig vor Highlight-Erstellung,
@@ -1435,6 +1514,7 @@ ${customPrompt}`, useWebSearch);
     clearFormats();
     clearAuraResponses();
     setEditedGroupTexts({});
+    setEditedGroupBases({});
     if (Object.keys(transientEditOverlayRef.current).length > 0) {
       transientEditOverlayRef.current = {};
       setTransientEditOverlayVersion((prev) => prev + 1);
@@ -1955,6 +2035,7 @@ ${customPrompt}`, useWebSearch);
     clearFormats();
     clearAuraResponses();
     setEditedGroupTexts({});
+    setEditedGroupBases({});
     if (Object.keys(transientEditOverlayRef.current).length > 0) {
       transientEditOverlayRef.current = {};
       setTransientEditOverlayVersion((prev) => prev + 1);
@@ -1969,6 +2050,7 @@ ${customPrompt}`, useWebSearch);
     clearFormats,
     clearAuraResponses,
     setEditedGroupTexts,
+    setEditedGroupBases,
     setGroupCloseTimestamps,
     setTransientEditOverlayVersion,
     hideMenu,

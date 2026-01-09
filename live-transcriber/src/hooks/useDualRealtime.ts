@@ -43,6 +43,20 @@ type AudioSession = {
   reconnectAttempts?: number;
 };
 
+const TRANSCRIPTION_PROMPT =
+  "Auto-detect language. Produce verbatim transcripts (no summaries), keep names and numbers exactly as spoken. Merge adjacent fragments into complete, coherent sentences when they clearly belong together; lightly fix punctuation and obvious word breaks; do not add, omit, or change facts.";
+
+const normalizeWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+const TRANSCRIPTION_PROMPT_NORMALIZED = normalizeWhitespace(TRANSCRIPTION_PROMPT);
+
+const stripPromptLeak = (value: string) => {
+  if (!value) return value;
+  const normalized = normalizeWhitespace(value);
+  if (!normalized.includes(TRANSCRIPTION_PROMPT_NORMALIZED)) return value;
+  const cleaned = normalizeWhitespace(normalized.replace(TRANSCRIPTION_PROMPT_NORMALIZED, ""));
+  return cleaned;
+};
+
 const floatToInt16Base64 = (floatData: Float32Array) => {
   const int16 = new Int16Array(floatData.length);
   for (let i = 0; i < floatData.length; i++) {
@@ -120,17 +134,24 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
       const idx = prev.findIndex((s) => s.itemId === itemId && s.contentIndex === contentIndex && s.source === source);
       if (idx >= 0) {
         const updated = [...prev];
+        const nextText = stripPromptLeak(updated[idx].text + delta);
+        if (!nextText) {
+          updated.splice(idx, 1);
+          return updated;
+        }
         updated[idx] = { 
           ...updated[idx], 
-          text: updated[idx].text + delta,
+          text: nextText,
           speakerId: speakerId || updated[idx].speakerId,
         };
         return updated;
       } else {
+        const nextText = stripPromptLeak(delta);
+        if (!nextText) return prev;
         return [...prev, { 
           itemId,
           contentIndex,
-          text: delta, 
+          text: nextText, 
           isFinal: false, 
           source,
           timestamp: Date.now(),
@@ -145,20 +166,25 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
     setSegments((prev) => {
       // Suche Segment mit gleicher itemId, contentIndex UND source (Protocol correctness)
       const idx = prev.findIndex((s) => s.itemId === itemId && s.contentIndex === contentIndex && s.source === source);
+      const cleanedText = stripPromptLeak(finalText);
       if (idx >= 0) {
+        if (!cleanedText) {
+          return prev.filter((_, index) => index !== idx);
+        }
         const updated = [...prev];
         updated[idx] = { 
           ...updated[idx], 
-          text: finalText, 
+          text: cleanedText, 
           isFinal: true,
           speakerId: speakerId || updated[idx].speakerId,
         };
         return updated;
       } else {
+        if (!cleanedText) return prev;
         return [...prev, { 
           itemId,
           contentIndex,
-          text: finalText, 
+          text: cleanedText, 
           isFinal: true, 
           source,
           timestamp: Date.now(),
@@ -287,8 +313,6 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
 
   // WebSocket für eine Source erstellen
   const connectWs = (source: Source, session?: React.MutableRefObject<AudioSession>): WebSocket => {
-    const transcriptionPrompt =
-      "Auto-detect language. Produce verbatim transcripts (no summaries), keep names and numbers exactly as spoken. Merge adjacent fragments into complete, coherent sentences when they clearly belong together; lightly fix punctuation and obvious word breaks; do not add, omit, or change facts.";
     // Provider und Model via Query-Parameter an Proxy übergeben
     const url = `${proxyWsBaseUrl}?provider=${provider}&model=${encodeURIComponent(modelName)}`;
     console.log(`[WS ${source.toUpperCase()}] Verbinde zu Proxy (${provider}, model=${modelName}):`, url);
@@ -307,7 +331,7 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
         session: {
           input_audio_transcription: {
             model: modelName,
-            prompt: transcriptionPrompt,
+            prompt: TRANSCRIPTION_PROMPT,
             // language weglassen -> automatische Spracherkennung durch Modell
           },
           turn_detection: source === "mic" 
