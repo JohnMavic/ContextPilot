@@ -255,6 +255,7 @@ export default function App() {
   const [editedGroupTexts, setEditedGroupTexts] = useState<Record<string, string>>({});
   const [editedGroupBases, setEditedGroupBases] = useState<Record<string, string>>({});
   const transientEditOverlayRef = useRef<Record<string, string>>({});
+  const syncDOMToFrozenSegmentsRef = useRef<() => void>(() => {});
   const [transientEditOverlayVersion, setTransientEditOverlayVersion] = useState(0);
   
   // TEXT FREEZE: Wenn User klickt/selektiert, wird neuer Text gepuffert statt angezeigt
@@ -517,8 +518,8 @@ export default function App() {
     const sanitized = sanitizePastedText(text);
     if (!sanitized) return;
     insertPlainTextAtSelection(sanitized);
-    handleInput();
-  }, [isTextFrozen, handleInput]);
+    syncDOMToFrozenSegmentsRef.current();
+  }, [isTextFrozen]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     if (!isTextFrozen) return;
@@ -527,8 +528,8 @@ export default function App() {
     const sanitized = sanitizePastedText(text);
     if (!sanitized) return;
     insertPlainTextAtSelection(sanitized);
-    handleInput();
-  }, [isTextFrozen, handleInput]);
+    syncDOMToFrozenSegmentsRef.current();
+  }, [isTextFrozen]);
 
   const closeGroupsForFreeze = useCallback(() => {
     const groups = groupedSegmentsRef.current;
@@ -824,6 +825,10 @@ export default function App() {
     setFrozenSegmentsVersion,
     setTransientEditOverlayVersion,
   ]);
+
+  useEffect(() => {
+    syncDOMToFrozenSegmentsRef.current = syncDOMToFrozenSegments;
+  }, [syncDOMToFrozenSegments]);
 
   const releaseFocus = useCallback(() => {
     window.getSelection()?.removeAllRanges();
