@@ -1421,6 +1421,26 @@ ${customPrompt}`, useWebSearch);
     const highlightId = menuState.highlightId || lastHighlightRef.current?.id;
     const highlight = highlightId ? highlights.find((h) => h.id === highlightId) : undefined;
 
+    if (disableDeleteInMenu) {
+      handleCloseMenu();
+      return;
+    }
+
+    const isTranscriptHighlight = !highlight
+      ? true
+      : highlight.groupId.startsWith("group-") ||
+        Boolean(
+          highlight.span &&
+            ((highlight.span.groupIds && highlight.span.groupIds.some((id) => id.startsWith("group-"))) ||
+              highlight.span.startGroupId.startsWith("group-") ||
+              highlight.span.endGroupId.startsWith("group-")),
+        );
+
+    if (highlight && !isTranscriptHighlight) {
+      handleCloseMenu();
+      return;
+    }
+
     const overlaySource = isTextFrozen && Object.keys(transientEditOverlayRef.current).length > 0
       ? transientEditOverlayRef.current
       : editedGroupTexts;
@@ -1593,6 +1613,7 @@ ${customPrompt}`, useWebSearch);
     menuState.selectedText,
     menuState.highlightId,
     highlights,
+    disableDeleteInMenu,
     segments,
     groupCloseTimestamps,
     editedGroupTexts,
