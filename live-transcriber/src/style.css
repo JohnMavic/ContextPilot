@@ -2179,6 +2179,27 @@ h5.aura-heading {
   pointer-events: none;
   line-height: 0;
   font-size: 0;
+  /* Verhindert Collapsing durch explizite Höhe + Padding-Trick */
+  min-height: 1px;
+  box-sizing: border-box;
+}
+
+/* Gap nach einer Gruppe um Platz für Inline-Responses zu schaffen */
+.inline-response-group-gap {
+  display: block;
+  width: 100%;
+  pointer-events: none;
+  box-sizing: border-box;
+  /* Keine line-height/font-size Reset nötig da es ein eigenständiges Block-Element ist */
+}
+
+/* 
+ * Wrapper-Span für Segmente mit Gap muss display:contents haben,
+ * damit der Block-Gap den Textfluss korrekt unterbricht.
+ * Wir verwenden eine spezifische Klasse für diese Wrapper.
+ */
+.highlight-segment-with-gap {
+  display: contents;
 }
 
 .inline-response-anchor {

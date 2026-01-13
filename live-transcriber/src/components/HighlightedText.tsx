@@ -256,7 +256,10 @@ export const HighlightedText = memo(function HighlightedText({
         ) : null;
 
         return className ? (
-          <span key={primaryId ? `${primaryId}-${idx}` : idx}>
+          <span 
+            key={primaryId ? `${primaryId}-${idx}` : idx}
+            className={responseGap ? "highlight-segment-with-gap" : undefined}
+          >
             {markContent}
             {needsZeroWidthSpace && <span className="zwsp">{"\u200B"}</span>}
             {responseGap}

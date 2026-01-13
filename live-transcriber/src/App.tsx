@@ -2148,6 +2148,34 @@ ${customPrompt}`, useWebSearch);
     return spacing;
   }, [positionedInlineResponses, inlineResponseHeights, highlightAnchorRects]);
 
+  // Spacing by GroupId - berechnet den Platz der NACH jeder Gruppe benötigt wird
+  // um zu verhindern, dass nachfolgende Gruppen von Responses überlappt werden
+  const inlineResponseSpacingByGroupId = useMemo(() => {
+    if (positionedInlineResponses.length === 0) return {};
+
+    const spacing: Record<string, number> = {};
+
+    for (const response of positionedInlineResponses) {
+      const groupId = response.sourceGroupId;
+      if (!groupId || !groupId.startsWith("group-")) continue;
+      
+      const height = inlineResponseHeights[response.id] ?? 0;
+      const anchor = highlightAnchorRects[response.anchorHighlightId];
+      if (!anchor) continue;
+      
+      const bottom = response.adjustedTop + height;
+      // Reserve = wie viel Platz unterhalb des Highlight-Ankers benötigt wird
+      const reserve = Math.max(0, bottom - anchor.bottom + INLINE_RESPONSE_GAP);
+      const current = spacing[groupId] ?? 0;
+      if (reserve > current) {
+        spacing[groupId] = reserve;
+      }
+    }
+
+    return spacing;
+  }, [positionedInlineResponses, inlineResponseHeights, highlightAnchorRects]);
+
+
   const inlineSpacerHeight = useMemo(() => {
     if (positionedInlineResponses.length === 0) return 0;
 
@@ -2468,7 +2496,15 @@ ${customPrompt}`, useWebSearch);
                         {group.hasLive && <span className="cursor">|</span>}
                       </span>
                     </div>
-                    
+                    {/* Gap nach der Gruppe, um Platz für Inline-Responses zu schaffen */}
+                    {inlineResponseSpacingByGroupId[group.id] > 0 && (
+                      <div
+                        className="inline-response-group-gap"
+                        contentEditable={false}
+                        aria-hidden="true"
+                        style={{ height: inlineResponseSpacingByGroupId[group.id] }}
+                      />
+                    )}
                   </div>
                 );
               })}
