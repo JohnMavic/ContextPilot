@@ -2162,63 +2162,21 @@ h5.aura-heading {
 
 /* =========================================
    Inline Agent Responses im Transkript
+   Neu: Im normalen Dokumentfluss (nicht absolut positioniert)
    ========================================= */
 
-.inline-response-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.inline-response-gap {
-  display: block;
-  width: 100%;
-  pointer-events: none;
-  line-height: 0;
-  font-size: 0;
-  /* Verhindert Collapsing durch explizite Höhe + Padding-Trick */
-  min-height: 1px;
-  box-sizing: border-box;
-}
-
-/* Gap nach einer Gruppe um Platz für Inline-Responses zu schaffen */
-.inline-response-group-gap {
-  display: block;
-  width: 100%;
-  pointer-events: none;
-  box-sizing: border-box;
-  /* Keine line-height/font-size Reset nötig da es ein eigenständiges Block-Element ist */
-}
-
-/* 
- * Wrapper-Span für Segmente mit Gap muss display:contents haben,
- * damit der Block-Gap den Textfluss korrekt unterbricht.
- * Wir verwenden eine spezifische Klasse für diese Wrapper.
- */
-.highlight-segment-with-gap {
-  display: contents;
-}
-
-.inline-response-anchor {
-  position: absolute;
-  pointer-events: auto;
-  width: 100%;
-  max-width: 100%;
-}
-
-.inline-response-spacer {
-  width: 100%;
-  pointer-events: none;
-}
-
-.inline-responses-chain {
-  margin: 12px 0 16px 0;
+/* Container für alle Responses einer Gruppe */
+.inline-responses-for-group {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin: 12px 0 16px 0;
+  pointer-events: auto;
+}
+
+/* Einzelner Response-Block im Dokumentfluss */
+.inline-response-block {
+  width: 100%;
 }
 
 .inline-agent-response {

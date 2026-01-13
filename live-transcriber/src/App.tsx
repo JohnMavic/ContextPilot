@@ -58,8 +58,6 @@ const TRANSCRIPTION_MODELS: TranscriptionModel[] = [
 
 const GROUP_PAUSE_THRESHOLD_MS = 3500;
 const AURA_PANEL_GAP = 16;
-const INLINE_RESPONSE_GAP = 10;
-const INLINE_RESPONSE_OFFSET = 6;
 
 type TranscriptGroup = {
   id: string;
@@ -242,11 +240,7 @@ export default function App() {
   const [transcriptScrollTop, setTranscriptScrollTop] = useState(0);
   const [transcriptScrollHeight, setTranscriptScrollHeight] = useState(0);
   const [auraPanelHeights, setAuraPanelHeights] = useState<Record<string, number>>({});
-  const [inlineResponseHeights, setInlineResponseHeights] = useState<Record<string, number>>({});
   const [dynamicAnchorTops, setDynamicAnchorTops] = useState<Record<string, number>>({});
-  const [highlightAnchorRects, setHighlightAnchorRects] = useState<
-    Record<string, { top: number; bottom: number; left: number; right: number }>
-  >({});
   const [agentPanelWidth, setAgentPanelWidth] = useState(400); // Default doppelte Breite
   const [isResizing, setIsResizing] = useState(false);
   const [highlightMenuContainer, setHighlightMenuContainer] = useState<HTMLElement | null>(null);
@@ -266,7 +260,6 @@ export default function App() {
   const frozenGroupTextRef = useRef<Map<string, string> | null>(null);
   const groupedSegmentsRef = useRef<TranscriptGroup[]>([]);
   const skipNextFreezeSaveRef = useRef(false);
-  const inlineSpacerHeightRef = useRef(0);
   const [frozenSegmentsVersion, setFrozenSegmentsVersion] = useState(0);
   
   // Agent selection state
@@ -1862,40 +1855,6 @@ ${customPrompt}`, useWebSearch);
     return () => ro.disconnect();
   }, [auraResponses.length]);
 
-  useLayoutEffect(() => {
-    const container = transcriptBoxRef.current;
-    if (!container) return;
-
-    const panels = Array.from(
-      container.querySelectorAll(".inline-agent-response[data-response-id]")
-    ) as HTMLElement[];
-
-    if (panels.length === 0) {
-      setInlineResponseHeights((prev) => (Object.keys(prev).length ? {} : prev));
-      return;
-    }
-
-    const update = (el: HTMLElement) => {
-      const id = el.getAttribute("data-response-id");
-      if (!id) return;
-      const h = Math.max(0, Math.ceil(el.getBoundingClientRect().height));
-      setInlineResponseHeights((prev) => {
-        if (prev[id] === h) return prev;
-        return { ...prev, [id]: h };
-      });
-    };
-
-    panels.forEach(update);
-
-    const ro = new ResizeObserver((entries) => {
-      entries.forEach((entry) => update(entry.target as HTMLElement));
-    });
-
-    panels.forEach((p) => ro.observe(p));
-
-    return () => ro.disconnect();
-  }, [auraResponses.length]);
-
   // Dynamische anchorTop-Positionen (Highlight kann sich durch Re-Sortierung/Wrap/Resize verschieben).
   // Wichtig: DOM-Messung NICHT in render() (useMemo) ausführen, sonst läuft es bei Streaming ständig.
   const auraAnchorSignature = useMemo(() => {
@@ -1966,31 +1925,6 @@ ${customPrompt}`, useWebSearch);
         if (prevKeys.length !== nextKeys.length) return next;
         for (const k of nextKeys) {
           if (prev[k] !== next[k]) return next;
-        }
-        return prev;
-      });
-
-      const nextAnchors: Record<string, { top: number; bottom: number; left: number; right: number }> = {};
-      highlightAnchors.forEach((value, key) => {
-        nextAnchors[key] = value;
-      });
-
-      setHighlightAnchorRects((prev) => {
-        const prevKeys = Object.keys(prev);
-        const nextKeys = Object.keys(nextAnchors);
-        if (prevKeys.length !== nextKeys.length) return nextAnchors;
-        for (const k of nextKeys) {
-          const prevAnchor = prev[k];
-          const nextAnchor = nextAnchors[k];
-          if (!prevAnchor) return nextAnchors;
-          if (
-            prevAnchor.top !== nextAnchor.top ||
-            prevAnchor.bottom !== nextAnchor.bottom ||
-            prevAnchor.left !== nextAnchor.left ||
-            prevAnchor.right !== nextAnchor.right
-          ) {
-            return nextAnchors;
-          }
         }
         return prev;
       });
@@ -2077,129 +2011,17 @@ ${customPrompt}`, useWebSearch);
     return roots.map((root) => [root, ...getChainedResponses(root.id)]);
   }, [auraResponses]);
 
-  const positionedInlineResponses = useMemo(() => {
-    if (inlineResponseChains.length === 0) return [];
-
-    const container = transcriptBoxRef.current;
-    const containerWidth = container?.clientWidth ?? 0;
-    const styles = container ? window.getComputedStyle(container) : null;
-    const paddingLeft = styles ? parseFloat(styles.paddingLeft) || 0 : 0;
-    const paddingRight = styles ? parseFloat(styles.paddingRight) || 0 : 0;
-    const maxWidth = containerWidth ? Math.max(0, containerWidth - paddingLeft - paddingRight) : 520;
-    const baseLeft = paddingLeft;
-
-    const chainsWithAnchor = inlineResponseChains.map((chain) => {
-      const root = chain[0];
-      const anchor = highlightAnchorRects[root.highlightId];
-      const anchorTop = (anchor?.bottom ?? root.anchorTop) + INLINE_RESPONSE_OFFSET;
-      return { chain, anchorTop };
-    });
-
-    chainsWithAnchor.sort((a, b) => a.anchorTop - b.anchorTop);
-
-    const positioned: Array<typeof auraResponses[number] & {
-      adjustedTop: number;
-      adjustedLeft: number;
-      maxWidth: number;
-      anchorHighlightId: string;
-    }> = [];
-
-    let lastBottom = -Infinity;
-    for (const { chain, anchorTop } of chainsWithAnchor) {
-      const anchorHighlightId = chain[0].highlightId;
-      let top = lastBottom === -Infinity ? anchorTop : Math.max(anchorTop, lastBottom + INLINE_RESPONSE_GAP);
-
-      for (const response of chain) {
-        const height = inlineResponseHeights[response.id] ?? 0;
-
-        positioned.push({
-          ...response,
-          adjustedTop: Math.max(0, top),
-          adjustedLeft: baseLeft,
-          maxWidth,
-          anchorHighlightId,
-        });
-
-        top += height + INLINE_RESPONSE_GAP;
-      }
-      lastBottom = top - INLINE_RESPONSE_GAP;
-    }
-
-    return positioned;
-  }, [inlineResponseChains, highlightAnchorRects, inlineResponseHeights]);
-
-  const inlineResponseSpacingByHighlightId = useMemo(() => {
-    if (positionedInlineResponses.length === 0) return {};
-
-    const spacing: Record<string, number> = {};
-
-    for (const response of positionedInlineResponses) {
-      const height = inlineResponseHeights[response.id] ?? 0;
-      const anchor = highlightAnchorRects[response.anchorHighlightId];
-      if (!anchor) continue;
-      const bottom = response.adjustedTop + height;
-      const reserve = Math.max(0, bottom - anchor.bottom + INLINE_RESPONSE_GAP);
-      const current = spacing[response.anchorHighlightId] ?? 0;
-      if (reserve > current) {
-        spacing[response.anchorHighlightId] = reserve;
-      }
-    }
-
-    return spacing;
-  }, [positionedInlineResponses, inlineResponseHeights, highlightAnchorRects]);
-
-  // Spacing by GroupId - berechnet den Platz der NACH jeder Gruppe benötigt wird
-  // um zu verhindern, dass nachfolgende Gruppen von Responses überlappt werden
-  const inlineResponseSpacingByGroupId = useMemo(() => {
-    if (positionedInlineResponses.length === 0) return {};
-
-    const spacing: Record<string, number> = {};
-
-    for (const response of positionedInlineResponses) {
-      const groupId = response.sourceGroupId;
-      if (!groupId || !groupId.startsWith("group-")) continue;
-      
-      const height = inlineResponseHeights[response.id] ?? 0;
-      const anchor = highlightAnchorRects[response.anchorHighlightId];
-      if (!anchor) continue;
-      
-      const bottom = response.adjustedTop + height;
-      // Reserve = wie viel Platz unterhalb des Highlight-Ankers benötigt wird
-      const reserve = Math.max(0, bottom - anchor.bottom + INLINE_RESPONSE_GAP);
-      const current = spacing[groupId] ?? 0;
-      if (reserve > current) {
-        spacing[groupId] = reserve;
-      }
-    }
-
-    return spacing;
-  }, [positionedInlineResponses, inlineResponseHeights, highlightAnchorRects]);
-
-
-  const inlineSpacerHeight = useMemo(() => {
-    if (positionedInlineResponses.length === 0) return 0;
-
-    const baseHeight = Math.max(0, transcriptScrollHeight - inlineSpacerHeightRef.current);
-    let required = 0;
-
-    for (const response of positionedInlineResponses) {
-      const height = inlineResponseHeights[response.id] ?? 0;
-      required = Math.max(required, response.adjustedTop + height + INLINE_RESPONSE_GAP);
-    }
-
-    return Math.max(0, required - baseHeight);
-  }, [positionedInlineResponses, inlineResponseHeights, transcriptScrollHeight]);
-
-  useEffect(() => {
-    inlineSpacerHeightRef.current = inlineSpacerHeight;
-  }, [inlineSpacerHeight]);
+  // Note: positionedInlineResponses, inlineResponseSpacingByHighlightId, 
+  // inlineResponseSpacingByGroupId und inlineSpacerHeight wurden entfernt.
+  // Responses werden jetzt direkt im Dokumentfluss nach ihrer Gruppe gerendert,
+  // ohne absolute Positionierung. Das verhindert Überlappungen automatisch.
 
   useLayoutEffect(() => {
     if (!transcriptBoxRef.current) return;
     const { scrollTop, scrollHeight } = transcriptBoxRef.current;
     setTranscriptScrollTop(scrollTop);
     setTranscriptScrollHeight(scrollHeight);
-  }, [inlineSpacerHeight, positionedInlineResponses]);
+  }, [inlineResponseChains]);
   
   const handleAskAuraFullTranscript = useCallback(() => {
     if (segments.length === 0) return;
@@ -2469,6 +2291,11 @@ ${customPrompt}`, useWebSearch);
                 // Prüfe ob diese Gruppe nach dem Freeze dazukam
                 const isNewAfterFreeze = isTextFrozen && newGroupIds.has(group.id);
                 
+                // Finde alle Response-Chains für diese Gruppe
+                const responseChainsForGroup = inlineResponseChains.filter(
+                  chain => chain[0]?.sourceGroupId === group.id
+                );
+                
                 return (
                   <div key={group.id} contentEditable={isNewAfterFreeze ? false : undefined} suppressContentEditableWarning>
                     {/* Das Transkript-Segment */}
@@ -2489,61 +2316,36 @@ ${customPrompt}`, useWebSearch);
                             text={groupText}
                             highlights={highlights}
                             formats={formats}
-                            responseSpacing={inlineResponseSpacingByHighlightId}
                             groupId={group.id}
                           />
                         </span>
                         {group.hasLive && <span className="cursor">|</span>}
                       </span>
                     </div>
-                    {/* Gap nach der Gruppe, um Platz für Inline-Responses zu schaffen */}
-                    {inlineResponseSpacingByGroupId[group.id] > 0 && (
-                      <div
-                        className="inline-response-group-gap"
-                        contentEditable={false}
-                        aria-hidden="true"
-                        style={{ height: inlineResponseSpacingByGroupId[group.id] }}
-                      />
+                    {/* Inline Responses für diese Gruppe - im normalen Dokumentfluss */}
+                    {responseChainsForGroup.length > 0 && (
+                      <div className="inline-responses-for-group" contentEditable={false}>
+                        {responseChainsForGroup.flat().map((response) => (
+                          <div key={response.id} className="inline-response-block">
+                            <InlineAgentResponse
+                              responseId={response.id}
+                              taskLabel={response.taskLabel}
+                              taskDetail={response.taskDetail}
+                              prompt={response.prompt}
+                              result={response.result}
+                              loading={response.loading}
+                              error={response.error}
+                              color={response.color}
+                              highlights={highlights}
+                              onClose={handleRemoveAuraResponse}
+                            />
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 );
               })}
-
-              <div className="inline-response-layer" contentEditable={false}>
-                {positionedInlineResponses.map((response) => (
-                  <div
-                    key={response.id}
-                    className="inline-response-anchor"
-                    style={{
-                      top: response.adjustedTop,
-                      left: response.adjustedLeft,
-                      width: response.maxWidth,
-                    }}
-                  >
-                    <InlineAgentResponse
-                      responseId={response.id}
-                      taskLabel={response.taskLabel}
-                      taskDetail={response.taskDetail}
-                      prompt={response.prompt}
-                      result={response.result}
-                      loading={response.loading}
-                      error={response.error}
-                      color={response.color}
-                      highlights={highlights}
-                      onClose={handleRemoveAuraResponse}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {inlineSpacerHeight > 0 && (
-                <div
-                  className="inline-response-spacer"
-                  contentEditable={false}
-                  aria-hidden="true"
-                  style={{ height: inlineSpacerHeight }}
-                />
-              )}
 
               {menuState.visible && highlightMenuContainer && createPortal(
                 <HighlightMenu

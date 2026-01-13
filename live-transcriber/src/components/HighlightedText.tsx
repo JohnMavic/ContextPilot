@@ -6,7 +6,6 @@ interface HighlightedTextProps {
   text: string;
   highlights: Highlight[];
   formats?: TextFormatRange[];
-  responseSpacing?: Record<string, number>;
   groupId: string;  // Die ID dieser Gruppe für Highlight-Filterung
 }
 
@@ -17,7 +16,6 @@ interface TextSegment {
   isBold: boolean;
   startOffset: number;
   endOffset: number;
-  endHighlightIds: string[];
 }
 
 /**
@@ -32,14 +30,13 @@ export const HighlightedText = memo(function HighlightedText({
   text,
   highlights,
   formats = [],
-  responseSpacing = {},
   groupId,
 }: HighlightedTextProps) {
   
   // Erstelle Segmente mit Überlappungserkennung
   const segments = useMemo(() => {
     if (!text) {
-      return [{ text: "", highlightIds: [], highlightColors: [], isBold: false, startOffset: 0, endOffset: 0, endHighlightIds: [] }] as TextSegment[];
+      return [{ text: "", highlightIds: [], highlightColors: [], isBold: false, startOffset: 0, endOffset: 0 }] as TextSegment[];
     }
 
     // Filtere nur Highlights fr DIESE Gruppe
@@ -140,7 +137,7 @@ export const HighlightedText = memo(function HighlightedText({
       .filter(f => f.localStartOffset < text.length && f.localEndOffset > 0);
 
     if (groupHighlights.length === 0 && groupFormats.length === 0) {
-      return [{ text, highlightIds: [], highlightColors: [], isBold: false, startOffset: 0, endOffset: text.length, endHighlightIds: [] }] as TextSegment[];
+      return [{ text, highlightIds: [], highlightColors: [], isBold: false, startOffset: 0, endOffset: text.length }] as TextSegment[];
     }
 
     // Sammle alle Boundary-Punkte (Start und Ende jedes Highlights/Formates)
@@ -187,14 +184,6 @@ export const HighlightedText = memo(function HighlightedText({
         return fmtStart <= segStart && fmtEnd >= segEnd;
       });
 
-      const endingHighlightIds = coveringHighlights
-        .filter((hl) => {
-          const isEndGroup = !hl.span || hl.span.endGroupId === groupId;
-          const hlEnd = Math.max(0, Math.min(hl.localEndOffset, text.length));
-          return isEndGroup && hlEnd === segEnd;
-        })
-        .map((hl) => hl.id);
-
       result.push({
         text: text.slice(segStart, segEnd),
         highlightIds: coveringHighlights.map(h => h.id),
@@ -202,7 +191,6 @@ export const HighlightedText = memo(function HighlightedText({
         isBold,
         startOffset: segStart,
         endOffset: segEnd,
-        endHighlightIds: endingHighlightIds,
       });
     }
 
@@ -229,10 +217,6 @@ export const HighlightedText = memo(function HighlightedText({
         const needsZeroWidthSpace = className && isLastSegment;
         
         const content = seg.isBold ? <strong>{seg.text}</strong> : seg.text;
-        const responseSpace = seg.endHighlightIds.reduce((maxSpace, id) => {
-          const value = responseSpacing[id] || 0;
-          return value > maxSpace ? value : maxSpace;
-        }, 0);
         const markContent = (
           <mark
             className={className}
@@ -246,23 +230,11 @@ export const HighlightedText = memo(function HighlightedText({
             {content}
           </mark>
         );
-        const responseGap = responseSpace > 0 ? (
-          <span
-            className="inline-response-gap"
-            style={{ height: responseSpace }}
-            contentEditable={false}
-            aria-hidden="true"
-          />
-        ) : null;
 
         return className ? (
-          <span 
-            key={primaryId ? `${primaryId}-${idx}` : idx}
-            className={responseGap ? "highlight-segment-with-gap" : undefined}
-          >
+          <span key={primaryId ? `${primaryId}-${idx}` : idx}>
             {markContent}
             {needsZeroWidthSpace && <span className="zwsp">{"\u200B"}</span>}
-            {responseGap}
           </span>
         ) : seg.isBold ? (
           <span key={idx}><strong>{seg.text}</strong></span>
