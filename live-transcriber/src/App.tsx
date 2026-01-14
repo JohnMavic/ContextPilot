@@ -415,7 +415,9 @@ export default function App() {
       if (!ids.has(highlightId)) continue;
 
       const groupEl = markEl.closest("[data-group-id]") as HTMLElement | null;
-      const groupId = groupEl?.getAttribute("data-group-id") || "";
+      if (!groupEl) continue;
+      
+      const groupId = groupEl.getAttribute("data-group-id") || "";
       if (!groupId.startsWith("group-")) continue;
 
       const rect = groupEl.getBoundingClientRect();
