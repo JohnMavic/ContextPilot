@@ -3,7 +3,7 @@ import { proxyWsBaseUrl } from "../proxyConfig";
 import { makeTranscriptGroupId } from "../utils/transcriptGrouping";
 
 type Status = "idle" | "connecting" | "running" | "error";
-type Source = "mic" | "speaker";
+type Source = "mic" | "speaker" | "keyboard";
 
 export type TranscriptSegment = {
   itemId: string;
@@ -725,6 +725,8 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
 
   // Beide Sessions starten
   // speakerSource kann deviceId (string) ODER MediaStream (Tab Capture) sein
+  // WICHTIG: Segments werden NICHT zurückgesetzt - bestehender Text bleibt erhalten
+  // Nur "Clear" setzt die Session komplett zurück
   const start = async (
     micDeviceId?: string,
     speakerSource?: string | MediaStream
@@ -734,7 +736,7 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
     stopRequestedRef.current = false;
     setError(null);
     setErrorLog([]);
-    setSegments([]);
+    // NICHT mehr: setSegments([]) - bestehende Segmente bleiben erhalten!
     setStats({ micFrames: 0, speakerFrames: 0, lastEventType: null });
     setStatus("connecting");
 
@@ -989,6 +991,24 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
     });
   }, []);
 
+  // Manuelles Segment hinzufügen (für User-Eingabe ohne Transkription)
+  // Default ist "keyboard" für manuell getippten Text
+  const addManualSegment = useCallback((text: string, source: Source = "keyboard") => {
+    if (!text.trim()) return;
+    
+    const now = Date.now();
+    const newSegment: TranscriptSegment = {
+      itemId: `manual-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      contentIndex: 0,
+      text: text.trim(),
+      isFinal: true,
+      source,
+      timestamp: now,
+    };
+    
+    setSegments(prev => [...prev, newSegment]);
+  }, []);
+
   return {
     status,
     error,
@@ -1006,6 +1026,7 @@ export function useDualRealtime(provider: TranscriptionProvider = "openai", mode
     resetTranscript: () => setSegments([]),
     deleteTextFromTranscript,
     updateSegmentsFromEdit,
+    addManualSegment,
     clearErrors: () => setErrorLog([]),
     stats,
   };

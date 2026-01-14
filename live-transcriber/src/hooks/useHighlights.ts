@@ -85,16 +85,30 @@ export function useHighlights() {
       ? groupElements.filter((el) => (el.getAttribute("data-group-id") || "").startsWith(`${resolvedPrefix}-`))
       : groupElements;
 
-    const intersecting = scopedGroupElements.filter((el) => {
+    const intersectsRange = (el: HTMLElement) => {
       try {
-        return range.intersectsNode(el);
+        const nodeRange = document.createRange();
+        nodeRange.selectNodeContents(el);
+        if (range.compareBoundaryPoints(Range.END_TO_START, nodeRange) <= 0) return false;
+        if (range.compareBoundaryPoints(Range.START_TO_END, nodeRange) >= 0) return false;
+        return true;
       } catch {
         return false;
       }
-    });
+    };
 
-    if (!startGroup) startGroup = intersecting[0];
-    if (!endGroup) endGroup = intersecting[intersecting.length - 1];
+    const intersecting = scopedGroupElements.filter((el) => intersectsRange(el));
+
+    if (intersecting.length > 0) {
+      const first = intersecting[0];
+      const last = intersecting[intersecting.length - 1];
+      if (!startGroup) startGroup = first;
+      if (!endGroup) endGroup = last;
+      if (intersecting.length > 1) {
+        startGroup = first;
+        endGroup = last;
+      }
+    }
 
     if (!startGroup || !endGroup) return null;
 

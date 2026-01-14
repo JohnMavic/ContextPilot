@@ -879,6 +879,10 @@ button:disabled {
   filter: hue-rotate(180deg);
 }
 
+.source-keyboard .source-tag {
+  filter: hue-rotate(90deg); /* Grünlich für Keyboard-Eingabe */
+}
+
 /* Mic-Zeilen leicht anders einfärben */
 .final-line.source-mic {
   border-left: 3px solid #22d3ee;
@@ -887,6 +891,11 @@ button:disabled {
 
 .final-line.source-speaker {
   border-left: 3px solid #a78bfa;
+  padding-left: 8px;
+}
+
+.final-line.source-keyboard {
+  border-left: 3px solid #4ade80; /* Grün für Keyboard */
   padding-left: 8px;
 }
 

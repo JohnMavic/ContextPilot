@@ -11,6 +11,8 @@ export interface AuraFollowUp {
   timestamp: number;
   prompt: string;
   agentsUsed?: string[];  // MFA Routing-Metadaten
+  startTime: number;       // Zeitstempel wann Anfrage gestartet wurde
+  elapsedMs?: number;      // Vergangene Zeit in Millisekunden (gesetzt wenn fertig)
 }
 
 export interface AuraRouting {
@@ -41,6 +43,9 @@ export interface AuraResponse {
   // NEU: MFA Routing-Metadaten
   agentsUsed?: string[];
   routing?: AuraRouting;
+  // NEU: Timer für Anfrage-Dauer
+  startTime: number;       // Zeitstempel wann Anfrage gestartet wurde
+  elapsedMs?: number;      // Vergangene Zeit in Millisekunden (gesetzt wenn fertig)
 }
 
 export function useAuraAgent() {
@@ -98,7 +103,8 @@ export function useAuraAgent() {
     const abortController = new AbortController();
     abortControllersRef.current.set(responseId, abortController);
 
-    // Add new response entry (loading state)
+    // Add new response entry (loading state) with start time for timer
+    const startTime = Date.now();
     const newResponse: AuraResponse = {
       id: responseId,
       highlightId,
@@ -122,6 +128,7 @@ export function useAuraAgent() {
       sourceGroupId,
       insertAfterResponseId,
       followUps: [],
+      startTime,
     };
 
     setResponses(prev => [...prev, newResponse]);
@@ -258,10 +265,12 @@ export function useAuraAgent() {
           );
         }
 
-        // Mark as done loading
+        // Mark as done loading and calculate elapsed time
         setResponses(prev =>
           prev.map(r =>
-            r.id === responseId ? { ...r, loading: false, statusNote: undefined } : r
+            r.id === responseId 
+              ? { ...r, loading: false, statusNote: undefined, elapsedMs: Date.now() - r.startTime } 
+              : r
           )
         );
       } while (shouldRetry);
@@ -271,11 +280,11 @@ export function useAuraAgent() {
         setResponses(prev => prev.filter(r => r.id !== responseId));
         return;
       }
-      // Set error state
+      // Set error state with elapsed time
       setResponses(prev =>
         prev.map(r =>
           r.id === responseId
-            ? { ...r, loading: false, error: err instanceof Error ? err.message : String(err), statusNote: undefined }
+            ? { ...r, loading: false, error: err instanceof Error ? err.message : String(err), statusNote: undefined, elapsedMs: Date.now() - r.startTime }
             : r
         )
       );
@@ -305,6 +314,7 @@ export function useAuraAgent() {
       const basePrompt = `${background}Actual new question:\n${trimmed}`;
       const prompt = options?.webSearch ? `${basePrompt}\n\nPerform a web search.` : basePrompt;
 
+      const followUpStartTime = Date.now();
       setResponses(prev =>
         prev.map(r =>
           r.id === responseId
@@ -320,6 +330,7 @@ export function useAuraAgent() {
                     error: null,
                     timestamp: Date.now(),
                     prompt,
+                    startTime: followUpStartTime,
                   },
                 ],
               }
@@ -457,7 +468,7 @@ export function useAuraAgent() {
             ? {
                 ...r,
                 followUps: r.followUps.map(fu =>
-                  fu.id === followUpId ? { ...fu, loading: false } : fu
+                  fu.id === followUpId ? { ...fu, loading: false, elapsedMs: Date.now() - fu.startTime } : fu
                 ),
               }
             : r
@@ -482,7 +493,7 @@ export function useAuraAgent() {
                 ...r,
                 followUps: r.followUps.map(fu =>
                   fu.id === followUpId
-                    ? { ...fu, loading: false, error: err instanceof Error ? err.message : String(err) }
+                    ? { ...fu, loading: false, error: err instanceof Error ? err.message : String(err), elapsedMs: Date.now() - fu.startTime }
                     : fu
                 ),
               }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { HighlightedText } from "./HighlightedText";
 import type { AuraFollowUp, AuraRouting } from "../hooks/useAuraAgent";
 import type { Highlight, HighlightColor } from "../hooks/useHighlights";
@@ -288,6 +288,9 @@ interface AuraResponsePanelProps {
   // NEU: MFA Routing-Metadaten
   agentsUsed?: string[];
   routing?: AuraRouting;
+  // NEU: Timer für Anfrage-Dauer
+  startTime: number;
+  elapsedMs?: number;
 }
 
 export function AuraResponsePanel({
@@ -308,11 +311,37 @@ export function AuraResponsePanel({
   followUps,
   agentsUsed,
   routing: _routing, // Available for future use
+  startTime,
+  elapsedMs,
 }: AuraResponsePanelProps) {
   const borderColor = colorMap[color];
   const [followUpText, setFollowUpText] = useState("");
   const [followUpWebSearch, setFollowUpWebSearch] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  // Live timer state (updates every 100ms while loading)
+  const [liveElapsed, setLiveElapsed] = useState(0);
+  
+  // Live timer effect - runs while loading
+  useEffect(() => {
+    if (!loading) {
+      setLiveElapsed(0);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      setLiveElapsed(Date.now() - startTime);
+    }, 100);
+    
+    return () => clearInterval(interval);
+  }, [loading, startTime]);
+  
+  // Format elapsed time for display
+  const formatElapsedTime = (ms: number): string => {
+    if (ms < 1000) return `${ms}ms`;
+    const seconds = (ms / 1000).toFixed(1);
+    return `${seconds}s`;
+  };
 
   const taskText = useMemo(() => {
     return taskDetail ? `${taskLabel}: ${taskDetail}` : taskLabel;
@@ -391,6 +420,9 @@ export function AuraResponsePanel({
             <div className="aura-loading-text">
               <span className="aura-spinner" style={{ color: borderColor }}>◌</span>
               <span>{statusNote || "Analysiert..."}</span>
+              <span className="aura-timer" style={{ marginLeft: 'auto', opacity: 0.7, fontSize: '11px', fontFamily: 'monospace' }}>
+                ⏱ {formatElapsedTime(liveElapsed)}
+              </span>
             </div>
             <div className="knight-rider-track">
               <div className="knight-rider-led" style={{ background: borderColor, boxShadow: `0 0 8px ${borderColor}, 0 0 16px ${borderColor}` }} />
@@ -402,12 +434,20 @@ export function AuraResponsePanel({
           <div className="aura-error">
             <span className="error-icon">⚠</span>
             <span>{error}</span>
+            {elapsedMs && (
+              <span className="aura-elapsed" style={{ marginLeft: 'auto', opacity: 0.7, fontSize: '11px', fontFamily: 'monospace' }}>
+                ⏱ {formatElapsedTime(elapsedMs)}
+              </span>
+            )}
           </div>
         )}
         
         {!loading && !error && result && (
           <div className="aura-result">
             {renderFormattedResult(result, `aura-result-${id}`)}
+            <div className="aura-elapsed-badge" style={{ marginTop: '8px', opacity: 0.6, fontSize: '11px', fontFamily: 'monospace', textAlign: 'right' }}>
+              ⏱ {formatElapsedTime(elapsedMs || 0)}
+            </div>
           </div>
         )}
         
@@ -435,12 +475,22 @@ export function AuraResponsePanel({
                 <div className="aura-followup-a">
                   <span className="aura-followup-badge">A{idx + 1}</span>
                   {fu.error ? (
-                    <span className="aura-followup-error">{fu.error}</span>
+                    <span className="aura-followup-error">
+                      {fu.error}
+                      {fu.elapsedMs && (
+                        <span style={{ marginLeft: '8px', opacity: 0.7, fontSize: '11px', fontFamily: 'monospace' }}>
+                          ⏱ {formatElapsedTime(fu.elapsedMs)}
+                        </span>
+                      )}
+                    </span>
                   ) : fu.loading ? (
                     <div className="aura-loading">
                       <div className="aura-loading-text">
                         <span className="aura-spinner" style={{ color: borderColor }}>◌</span>
                         <span>Thinking...</span>
+                        <span style={{ marginLeft: 'auto', opacity: 0.7, fontSize: '11px', fontFamily: 'monospace' }}>
+                          ⏱ {formatElapsedTime(Date.now() - fu.startTime)}
+                        </span>
                       </div>
                       <div className="knight-rider-track">
                         <div className="knight-rider-led" style={{ background: borderColor, boxShadow: `0 0 8px ${borderColor}, 0 0 16px ${borderColor}` }} />
@@ -453,6 +503,11 @@ export function AuraResponsePanel({
                       {renderFormattedResult(
                         fu.answer || "",
                         `aura-fu-a-${id}-${fu.id}`,
+                      )}
+                      {fu.elapsedMs && (
+                        <div style={{ marginTop: '4px', opacity: 0.6, fontSize: '11px', fontFamily: 'monospace', textAlign: 'right' }}>
+                          ⏱ {formatElapsedTime(fu.elapsedMs)}
+                        </div>
                       )}
                     </div>
                   )}
